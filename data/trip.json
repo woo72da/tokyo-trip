@@ -1,0 +1,311 @@
+{
+  "trip": {
+    "id": "tokyo-2026-11",
+    "title": "도쿄 4박 5일",
+    "start": "2026-11-02",
+    "end": "2026-11-06",
+    "travelers": 2,
+    "timezone": "Asia/Tokyo"
+  },
+  "flights": [
+    {
+      "label": "가는 편",
+      "airline": "제주항공",
+      "no": "7C1125",
+      "from": "ICN", "fromName": "인천", "fromTerminal": "1",
+      "to": "NRT", "toName": "나리타", "toTerminal": "3",
+      "date": "2026-11-02", "depart": "08:25", "arrive": "10:50",
+      "duration": "2시간 25분", "cabin": "일반석 (E)", "baggage": "1인 1PC"
+    },
+    {
+      "label": "오는 편",
+      "airline": "제주항공",
+      "no": "7C1110",
+      "from": "NRT", "fromName": "나리타", "fromTerminal": "3",
+      "to": "ICN", "toName": "인천", "toTerminal": "1",
+      "date": "2026-11-06", "depart": "19:50", "arrive": "22:50",
+      "duration": "3시간", "cabin": "일반석 (J)", "baggage": "1인 1PC"
+    }
+  ],
+  "stay": {
+    "name": "호텔 사도닉스 우에노",
+    "nameJa": "ホテル サードニクス上野",
+    "query": "Hotel Sardonyx Ueno",
+    "checkIn": "15:00",
+    "checkOut": "10:00",
+    "nights": 4,
+    "breakfast": "06:45~09:45 · 토스트·핫도그·팬케이크 중 선택, 테이크아웃 가능",
+    "stations": [
+      "JR 오카치마치 도보 3분 (야마노테·게이힌토호쿠)",
+      "히비야선 나카오카치마치 (쓰키지·긴자·나카메구로 직통)",
+      "긴자선 우에노히로코지 (아사쿠사·긴자)",
+      "JR 우에노 도보 7분",
+      "게이세이 우에노 도보 약 10분 (스카이라이너)"
+    ]
+  },
+  "days": [
+    {
+      "date": "2026-11-02",
+      "title": "도착 · 우에노 · 아키하바라",
+      "sunset": "16:45",
+      "items": [
+        { "id": "d1-arrive", "start": "10:50", "title": "나리타 T3 도착", "icon": "✈️", "priority": "must",
+          "place": { "nameJa": "成田空港 第3ターミナル", "query": "成田空港 第3ターミナル" },
+          "note": "Visit Japan Web QR 준비" },
+        { "id": "d1-to-station", "start": "11:00", "end": "12:00", "title": "입국 · 수하물 → T2·3역 이동", "icon": "🚶",
+          "place": { "nameJa": "空港第2ビル駅", "query": "空港第2ビル駅" },
+          "note": "T3에서 역까지 도보 약 15분 또는 무료 셔틀" },
+        { "id": "d1-skyliner", "start": "12:00", "end": "12:45", "title": "스카이라이너 → 게이세이 우에노", "icon": "🚄", "priority": "must",
+          "place": { "nameJa": "京成上野駅", "query": "京成上野駅" },
+          "note": "약 41분 · 성인 2,580엔 · 역 매표기에서 좌석 지정해 구매" },
+        { "id": "d1-bags", "start": "13:00", "end": "13:15", "title": "호텔에 짐 맡기기", "icon": "🧳",
+          "place": { "nameJa": "ホテル サードニクス上野", "query": "Hotel Sardonyx Ueno" },
+          "note": "체크인은 15:00" },
+        { "id": "d1-lunch", "start": "13:15", "end": "14:15", "title": "점심 · 미나토야 해산물덮밥", "icon": "🍽", "meal": true,
+          "place": { "nameJa": "みなとや 上野", "query": "みなとや アメ横 上野" },
+          "note": "저렴한 카이센동 · 현금 준비" },
+        { "id": "d1-ameyoko", "start": "14:15", "end": "15:30", "title": "아메요코 상점가 산책", "icon": "🛍", "priority": "must",
+          "place": { "nameJa": "アメ横商店街", "query": "アメ横商店街" },
+          "note": "생과일 꼬치, 다코야키" },
+        { "id": "d1-checkin", "start": "15:30", "end": "16:30", "title": "호텔 체크인 · 휴식", "icon": "🏨",
+          "place": { "nameJa": "ホテル サードニクス上野", "query": "Hotel Sardonyx Ueno" } },
+        { "id": "d1-akiba", "start": "16:30", "end": "18:30", "title": "아키하바라", "icon": "🎮", "priority": "must",
+          "place": { "nameJa": "ヨドバシAkiba", "query": "ヨドバシAkiba" },
+          "note": "JR 오카치마치 → 아키하바라 1정거장 · 요도바시 아키바, 라디오회관, 가챠",
+          "rainPlan": "요도바시 아키바 안에서 해결 (9층 식당가까지 실내)" },
+        { "id": "d1-dinner", "start": "18:30", "end": "20:00", "title": "저녁 · 규카츠 모토무라 / 간다 마쓰야", "icon": "🍽", "meal": true,
+          "place": { "nameJa": "牛かつもと村 秋葉原店", "query": "牛かつもと村 秋葉原店" },
+          "note": "모토무라는 웨이팅 있음 · 대안: 神田まつや(소바)" },
+        { "id": "d1-back", "start": "20:00", "title": "호텔 복귀 · 첫날은 일찍 휴식", "icon": "🏨",
+          "place": { "nameJa": "ホテル サードニクス上野", "query": "Hotel Sardonyx Ueno" } }
+      ]
+    },
+    {
+      "date": "2026-11-03",
+      "title": "🎌 문화의 날 · 우에노공원 · 아사쿠사 · 스카이트리",
+      "sunset": "16:44",
+      "items": [
+        { "id": "d2-breakfast", "start": "07:30", "end": "08:30", "title": "호텔 조식", "icon": "🍳", "meal": true },
+        { "id": "d2-park", "start": "09:00", "end": "09:30", "title": "우에노공원 산책 → 박물관 앞", "icon": "🌳",
+          "place": { "nameJa": "上野恩賜公園", "query": "上野恩賜公園" } },
+        { "id": "d2-museum", "start": "09:30", "end": "11:00", "title": "도쿄국립박물관 상설전", "icon": "🏛", "priority": "must",
+          "place": { "nameJa": "東京国立博物館", "query": "東京国立博物館" },
+          "hours": "09:30~17:00", "closedDays": [1], "verify": true,
+          "note": "11/3 상설전 무료 (예년 기준, 2026 공지 확인) · 특별전은 유료",
+          "rainPlan": "박물관에 더 오래 머물기" },
+        { "id": "d2-to-asakusa", "start": "11:00", "end": "11:20", "title": "긴자선 우에노 → 아사쿠사", "icon": "🚇",
+          "place": { "nameJa": "浅草駅", "query": "浅草駅 銀座線" }, "note": "약 5분" },
+        { "id": "d2-lunch", "start": "11:20", "end": "12:20", "title": "점심 · 다이코쿠야 덴푸라 텐동", "icon": "🍽", "meal": true,
+          "place": { "nameJa": "大黒家天麩羅", "query": "大黒家天麩羅 本館 浅草" },
+          "note": "공휴일이라 11시대 입장 목표 · 줄 길면 아사쿠사 규카츠" },
+        { "id": "d2-sensoji", "start": "12:20", "end": "14:30", "title": "센소지 · 나카미세", "icon": "⛩", "priority": "must",
+          "place": { "nameJa": "浅草寺", "query": "浅草寺" },
+          "note": "간식: 아사쿠사 카게츠도 메론빵",
+          "rainPlan": "짧게 보고 소라마치로 이동" },
+        { "id": "d2-cafe", "start": "14:30", "end": "15:00", "title": "휴식 · 아사쿠사 문화관광센터 8층 전망", "icon": "☕",
+          "place": { "nameJa": "浅草文化観光センター", "query": "浅草文化観光センター" },
+          "note": "무료 전망대 · 카미나리몬 맞은편" },
+        { "id": "d2-to-skytree", "start": "15:00", "end": "15:30", "title": "스미다강 건너 스카이트리로", "icon": "🚶",
+          "place": { "nameJa": "東京スカイツリー", "query": "東京スカイツリー" }, "note": "도보 약 20분 또는 도부선" },
+        { "id": "d2-solamachi", "start": "15:30", "end": "19:00", "title": "도쿄 소라마치 · 스카이트리 외관", "icon": "🗼",
+          "place": { "nameJa": "東京ソラマチ", "query": "東京ソラマチ" },
+          "note": "전망대는 시부야 스카이 예약에 실패했을 때만 (16:00 입장)",
+          "rainPlan": "소라마치 실내 쇼핑 위주" },
+        { "id": "d2-dinner", "start": "18:00", "end": "19:30", "title": "저녁 · 소라마치 식당가", "icon": "🍽", "meal": true,
+          "place": { "nameJa": "東京ソラマチ", "query": "東京ソラマチ" },
+          "note": "6·7층 식당가 또는 30·31층 전망 레스토랑" },
+        { "id": "d2-back", "start": "19:30", "title": "호텔 복귀", "icon": "🏨",
+          "place": { "nameJa": "ホテル サードニクス上野", "query": "Hotel Sardonyx Ueno" } }
+      ]
+    },
+    {
+      "date": "2026-11-04",
+      "title": "쓰키지 · 긴자 · 팀랩 플래닛",
+      "sunset": "16:43",
+      "items": [
+        { "id": "d3-to-tsukiji", "start": "08:00", "end": "08:20", "title": "히비야선 나카오카치마치 → 쓰키지", "icon": "🚇",
+          "place": { "nameJa": "築地駅", "query": "築地駅" }, "note": "환승 없이 약 15분 · 아침은 쓰키지에서" },
+        { "id": "d3-tsukiji", "start": "08:30", "end": "10:30", "title": "쓰키지 장외시장 먹거리", "icon": "🍣", "priority": "must", "meal": true,
+          "place": { "nameJa": "築地場外市場", "query": "築地場外市場" },
+          "verify": true,
+          "note": "수요일 휴무 점포 많음, 전날 확인 · 스시잔마이 본점(24시간), 계란말이 야마초, 굴·성게 꼬치 · 현금" },
+        { "id": "d3-ginza", "start": "10:30", "end": "13:00", "title": "긴자 쇼핑 · 긴자 식스 · 이토야", "icon": "🛍", "priority": "must",
+          "place": { "nameJa": "GINZA SIX", "query": "GINZA SIX" },
+          "note": "매장 대부분 10~11시 오픈 · Fire Kids 긴자점은 수요일 휴무라 11/6에 방문",
+          "rainPlan": "긴자 실내 쇼핑 비중 늘리기" },
+        { "id": "d3-lunch", "start": "11:30", "end": "12:30", "title": "점심 · 긴자 카가리 토리파이탄 라멘", "icon": "🍜", "meal": true,
+          "place": { "nameJa": "銀座 篝 本店", "query": "銀座 篝 本店" }, "note": "웨이팅 대비" },
+        { "id": "d3-cafe", "start": "12:30", "end": "13:00", "title": "카페 드 랑브르 · 클래식 핸드드립", "icon": "☕",
+          "place": { "nameJa": "カフェ・ド・ランブル", "query": "カフェ・ド・ランブル 銀座" }, "note": "현금 · 실내 좁음" },
+        { "id": "d3-hula-shop", "start": "12:30", "end": "13:00", "title": "유니버설 디자인 훌라 (선택)", "icon": "🌺", "priority": "optional",
+          "place": { "nameJa": "ユニバーサルデザインフラ", "query": "ユニバーサルデザインフラ 銀座7-13-6" },
+          "verify": true, "note": "긴자 7-13-6 사가미빌딩 2F · 매장인지 교실인지 확인 필요" },
+        { "id": "d3-to-toyosu", "start": "13:00", "end": "13:30", "title": "유리카모메 → 신토요스", "icon": "🚝",
+          "place": { "nameJa": "新豊洲駅", "query": "新豊洲駅" }, "note": "신바시에서 유리카모메 또는 택시" },
+        { "id": "d3-teamlab", "start": "13:30", "end": "15:30", "title": "팀랩 플래닛", "icon": "🎨", "priority": "must",
+          "booking": { "required": true },
+          "place": { "nameJa": "チームラボプラネッツ TOKYO DMM", "query": "teamLab Planets TOKYO DMM" },
+          "hours": "08:30~22:00", "verify": true,
+          "note": "3,800엔~ · 물에 들어가는 구간 있음, 반바지 대여 가능 · 휴관일은 예약 화면 달력에서 확인" },
+        { "id": "d3-odaiba", "start": "15:30", "end": "20:00", "title": "A안 · 오다이바 해변·레인보우브리지 야경", "icon": "🌉", "priority": "optional",
+          "place": { "nameJa": "お台場海浜公園", "query": "お台場海浜公園" },
+          "note": "체력 여유 있을 때만 · 저녁은 다이버시티",
+          "rainPlan": "B안으로 확정" },
+        { "id": "d3-izakaya", "start": "17:00", "end": "20:00", "title": "B안(추천) · 호텔 휴식 → 아메요코 이자카야", "icon": "🏮",
+          "place": { "nameJa": "アメ横 ガード下", "query": "アメ横 居酒屋 ガード下" },
+          "note": "다음 날도 일정이 많음" }
+      ]
+    },
+    {
+      "date": "2026-11-05",
+      "title": "하라주쿠 · 오모테산도 · 시부야 · 나카메구로",
+      "sunset": "16:42",
+      "items": [
+        { "id": "d4-breakfast", "start": "07:30", "end": "08:15", "title": "호텔 조식", "icon": "🍳", "meal": true },
+        { "id": "d4-to-harajuku", "start": "08:15", "end": "08:45", "title": "JR 야마노테선 → 하라주쿠", "icon": "🚃",
+          "place": { "nameJa": "原宿駅", "query": "原宿駅" }, "note": "환승 없이 약 30분" },
+        { "id": "d4-meiji", "start": "08:45", "end": "09:45", "title": "메이지신궁 (짧게)", "icon": "⛩", "priority": "must",
+          "place": { "nameJa": "明治神宮", "query": "明治神宮" },
+          "rainPlan": "줄이고 오모테산도 힐즈 실내로" },
+        { "id": "d4-ivc", "start": "10:00", "end": "10:50", "title": "Island Vintage Coffee 오모테산도", "icon": "🌺",
+          "place": { "nameJa": "アイランド・ヴィンテージ・コーヒー 表参道", "query": "Island Vintage Coffee 表参道" },
+          "hours": "10:00~20:00", "verify": true,
+          "note": "하와이 브랜드 · 코나 커피, 아사이볼, 하와이안 음악" },
+        { "id": "d4-ralph", "start": "11:00", "end": "12:00", "title": "랄프로렌 오모테산도 플래그십", "icon": "👔", "priority": "must",
+          "place": { "nameJa": "ラルフ ローレン 表参道", "query": "Ralph Lauren Omotesando" },
+          "hours": "11:00~20:00", "verify": true,
+          "note": "진구마에 4-25-15 · Ralph's Coffee 함께 있음 · 영업시간 출처마다 다름" },
+        { "id": "d4-lunch", "start": "12:00", "end": "13:00", "title": "점심 · 마이센 아오야마 본점 돈카츠", "icon": "🍽", "meal": true,
+          "place": { "nameJa": "とんかつ まい泉 青山本店", "query": "とんかつ まい泉 青山本店" },
+          "note": "줄 길면 아후리 하라주쿠(유자 라멘)" },
+        { "id": "d4-catstreet", "start": "13:00", "end": "14:00", "title": "캣스트리트 → BEAMS 하라주쿠 (선택)", "icon": "🚶", "priority": "optional",
+          "place": { "nameJa": "ビームス 原宿", "query": "BEAMS 原宿" },
+          "note": "2026.3 창업 50주년 리뉴얼한 1호점 · 시부야 방향으로 걸어가는 길" },
+        { "id": "d4-beams", "start": "14:00", "end": "15:10", "title": "BEAMS JAPAN 시부야 · 스크램블 교차로", "icon": "👔", "priority": "must",
+          "place": { "nameJa": "ビームス ジャパン 渋谷", "query": "BEAMS JAPAN 渋谷 東急プラザ渋谷" },
+          "verify": true, "note": "도큐플라자 시부야(서쪽 출구 앞) · 2019년 오픈 정보 기준" },
+        { "id": "d4-sky", "start": "15:20", "end": "17:00", "title": "시부야 스카이 · 일몰 16:42", "icon": "🌇", "priority": "must",
+          "booking": { "required": true },
+          "place": { "nameJa": "SHIBUYA SKY", "query": "SHIBUYA SKY" },
+          "note": "3,400엔 · 루프탑은 강풍·우천 시 폐쇄 가능",
+          "rainPlan": "실내 층만 운영될 수 있음" },
+        { "id": "d4-hoseki", "start": "17:15", "end": "18:45", "title": "호세키히로바 시부야 본점", "icon": "⌚", "priority": "must",
+          "place": { "nameJa": "宝石広場 渋谷本店", "query": "宝石広場 渋谷本店" },
+          "hours": "11:00~19:30",
+          "note": "우다가와초 28-3 A2빌딩 3~4F · 역에서 도보 5분 · 면세용 여권 지참" },
+        { "id": "d4-to-nakameguro", "start": "18:45", "end": "19:15", "title": "도큐 도요코선 → 나카메구로", "icon": "🚃",
+          "place": { "nameJa": "中目黒駅", "query": "中目黒駅" }, "note": "약 3분" },
+        { "id": "d4-roastery", "start": "19:15", "end": "20:30", "title": "스타벅스 리저브 로스터리 도쿄", "icon": "☕", "priority": "must",
+          "place": { "nameJa": "スターバックス リザーブ ロースタリー 東京", "query": "Starbucks Reserve Roastery Tokyo" },
+          "note": "밤 시간 조명이 예쁨" },
+        { "id": "d4-dinner", "start": "20:30", "end": "21:30", "title": "저녁 · 나카메구로 이자카야", "icon": "🍽", "meal": true,
+          "place": { "nameJa": "中目黒", "query": "中目黒 居酒屋" } },
+        { "id": "d4-back", "start": "21:30", "title": "히비야선 → 나카오카치마치 (환승 없음)", "icon": "🚇",
+          "place": { "nameJa": "仲御徒町駅", "query": "仲御徒町駅" }, "note": "약 35분" }
+      ]
+    },
+    {
+      "date": "2026-11-06",
+      "title": "도쿄역 · 긴자 · 귀국",
+      "sunset": "16:41",
+      "items": [
+        { "id": "d5-breakfast", "start": "07:30", "end": "09:00", "title": "조식 · 짐 정리", "icon": "🍳", "meal": true,
+          "note": "면세품 봉투 개봉 금지" },
+        { "id": "d5-checkout", "start": "09:45", "end": "10:00", "title": "체크아웃 · 캐리어 호텔 보관", "icon": "🧳", "priority": "must",
+          "place": { "nameJa": "ホテル サードニクス上野", "query": "Hotel Sardonyx Ueno" } },
+        { "id": "d5-tokyo-st", "start": "10:15", "end": "11:15", "title": "도쿄역 마루노우치 역사 · 캐릭터 스트리트", "icon": "🚉", "priority": "must",
+          "place": { "nameJa": "東京駅 丸の内駅舎", "query": "東京駅 丸の内駅舎" },
+          "note": "그란스타 기념품" },
+        { "id": "d5-firekids", "start": "11:30", "end": "12:30", "title": "Fire Kids 긴자나인점", "icon": "⌚", "priority": "must",
+          "place": { "nameJa": "ファイアーキッズ 銀座ナイン店", "query": "ファイアーキッズ 銀座ナイン" },
+          "hours": "11:30~19:30", "closedDays": [3],
+          "note": "빈티지 시계 · 긴자 8-7 긴자나인 2호관 · 신바시역 도보 2분 · JR 도쿄역 → 신바시 1정거장" },
+        { "id": "d5-lunch", "start": "12:30", "end": "13:15", "title": "점심 · 신바시·긴자 8초메", "icon": "🍽", "meal": true,
+          "place": { "nameJa": "新橋駅", "query": "新橋駅" } },
+        { "id": "d5-ameyoko", "start": "13:30", "end": "14:45", "title": "아메요코 · 오카치마치 마무리 쇼핑", "icon": "🛍", "priority": "optional",
+          "place": { "nameJa": "アメ横商店街", "query": "アメ横商店街" },
+          "note": "JR 신바시 → 오카치마치 약 10분 · 드럭스토어" },
+        { "id": "d5-bags", "start": "14:45", "end": "15:00", "title": "호텔에서 짐 찾기", "icon": "🧳", "priority": "must",
+          "place": { "nameJa": "ホテル サードニクス上野", "query": "Hotel Sardonyx Ueno" } },
+        { "id": "d5-skyliner", "start": "15:20", "end": "16:05", "title": "스카이라이너 → 나리타 T2·3역", "icon": "🚄", "priority": "must",
+          "place": { "nameJa": "京成上野駅", "query": "京成上野駅" },
+          "note": "승차권은 당일 아침 미리 구매 · 이후 T3까지 도보 약 15분" },
+        { "id": "d5-checkin", "start": "16:30", "end": "17:30", "title": "제주항공 체크인 · 수하물 위탁", "icon": "🛄", "priority": "must",
+          "place": { "nameJa": "成田空港 第3ターミナル", "query": "成田空港 第3ターミナル" },
+          "note": "출발 약 3시간 전 · 수하물 무게 한도 확인" },
+        { "id": "d5-depart", "start": "19:50", "title": "7C1110 출발 → 인천 22:50", "icon": "✈️", "priority": "must" }
+      ]
+    }
+  ],
+  "checklist": [
+    { "id": "c-sky", "group": "예약", "text": "시부야 스카이 11/5 15:20~15:40 입장 (2인)", "linkItem": "d4-sky" },
+    { "id": "c-teamlab", "group": "예약", "text": "팀랩 플래닛 11/4 13:30~14:00 입장 (2인)", "linkItem": "d3-teamlab" },
+    { "id": "c-vjw", "group": "출발 전", "text": "Visit Japan Web 등록 · QR 캡처 (2인 각각)" },
+    { "id": "c-suica", "group": "출발 전", "text": "아이폰 지갑에 Suica 추가 (Mastercard/AMEX 충전 권장)" },
+    { "id": "c-esim", "group": "출발 전", "text": "eSIM / 로밍 (2인)" },
+    { "id": "c-cash", "group": "출발 전", "text": "엔화 현금 소액 (쓰키지·아메요코)" },
+    { "id": "c-passport", "group": "출발 전", "text": "여권 (면세 쇼핑에 실물 필요)" },
+    { "id": "c-online-checkin", "group": "출발 전", "text": "제주항공 앱 온라인 체크인 (출발 24시간 전부터)" },
+    { "id": "c-baggage", "group": "출발 전", "text": "위탁수하물 무게 한도(kg) 확인" },
+    { "id": "c-shoes", "group": "출발 전", "text": "걷기 편한 신발 · 팀랩용 걷어 올리기 쉬운 바지" },
+    { "id": "c-verify-museum", "group": "현지 확인", "text": "도쿄국립박물관 11/3 무료 여부" },
+    { "id": "c-verify-tsukiji", "group": "현지 확인", "text": "쓰키지 가려는 가게 11/4(수) 영업 여부" },
+    { "id": "c-verify-beams", "group": "현지 확인", "text": "BEAMS JAPAN 시부야 위치·영업시간" },
+    { "id": "c-verify-ralph", "group": "현지 확인", "text": "랄프로렌 오모테산도 영업시간" }
+  ],
+  "guides": [
+    {
+      "title": "교통",
+      "icon": "🚇",
+      "lines": [
+        "Suica 하나로 충분 (JR 구간이 많아 지하철 패스는 큰 이득 없음)",
+        "JR 오카치마치: 아키하바라·하라주쿠·도쿄역·신바시",
+        "히비야선 나카오카치마치: 쓰키지·긴자·나카메구로 직통",
+        "긴자선 우에노히로코지: 아사쿠사·긴자",
+        "스카이라이너 2,580엔 · 게이세이 우에노 ↔ 나리타 T2·3 약 41분",
+        "택시는 GO 앱 (한국 카드 등록 가능)"
+      ]
+    },
+    {
+      "title": "쇼핑 · 면세",
+      "icon": "⌚",
+      "lines": [
+        "같은 날 같은 매장 5,000엔 이상이면 면세 · 여권 실물 필요",
+        "면세품은 출국할 때까지 개봉 금지",
+        "한국 입국 면세 한도 1인 USD 800 · 넘으면 자진신고(감면)",
+        "빈티지 시계: 오버홀 이력·보증 기간·박스와 보증서 사진 남기기"
+      ]
+    },
+    {
+      "title": "훌라",
+      "icon": "🌺",
+      "lines": [
+        "여행 기간(11/2~6) 도쿄 훌라 축제는 없음",
+        "11/7~8 하와이안 페스 in 사쿠라타운 (사이타마) · 귀국 다음 날",
+        "11/15 Hawaiian Hula Festival (도쿄 고다이라)",
+        "매년 6월 도쿄 훌라페스타 in 이케부쿠로 (일본 최대급)",
+        "일정 속 하와이 요소: 11/5 Island Vintage Coffee"
+      ]
+    },
+    {
+      "title": "예상 비용 (2인, 쇼핑 제외)",
+      "icon": "💴",
+      "lines": [
+        "스카이라이너 왕복 10,320엔",
+        "시부야 스카이 6,800엔 · 팀랩 7,600엔~",
+        "지하철·JR 약 6,400~9,600엔",
+        "식사·카페 약 60,000~80,000엔",
+        "합계 약 91,000~114,000엔"
+      ]
+    },
+    {
+      "title": "날씨 (평년)",
+      "icon": "🌤",
+      "lines": [
+        "최고 18~19°C · 최저 9~11°C",
+        "얇은 니트 + 바람막이",
+        "일몰 약 16:41~16:45"
+      ]
+    }
+  ]
+}

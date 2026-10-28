@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16161a" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="도쿄여행">
+  <title>도쿄 여행</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="top-title" id="top-title">도쿄 여행</div>
+    <div class="top-sub" id="top-sub"></div>
+  </header>
+
+  <main id="view" class="view" aria-live="polite"></main>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" data-tab="today" role="tab"><span class="tab-ico">☀️</span><span>오늘</span></button>
+    <button class="tab" data-tab="days" role="tab"><span class="tab-ico">🗓</span><span>일정</span></button>
+    <button class="tab" data-tab="info" role="tab"><span class="tab-ico">🎫</span><span>정보</span></button>
+    <button class="tab" data-tab="check" role="tab"><span class="tab-ico">✅</span><span>체크</span></button>
+  </nav>
+
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet-panel" role="dialog" aria-modal="true">
+      <div class="sheet-grip"></div>
+      <div id="sheet-body"></div>
+    </div>
+  </div>
+
+  <div id="bigja" class="bigja" hidden>
+    <button class="bigja-close" data-close-ja aria-label="닫기">✕</button>
+    <div id="bigja-body"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
