@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#16161a" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f2efe9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0a0c11" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -17,6 +17,7 @@
 </head>
 <body>
   <header class="top">
+    <div class="top-eyebrow" id="top-eyebrow">TOKYO · 2026</div>
     <div class="top-title" id="top-title">도쿄 여행</div>
     <div class="top-sub" id="top-sub"></div>
   </header>
@@ -24,10 +25,21 @@
   <main id="view" class="view" aria-live="polite"></main>
 
   <nav class="tabs" role="tablist">
-    <button class="tab" data-tab="today" role="tab"><span class="tab-ico">☀️</span><span>오늘</span></button>
-    <button class="tab" data-tab="days" role="tab"><span class="tab-ico">🗓</span><span>일정</span></button>
-    <button class="tab" data-tab="info" role="tab"><span class="tab-ico">🎫</span><span>정보</span></button>
-    <button class="tab" data-tab="check" role="tab"><span class="tab-ico">✅</span><span>체크</span></button>
+    <button class="tab" data-tab="today" role="tab" aria-label="오늘">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>
+      <span>오늘</span></button>
+    <button class="tab" data-tab="days" role="tab" aria-label="일정">
+      <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      <span>일정</span></button>
+    <button class="tab" data-tab="wallet" role="tab" aria-label="예약">
+      <svg viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2v2.2a2.3 2.3 0 0 0 0 4.6v2.2a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-2.2a2.3 2.3 0 0 0 0-4.6z"/><path d="M14.5 5.5v13" stroke-dasharray="2 2.2"/></svg>
+      <span>예약</span></button>
+    <button class="tab" data-tab="talk" role="tab" aria-label="번역">
+      <svg viewBox="0 0 24 24"><path d="M4 5h9M8.5 3v2M6 5c.6 3.5 3 6 6 7.5M11 5c-.7 3.4-3 6.3-6.5 8"/><path d="M12.5 21l4-9.5 4 9.5M14 17.5h5"/></svg>
+      <span>번역</span></button>
+    <button class="tab" data-tab="check" role="tab" aria-label="체크">
+      <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M8 12.3l2.7 2.7L16.2 9.3"/></svg>
+      <span>체크</span></button>
   </nav>
 
   <div id="sheet" class="sheet" hidden>
@@ -39,9 +51,18 @@
   </div>
 
   <div id="bigja" class="bigja" hidden>
-    <button class="bigja-close" data-close-ja aria-label="닫기">✕</button>
+    <button class="overlay-close" data-close-ja aria-label="닫기">✕</button>
     <div id="bigja-body"></div>
   </div>
+
+  <div id="viewer" class="viewer" hidden>
+    <button class="overlay-close" data-close-viewer aria-label="닫기">✕</button>
+    <img id="viewer-img" alt="">
+    <div class="viewer-cap" id="viewer-cap"></div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <input type="file" id="doc-file" accept="image/*" hidden>
 
   <script src="app.js"></script>
 </body>

@@ -24,7 +24,7 @@ python3 -m http.server 8765 --directory travel-app
 - **GitHub Pages**: 저장소를 만들고 `travel-app` 폴더 안의 파일을 업로드한 뒤, Settings → Pages에서 브랜치를 지정합니다.
 - **Netlify Drop**: app.netlify.com/drop 에 `travel-app` 폴더를 끌어다 놓습니다.
 
-배포한 URL은 공개 주소입니다. 그래서 예약번호는 `trip.json`에 넣지 않고, 앱의 정보 탭에서 각 기기에만 저장합니다.
+배포한 URL은 공개 주소입니다. 그래서 예약번호(항공 PNR, 아고다 번호·PIN)와 바우처·QR 사진은 `trip.json`에 넣지 않고, 앱의 예약 탭에서 각 기기에만 저장합니다 (번호는 localStorage, 사진은 IndexedDB).
 
 ## 아이폰 설치
 
