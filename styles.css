@@ -353,3 +353,8 @@ a { color: inherit; }
 ul.plain { margin: 8px 0 0; padding-left: 18px; font-size: 14px; }
 ul.plain li + li { margin-top: 4px; }
 .empty { text-align: center; color: var(--muted); padding: 40px 0; }
+
+/* bus transfer pass */
+.pass-tag.ok { background: var(--now); color: #fff; }
+.pass-route.bus b { font: 800 20px/1.2 -apple-system, "Apple SD Gothic Neo", sans-serif; letter-spacing: -.02em; }
+.pass-note { margin-top: 12px; }

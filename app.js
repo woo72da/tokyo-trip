@@ -16,7 +16,8 @@ const store = {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
   },
 };
-const isChecked = (id) => store.get('ck:' + id, false);
+// Items marked `done` in trip.json (already booked) start checked.
+const isChecked = (id) => store.get('ck:' + id, !!state.trip?.checklist.find((c) => c.id === id)?.done);
 const setChecked = (id, on) => store.set('ck:' + id, on);
 const isDone = (id) => store.get('done:' + id, false);
 const setDone = (id, on) => store.set('done:' + id, on);
@@ -174,6 +175,9 @@ function navigate(key) {
   const q = placeQuery(key);
   if (!q) return;
   const e = encodeURIComponent(q);
+  if (findItem(key)?.place?.lang === 'ko') {
+    return openApp(`nmap://search?query=${e}&appname=io.github.woo72da.tokyotrip`, `https://map.naver.com/p/search/${e}`, '네이버지도');
+  }
   openApp(
     `comgooglemaps://?daddr=${e}&directionsmode=transit`,
     `https://www.google.com/maps/dir/?api=1&destination=${e}&travelmode=transit`,
@@ -250,6 +254,7 @@ function renderToday() {
         <div class="big">D-${left}</div>
         <div class="route"><b>${esc(f.from)}</b><i></i><b>${esc(f.to)}</b></div>
         <div class="hero-meta">${esc(f.airline)} ${esc(f.no)} · ${esc(dayLabel(f.date))} ${esc(f.depart)} · 인천 T${esc(f.fromTerminal)}</div>
+        ${state.trip.transfers.map((t) => `<div class="hero-meta">${esc(t.icon)} ${esc(t.label)} ${esc(t.from)} ${esc(t.depart)} → ${esc(t.to)}</div>`).join('')}
         <div class="meter"><i style="width:${Math.round(((list.length - todo.length) / list.length) * 100)}%"></i></div>
         <div class="hero-meta">준비 ${list.length - todo.length} / ${list.length}</div>
       </div>
@@ -305,12 +310,13 @@ function heroCard(it, kind, now) {
       <div class="eyebrow"><i class="pulse"></i>${esc(label)}</div>
       <div class="hero-time">${esc(it.start)}${it.end ? ' — ' + esc(it.end) : ''}</div>
       <div class="hero-title">${esc(it.icon || '')} ${esc(it.title)}</div>
-      ${it.place ? `<div class="hero-ja ja">${esc(it.place.nameJa)}</div>` : ''}
+      ${it.place && it.place.lang !== 'ko' ? `<div class="hero-ja ja">${esc(it.place.nameJa)}</div>` : ''}
       ${it.note ? `<div class="hero-note">${esc(it.note)}</div>` : ''}
       ${chipsHtml(chipsFor(it, now))}
       ${kind === 'now' ? `<div class="meter"><i style="width:${progress}%"></i></div>` : ''}
       <div class="btns">
-        ${it.place ? `${navBtn(it.id, '구글맵 길찾기')}<button class="btn ghost" data-ja="${esc(it.id)}">${icon('ja')}일본어</button>` : ''}
+        ${it.place?.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', 'primary wide') : ''}
+        ${it.place && it.place.lang !== 'ko' ? `${navBtn(it.id, '구글맵 길찾기')}<button class="btn ghost" data-ja="${esc(it.id)}">${icon('ja')}일본어</button>` : ''}
         <button class="btn ghost wide" data-item="${esc(it.id)}">자세히</button>
       </div>
     </div>`;
@@ -384,6 +390,32 @@ function boardingPass(f) {
     </div>`;
 }
 
+function transferPass(t) {
+  return `
+    <div class="pass">
+      <div class="pass-top">
+        <span class="pass-air">${esc(t.icon)} ${esc(t.label)}</span>
+        <span class="pass-tag ok">${esc(t.status)}</span>
+      </div>
+      <div class="pass-route bus">
+        <div><b>${esc(t.from)}</b><span>${esc(t.depart)} 출발</span></div>
+        <div class="pass-mid"><i></i></div>
+        <div class="r"><b>${esc(t.to)}</b><span>${esc(t.arriveEst)} 도착 예상</span></div>
+      </div>
+      <div class="pass-cut"></div>
+      <div class="pass-grid">
+        <div><small>DATE</small><b>${esc(dayLabel(t.date))}</b></div>
+        <div><small>PAX</small><b>${esc(t.pax)}</b></div>
+        <div><small>FARE</small><b>${esc(t.fare)}</b></div>
+      </div>
+      <div class="small muted pass-note">${esc(t.note)}</div>
+      <div class="btns">
+        ${navBtn('d1-limo', '정류장 지도')}
+        <button class="btn" data-doc-view="doc-limo">🚌 예매내역</button>
+      </div>
+    </div>`;
+}
+
 function renderWallet() {
   const { flights, stay, guides, trip, links, docs: slots } = state.trip;
   const agoda = store.get('agoda', '');
@@ -396,6 +428,9 @@ function renderWallet() {
       <a class="btn" href="${esc(links.jejuair.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(links.jejuair.label)}</a>
       <button class="btn" data-doc-view="doc-eticket">✈️ e-티켓 사진</button>
     </div>
+
+    <div class="section-title"><span>공항 가는 길</span></div>
+    ${state.trip.transfers.map(transferPass).join('')}
 
     <div class="section-title"><span>숙소 · ${esc(stay.bookedVia)}</span></div>
     <div class="stay">
@@ -578,7 +613,8 @@ function openItem(id) {
     ${it.note ? `<div class="card note">${esc(it.note)}</div>` : ''}
     ${it.rainPlan ? `<div class="card note"><b>☔ 비 올 때</b><div class="small">${esc(it.rainPlan)}</div></div>` : ''}
     <div class="btns">
-      ${it.place ? `${navBtn(it.id, '구글맵 길찾기', 'primary wide')}
+      ${it.place?.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', 'primary wide') : ''}
+      ${it.place && it.place.lang !== 'ko' ? `${navBtn(it.id, '구글맵 길찾기', 'primary wide')}
         <button class="btn" data-ja="${esc(it.id)}">${icon('ja')}일본어 크게</button>
         <button class="btn" data-talk-text="${esc(it.place.nameJa)}">번역기로</button>` : ''}
       <button class="btn wide" data-done="${esc(it.id)}">${done ? '↩︎ 완료 취소' : '✓ 완료 표시'}</button>

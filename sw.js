@@ -1,5 +1,5 @@
 // Bump VERSION whenever app files change so phones pick up the new cache.
-const VERSION = 'trip-v2';
+const VERSION = 'trip-v3';
 const ASSETS = [
   './',
   './index.html',
