@@ -1,5 +1,6 @@
 // Bump VERSION whenever app files change so phones pick up the new cache.
-const VERSION = 'trip-v4';
+// Install fetches bypass the HTTP cache, so a new VERSION never stores stale files.
+const VERSION = 'trip-v13';
 const ASSETS = [
   './',
   './index.html',
@@ -13,7 +14,7 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
