@@ -4,7 +4,7 @@ const TZ = 'Asia/Tokyo';
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const TABS = ['today', 'days', 'wallet', 'talk', 'check'];
 
-const state = { trip: null, tab: 'today', dayIndex: 0, talkDir: 'ko-ja', pendingDoc: null };
+const state = { trip: null, wx: null, tab: 'today', dayIndex: 0, talkDir: 'ko-ja', pendingDoc: null };
 
 // ---------- storage (localStorage can throw in private mode) ----------
 const store = {
@@ -143,12 +143,154 @@ function chipsFor(it, now) {
     }
   }
   if (it.verify) chips.push(['warn', '확인 필요']);
-  if (it.rainPlan) chips.push(['', '☔ 대안']);
+  const w = wxFor(it);
+  // Rain only matters per item when there is an indoor alternative; the day card covers umbrellas.
+  if (it.rainPlan) chips.push(w && w.pop >= 50 ? ['warn', `☔ 비 ${w.pop}% · 대안 보기`] : ['', '☔ 대안']);
   return chips;
 }
 const chipsHtml = (chips) => chips.length
   ? `<div class="chips">${chips.map(([cls, t]) => `<span class="chip ${cls}">${esc(t)}</span>`).join('')}</div>`
   : '';
+
+// ---------- weather (Open-Meteo, no key; last forecast kept on this phone for offline) ----------
+const WX_URL = 'https://api.open-meteo.com/v1/forecast?latitude=35.69&longitude=139.75'
+  + '&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code'
+  + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max'
+  + '&timezone=Asia%2FTokyo&forecast_days=16';
+const WX_TTL = 30 * 60 * 1000;
+// WMO weather codes: each entry covers codes from its number up to the next entry.
+const WMO = [[0, '☀️', '맑음'], [1, '🌤', '대체로 맑음'], [2, '⛅', '구름 조금'], [3, '☁️', '흐림'], [45, '🌫', '안개'],
+  [51, '🌦', '이슬비'], [61, '🌧', '비'], [66, '🌧', '어는 비'], [71, '🌨', '눈'], [80, '🌦', '소나기'], [85, '🌨', '눈 소나기'], [95, '⛈', '뇌우']];
+const wmo = (code) => {
+  const hit = WMO.filter(([c]) => code >= c).pop() || WMO[0];
+  return { icon: hit[1], label: hit[2] };
+};
+
+async function loadWeather(force = false) {
+  if (!force && state.wx && Date.now() - state.wx.at < WX_TTL) return;
+  try {
+    const res = await fetch(WX_URL);
+    if (!res.ok) throw new Error(String(res.status));
+    const { hourly, daily } = await res.json();
+    state.wx = { at: Date.now(), hourly, daily };
+    store.set('wx', state.wx);
+    if (force) toast('날씨를 업데이트했어요');
+    if ($('#sheet').hidden) render();
+  } catch {
+    if (force) toast(state.wx ? '인터넷이 안 돼서 저장된 예보를 보여줘요' : '날씨를 불러오지 못했어요');
+  }
+}
+
+function wxDay(date) {
+  const d = state.wx?.daily;
+  const i = d ? d.time.indexOf(date) : -1;
+  if (i < 0) return null;
+  return {
+    ...wmo(d.weather_code[i]),
+    max: Math.round(d.temperature_2m_max[i]),
+    min: Math.round(d.temperature_2m_min[i]),
+    pop: d.precipitation_probability_max[i] ?? 0,
+  };
+}
+
+function wxHour(date, min) {
+  const h = state.wx?.hourly;
+  const hour = Math.floor(min / 60);
+  const i = h ? h.time.indexOf(`${date}T${String(hour).padStart(2, '0')}:00`) : -1;
+  if (i < 0) return null;
+  return {
+    ...wmo(h.weather_code[i]),
+    hour,
+    temp: Math.round(h.temperature_2m[i]),
+    feels: Math.round(h.apparent_temperature[i]),
+    pop: h.precipitation_probability[i] ?? 0,
+  };
+}
+const wxHours = (date, fromH, toH) =>
+  Array.from({ length: toH - fromH + 1 }, (_, k) => wxHour(date, (fromH + k) * 60)).filter(Boolean);
+
+// Tokyo forecast for an item, skipped for places in Korea.
+const wxFor = (it) => (it.place?.lang === 'ko' || !it.place ? null : wxHour(it.date, toMin(it.start)));
+
+// What to do about the weather while out (08–22h), as chips.
+function wxTips(date) {
+  const hrs = wxHours(date, 8, 22);
+  if (!hrs.length) return [];
+  const tips = [];
+  const wet = hrs.reduce((a, b) => (b.pop > a.pop ? b : a));
+  const wetHours = hrs.filter((h) => h.pop >= 50).length;
+  if (wetHours >= 6) tips.push(['warn', `☔ 우산 필수 · 낮 내내 비 최대 ${wet.pop}%`]);
+  else if (wet.pop >= 50) tips.push(['warn', `☔ 우산 필수 · ${wet.hour}시쯤 비 ${wet.pop}%`]);
+  else if (wet.pop >= 30) tips.push(['', `🌂 접이식 우산 · ${wet.hour}시쯤 비 ${wet.pop}%`]);
+  const lo = Math.min(...hrs.map((h) => h.feels));
+  const hi = Math.max(...hrs.map((h) => h.temp));
+  if (lo <= 10) tips.push(['', `🧥 체감 ${lo}°까지 · 따뜻한 겉옷`]);
+  else if (lo <= 15) tips.push(['', `🧥 아침저녁 체감 ${lo}° · 가벼운 겉옷`]);
+  if (hi - lo >= 8) tips.push(['', `🌡 일교차 ${hi - lo}° · 겹쳐 입기`]);
+  if (hi >= 24) tips.push(['', `👕 낮 ${hi}° · 가벼운 옷`]);
+  return tips;
+}
+
+function wxAge() {
+  const m = Math.round((Date.now() - state.wx.at) / 60000);
+  if (m < 1) return '방금';
+  if (m < 60) return `${m}분 전`;
+  return m < 1440 ? `${Math.round(m / 60)}시간 전` : `${Math.round(m / 1440)}일 전`;
+}
+
+// Weather card for one day: now (if `now` is that day) or the day overall, advice, hourly strip.
+function wxCard(date, now) {
+  const day = wxDay(date);
+  if (!day) {
+    return state.wx ? '' : `<button class="wx wx-empty" data-wx-refresh>🌤 날씨를 불러오는 중이에요 · 탭해서 다시 시도</button>`;
+  }
+  const cur = now ? wxHour(date, now.min) : null;
+  const from = cur ? cur.hour : 8;
+  const strip = wxHours(date, from, cur ? Math.min(from + 11, 23) : 22);
+  const tips = wxTips(date);
+  return `
+    <div class="wx">
+      <div class="wx-head">
+        <div class="wx-big">${(cur || day).icon}</div>
+        <div class="grow">
+          <div class="wx-temp">${cur ? cur.temp : day.max}°<span>${esc((cur || day).label)}${cur ? '' : ' · 낮 최고'}</span></div>
+          <div class="wx-sub">최고 ${day.max}° · 최저 ${day.min}° · 비 ${day.pop}%${cur ? ` · 체감 ${cur.feels}°` : ''}</div>
+        </div>
+        <button class="wx-refresh" data-wx-refresh aria-label="날씨 새로고침"><span>↻</span>${wxAge()}</button>
+      </div>
+      ${chipsHtml(tips)}
+      ${strip.length ? `<div class="wx-strip">${strip.map((h) => `
+        <div class="${h.pop >= 50 ? 'wet' : ''}"><small>${cur && h.hour === cur.hour ? '지금' : h.hour + '시'}</small><span>${h.icon}</span><b>${h.temp}°</b><i>${h.pop >= 10 ? h.pop + '%' : ''}</i></div>`).join('')}
+      </div>` : ''}
+    </div>`;
+}
+
+// Five-day outlook with packing advice, shown before departure.
+function wxTrip() {
+  const rows = state.trip.days.map((d) => ({ date: d.date, w: wxDay(d.date) }));
+  const known = rows.filter((r) => r.w);
+  if (!known.length) {
+    return `<div class="card small muted">출발 16일 전부터 여행 기간 예보가 나와요. 그 전엔 예약 탭의 평년 날씨를 참고하세요.</div>`;
+  }
+  const rainy = known.filter((r) => r.w.pop >= 50).length;
+  const lo = Math.min(...known.map((r) => r.w.min));
+  const hi = Math.max(...known.map((r) => r.w.max));
+  const tips = [
+    rainy ? ['warn', `☔ 비 예보 ${rainy}일 · 우산 챙기기`] : ['ok', '☀️ 큰 비 예보 없음'],
+    ['', `🧥 ${lo}° ~ ${hi}° · ${lo <= 10 ? '따뜻한 겉옷' : '가벼운 겉옷'}`],
+  ];
+  return `
+    <div class="wx">
+      <div class="wx-days">${rows.map((r) => `
+        <div class="${r.w && r.w.pop >= 50 ? 'wet' : ''}">
+          <small>${esc(shortDate(r.date))} ${WEEKDAYS[dowOf(r.date)]}</small>
+          ${r.w ? `<span>${r.w.icon}</span><b>${r.w.max}°<em>${r.w.min}°</em></b><i>비 ${r.w.pop}%</i>` : '<span>·</span><i>예보 전</i>'}
+        </div>`).join('')}
+      </div>
+      ${chipsHtml(tips)}
+      <div class="wx-foot"><span>예보는 바뀔 수 있어요 · 앱을 열 때마다 새로 받아요</span><button data-wx-refresh>↻ ${wxAge()}</button></div>
+    </div>`;
+}
 
 // ---------- external apps ----------
 // Try the native app's URL scheme; if the page is still visible afterwards, offer the web version.
@@ -266,6 +408,8 @@ function renderToday() {
         <button data-go="wallet"><b>${icon('ext')}</b><span>예약 확인</span></button>
         <button data-go="talk"><b>あ</b><span>번역</span></button>
       </div>
+      <div class="section-title"><span>여행 기간 날씨 · 도쿄</span></div>
+      ${wxTrip()}
       <div class="section-title"><span>첫날 · ${esc(dayLabel(days[0].date))}</span></div>
       ${timeline(dayItems(days[0]).slice(0, 4), null)}
     `;
@@ -283,7 +427,7 @@ function renderToday() {
   const next = upcoming[0];
   setHeader(`DAY ${dayIdx + 1} · ${dayLabel(day.date)}`, day.title, `일몰 ${day.sunset} · ${items.length}개 일정`);
 
-  let html = '';
+  let html = wxCard(day.date, now);
   if (current) html += heroCard(current, 'now', now);
   if (next) html += heroCard(next, 'next', now);
   if (!current && !next) html += `<div class="card empty">오늘 일정이 모두 끝났어요. 푹 쉬세요 🛌</div>`;
@@ -308,7 +452,7 @@ function heroCard(it, kind, now) {
     <div class="hero ${kind}">
       <div class="hero-sun"></div>
       <div class="eyebrow"><i class="pulse"></i>${esc(label)}</div>
-      <div class="hero-time">${esc(it.start)}${it.end ? ' — ' + esc(it.end) : ''}</div>
+      <div class="hero-time">${esc(it.start)}${it.end ? ' — ' + esc(it.end) : ''}${heroWx(it)}</div>
       <div class="hero-title">${esc(it.icon || '')} ${esc(it.title)}</div>
       ${it.place && it.place.lang !== 'ko' ? `<div class="hero-ja ja">${esc(it.place.nameJa)}</div>` : ''}
       ${it.note ? `<div class="hero-note">${esc(it.note)}</div>` : ''}
@@ -320,6 +464,10 @@ function heroCard(it, kind, now) {
         <button class="btn ghost wide" data-item="${esc(it.id)}">자세히</button>
       </div>
     </div>`;
+}
+function heroWx(it) {
+  const w = wxFor(it);
+  return w ? `<span class="hero-wx">${w.icon} ${w.temp}°${w.pop >= 10 ? ` · 비 ${w.pop}%` : ''}</span>` : '';
 }
 const formatLeft = (m) => (m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60 ? (m % 60) + '분' : ''}`.trim() : `${m}분`);
 
@@ -336,7 +484,7 @@ function timeline(items, now) {
     const warn = chipsFor(it, now).filter(([c]) => c === 'warn');
     return `
       <div class="tl-item ${cls}">
-        <div class="tl-time">${esc(it.start)}</div>
+        <div class="tl-time">${esc(it.start)}${tlWx(it)}</div>
         <div class="tl-card" data-item="${esc(it.id)}" role="button" tabindex="0">
           <div class="tl-main">
             <div class="tl-title">${esc(it.icon || '')} ${esc(it.title)}</div>
@@ -349,6 +497,11 @@ function timeline(items, now) {
   }).join('')}</div>`;
 }
 
+function tlWx(it) {
+  const w = wxFor(it);
+  return w ? `<span class="tl-wx">${w.icon}${w.temp}°</span>${w.pop >= 30 ? `<span class="tl-pop">${w.pop}%</span>` : ''}` : '';
+}
+
 function renderDays() {
   const now = tokyoNow();
   const { days, stay } = state.trip;
@@ -359,8 +512,10 @@ function renderDays() {
       ${days.map((d, i) => `
         <button class="dp ${d.date === now.date ? 'today' : ''}" data-day="${i}" aria-pressed="${i === state.dayIndex}">
           <small>DAY</small><b>${i + 1}</b><span>${esc(shortDate(d.date))} ${WEEKDAYS[dowOf(d.date)]}</span>
+          ${wxDay(d.date) ? `<span class="dp-wx">${wxDay(d.date).icon} ${wxDay(d.date).max}°</span>` : ''}
         </button>`).join('')}
     </div>
+    ${wxCard(day.date, now.date === day.date ? now : null)}
     ${timeline(dayItems(day), now)}
   `;
 }
@@ -679,7 +834,7 @@ async function copy(key) {
 
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-item],[data-check],[data-del],[data-done],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-doc-view],[data-doc-add],[data-doc-del],'
-  + '[data-translate],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text]';
+  + '[data-translate],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text],[data-wx-refresh]';
 
 document.addEventListener('click', async (e) => {
   const el = e.target.closest(ACTIONS);
@@ -714,6 +869,7 @@ document.addEventListener('click', async (e) => {
   else if (d.phrase) { const p = state.trip.phrases[d.phrase]; showJa({ ja: p.ja, read: p.read, ko: p.ko }); }
   else if (d.speak) speak(state.trip.phrases[d.speak].ja);
   else if (d.speakText) speak(d.speakText);
+  else if ('wxRefresh' in d) loadWeather(true);
   else if (d.talkText) { store.set('talkText', d.talkText); state.talkDir = 'ja-ko'; go('talk'); }
 });
 
@@ -745,9 +901,11 @@ $('#doc-file').addEventListener('change', async (e) => {
 });
 
 // Re-render every minute so "now / next" stays current while the app is open.
-setInterval(() => { if (state.tab === 'today' && $('#sheet').hidden) render(); }, 60000);
+setInterval(() => { loadWeather(); if (state.tab === 'today' && $('#sheet').hidden) render(); }, 60000);
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && !['wallet', 'talk', 'check'].includes(state.tab)) render();
+  if (document.hidden) return;
+  loadWeather();
+  if (!['wallet', 'talk', 'check'].includes(state.tab)) render();
 });
 
 async function init() {
@@ -764,7 +922,9 @@ async function init() {
   const saved = store.get('tab', 'today');
   state.tab = TABS.includes(saved) ? saved : saved === 'info' ? 'wallet' : 'today';
   if (todayIdx >= 0) state.tab = 'today';
+  state.wx = store.get('wx', null);
   render();
+  loadWeather();
 }
 
 if ('serviceWorker' in navigator) {
