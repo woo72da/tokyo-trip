@@ -625,7 +625,16 @@ ul.plain li + li { margin-top: 4px; }
 
 /* exchange calculator */
 .section-title .fx-pill { margin-left: auto; align-self: center; }
-.fx-pill { font-size: 12px; font-weight: 750; padding: 5px 10px; border-radius: 999px; background: var(--soft); color: var(--ink); }
+.fx-pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 3px 10px 3px 3px; border-radius: 11px;
+  background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+  transition: transform .12s ease;
+}
+.fx-pill:active { transform: scale(.96); }
+.fx-pill > i:first-child { width: 20px; height: 20px; border-radius: 7px; display: grid; place-items: center; background: var(--accent); color: #fff; font-style: normal; font-size: 12px; font-weight: 800; }
+.section-title .fx-pill-t { font-size: 12.5px; font-weight: 750; line-height: 1; }
+.fx-pill .chev { width: 7px; height: 7px; border-color: currentColor; transform: rotate(-45deg); margin-left: 2px; }
+.section-title .fx-pill-t::before { content: none; }
 .fx { background: var(--night); color: var(--on-night); border-radius: 26px; padding: 16px; margin-top: 14px; box-shadow: inset 0 0 0 1px var(--night-edge); }
 .fx .talk-dir .icon-btn { background: rgba(255,255,255,.1); color: var(--on-night); }
 .fx-field { position: relative; margin-top: 12px; }
@@ -657,3 +666,4 @@ ul.plain li + li { margin-top: 4px; }
 .cost-row.sum span, .cost-row.sum b { font-size: 16px; font-weight: 800; }
 .cost-row.sum b { color: var(--accent); }
 .cost-note { margin-top: 4px; line-height: 1.55; }
+.cost-note .one-line { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

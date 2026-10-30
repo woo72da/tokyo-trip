@@ -350,7 +350,7 @@ function costCard(g) {
     <div class="card cost">
       ${rows.map((c) => row(c.label, c.r)).join('')}
       ${row('합계', total, 'sum')}
-      <div class="small muted cost-note">${esc(g.costNote || '')}${g.costNote ? '<br>' : ''}100엔 = ${(fxRate() * 100).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원 기준 · 예산 ${yen(store.get('budget', state.trip.budget?.yen || 0))}
+      <div class="small muted cost-note">${g.costNote ? `<span class="one-line">${esc(g.costNote)}</span>` : ''}100엔 = ${(fxRate() * 100).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원 기준 · 예산 ${yen(store.get('budget', state.trip.budget?.yen || 0))}
         <button class="link" data-fx>환율 계산기</button></div>
     </div>`;
 }
@@ -360,7 +360,8 @@ function costCard(g) {
 const FX_QUICK = { yen: [100, 500, 1000, 3000, 5000, 10000], won: [10000, 30000, 50000, 100000] };
 const fxRate = () => state.fx?.rate || 8.5;
 const fxWhen = (t) => new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-const fxShort = (n) => (n >= 10000 && n % 10000 === 0 ? `${n / 10000}만` : n.toLocaleString('ko-KR'));
+const FX_SIGN = { yen: '¥', won: '₩' };
+const money = (dir, n) => `${FX_SIGN[dir]}${Math.round(n).toLocaleString('ko-KR')}`;
 
 function fxCalc() {
   const f = state.fxCalc;
@@ -372,17 +373,18 @@ function fxCalc() {
 function updateFx() {
   const f = state.fxCalc;
   const { n, base, out } = fxCalc();
-  $('#fx-out').textContent = n ? (f.dir === 'yen' ? `${Math.round(out).toLocaleString('ko-KR')}원` : `${Math.round(out).toLocaleString('ko-KR')}엔`) : '0';
-  $('#fx-sub').textContent = f.dir === 'yen' && f.tax && n ? `세금 포함 ${yen(base)}` : '';
+  const to = f.dir === 'yen' ? 'won' : 'yen';
+  $('#fx-out').textContent = money(to, n ? out : 0);
+  $('#fx-sub').textContent = f.dir === 'yen' && f.tax && n ? `세금 포함 ${money('yen', base)}` : '';
   $('#fx-rate').textContent = state.fx
-    ? `100엔 = ${(fxRate() * 100).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원 · ${fxWhen(state.fx.upd || state.fx.at)} 고시`
-    : '환율을 아직 못 받았어요 · 100엔 = 850원으로 계산';
+    ? `¥100 = ₩${(fxRate() * 100).toLocaleString('ko-KR', { maximumFractionDigits: 1 })} · ${fxWhen(state.fx.upd || state.fx.at)} 고시`
+    : '환율을 아직 못 받았어요 · ¥100 = ₩850으로 계산';
   $('.fx-clear').hidden = !f.value;
 }
 function openFx() {
   state.fxCalc ||= { dir: 'yen', value: '', tax: false };
   const f = state.fxCalc;
-  const from = f.dir === 'yen' ? '엔' : '원';
+  const from = FX_SIGN[f.dir];
   $('#sheet-body').innerHTML = `
     <div class="sheet-head">${itemIcon('💴', 'lg')}<h3>환율 계산기</h3></div>
     <div class="fx">
@@ -395,7 +397,7 @@ function openFx() {
         <button class="talk-clear fx-clear" data-fx-clear aria-label="지우기">${icon('x')}</button>
       </div>
       <div class="fx-res"><b id="fx-out">0</b><small id="fx-sub"></small></div>
-      <div class="fx-quick">${FX_QUICK[f.dir].map((v) => `<button data-fx-set="${v}">${fxShort(v)}${from}</button>`).join('')}</div>
+      <div class="fx-quick">${FX_QUICK[f.dir].map((v) => `<button data-fx-set="${v}">+${money(f.dir, v)}</button>`).join('')}</div>
       ${f.dir === 'yen' ? `<label class="fx-tax"><input type="checkbox" id="fx-tax" ${f.tax ? 'checked' : ''}> 세금 별도 가격 (税抜) · +10%</label>` : ''}
     </div>
     <div class="small muted fx-meta"><span id="fx-rate"></span>
@@ -436,9 +438,9 @@ function expenseSection() {
   const budget = store.get('budget', state.trip.budget?.yen || 0);
   const used = total - shop;
   const pct = budget ? Math.min(100, Math.round((used / budget) * 100)) : 0;
-  const rate = state.fx ? `100엔 = ${Math.round(state.fx.rate * 100).toLocaleString('ko-KR')}원` : '환율 계산기';
+  const rate = state.fx ? `100엔 = ${Math.round(state.fx.rate * 100).toLocaleString('ko-KR')}원` : '엔 ↔ 원';
   return `
-    <div class="section-title" id="exp"><span>여행 경비</span><button class="fx-pill" data-fx>¥ ${esc(rate)}</button></div>
+    <div class="section-title" id="exp"><span>여행 경비</span><button class="fx-pill" data-fx aria-label="환율 계산기 열기"><i>¥</i><span class="fx-pill-t">${esc(rate)}</span><i class="chev"></i></button></div>
     <div class="card exp">
       <div class="exp-total"><b>${yen(total)}</b><span>${won(total)}${shop ? ` · 쇼핑 ${yen(shop)}` : ''}</span></div>
       ${budget ? `
@@ -1423,7 +1425,12 @@ document.addEventListener('click', async (e) => {
     f.value = out ? String(Math.round(out)) : ''; f.dir = f.dir === 'yen' ? 'won' : 'yen'; f.tax = false; openFx();
   }
   else if ('fxClear' in d) { state.fxCalc.value = ''; $('#fx-in').value = ''; updateFx(); $('#fx-in').focus(); }
-  else if (d.fxSet) { state.fxCalc.value = d.fxSet; $('#fx-in').value = d.fxSet; updateFx(); }
+  else if (d.fxSet) {
+    // Each tap adds, so 5,000 + 1,000 + 500 builds 6,500 without typing.
+    const f = state.fxCalc;
+    f.value = String((Number(String(f.value).replace(/[^0-9.]/g, '')) || 0) + Number(d.fxSet));
+    $('#fx-in').value = f.value; updateFx();
+  }
   else if ('fxRefresh' in d) {
     if (state.fx) state.fx.at = 0;
     toast((await loadFx(true)) ? '환율을 새로 받았어요' : '지금은 환율을 받을 수 없어요 · 저장된 환율로 계산해요');
