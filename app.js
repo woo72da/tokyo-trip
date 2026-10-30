@@ -499,9 +499,18 @@ function syncCard() {
   const got = store.get('syncGot', null);
   const sent = store.get('syncSent', 0);
   const f = state.syncFile;
+  const last = Math.max(sent, got?.at || 0);
+  const head = `
+      <button class="sync-head" data-sync-toggle aria-expanded="${!!state.syncOpen}">
+        <span class="ii">${icon('refresh')}</span>
+        <span class="sync-title"><b>부부 폰 동기화</b>
+          <small class="muted">${last ? `${who()} 폰 · 마지막 ${new Date(last).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '체크·예약번호·지출·사진 주고받기'}</small></span>
+        <i class="chev"></i>
+      </button>`;
+  if (!state.syncOpen) return `<div class="card sync">${head}</div>`;
   return `
-    <div class="section-title"><span>부부 폰 동기화</span><em class="muted">체크·예약번호·지출·사진</em></div>
-    <div class="card sync">
+    <div class="card sync open">
+      ${head}
       <div class="sync-who"><span>이 폰은</span>${['나', '와이프'].map((w) => `<button class="seg ${who() === w ? 'on' : ''}" data-who="${w}">${w} 폰</button>`).join('')}</div>
       <div class="btns">
         ${f ? `<button class="btn primary" data-sync-share>${icon('ext')}파일 보내기 · ${f.size < 1048576 ? Math.max(1, Math.round(f.size / 1024)) + 'KB' : (f.size / 1048576).toFixed(1) + 'MB'}</button>`
@@ -593,15 +602,8 @@ function translate(engine, text) {
       'Google 번역',
     );
   } else {
-    // Papago has no app link that takes text (papago:// is rejected on iPhone), so hand the text to the
-    // share sheet, where the Papago app appears; the Papago website is the fallback.
-    const web = `https://papago.naver.com/?sk=${sl}&tk=${tl}&st=${t}`;
-    navigator.clipboard?.writeText(text).catch(() => {});
-    if (navigator.share) {
-      navigator.share({ text })
-        .catch((e) => { if (e.name !== 'AbortError') window.open(web, '_blank', 'noopener'); });
-      toast('목록에서 파파고를 고르세요 · 없으면 웹으로', web, '파파고 웹');
-    } else window.open(web, '_blank', 'noopener');
+    // Papago has no app link that takes text (papago:// is rejected on iPhone), so open the website.
+    window.open(`https://papago.naver.com/?sk=${sl}&tk=${tl}&st=${t}`, '_blank', 'noopener');
   }
 }
 
@@ -1031,7 +1033,7 @@ function renderWallet() {
 function renderTalk() {
   const { phrases } = state.trip;
   const [from, to] = state.talkDir === 'ko-ja' ? ['한국어', '日本語'] : ['日本語', '한국어'];
-  setHeader('도쿄 · 2026년 11월', '번역 · 회화', 'Google 번역 · 파파고 바로 연결');
+  setHeader('도쿄 · 2026년 11월', '번역 · 회화', 'Google 번역 앱 · 파파고 웹');
   const groups = [...new Set(phrases.map((p) => p.group))];
   return `
     <div class="talk">
@@ -1040,12 +1042,15 @@ function renderTalk() {
         <button class="icon-btn" data-swap aria-label="방향 바꾸기">${icon('swap')}</button>
         <b>${to}</b>
       </div>
-      <textarea id="talk-text" class="talk-input" rows="3" placeholder="${state.talkDir === 'ko-ja' ? '번역할 말을 입력하세요' : '日本語を入力'}">${esc(store.get('talkText', ''))}</textarea>
+      <div class="talk-field">
+        <textarea id="talk-text" class="talk-input" rows="3" placeholder="${state.talkDir === 'ko-ja' ? '번역할 말을 입력하세요' : '日本語を入力'}">${esc(store.get('talkText', ''))}</textarea>
+        <button class="talk-clear" data-talk-clear aria-label="모두 지우기" ${store.get('talkText', '') ? '' : 'hidden'}>${icon('x')}</button>
+      </div>
       <div class="btns">
         <button class="btn primary" data-translate="google">Google 번역 앱</button>
-        <button class="btn papago" data-translate="papago">파파고로 보내기</button>
+        <button class="btn papago" data-translate="papago">파파고 웹</button>
       </div>
-      <div class="small muted talk-hint">Google 번역은 앱에 문장이 바로 들어가요. 파파고는 공유 목록에서 파파고를 고르면 되고, 목록에 없으면 '파파고 웹'으로 열어요. 음성·카메라 통역은 각 앱의 마이크·카메라 버튼으로.</div>
+      <div class="small muted talk-hint">Google 번역은 앱에 문장이 바로 들어가요. 파파고는 웹에서 열려요. 음성·카메라 통역은 각 앱의 마이크·카메라 버튼으로.</div>
     </div>
 
     ${nowPhrases()}
@@ -1289,7 +1294,8 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-item],[data-check],[data-del],[data-done],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-doc-view],[data-doc-add],[data-viewer-del],'
   + '[data-translate],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text],[data-wx-refresh],'
-  + '[data-go-exp],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick]';
+  + '[data-go-exp],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-talk-clear],[data-sync-toggle]';
 
 document.addEventListener('click', async (e) => {
   const el = e.target.closest(ACTIONS);
@@ -1333,6 +1339,12 @@ document.addEventListener('click', async (e) => {
     if (!text) return toast('번역할 말을 입력해 주세요.');
     translate(d.translate, text);
   }
+  else if ('talkClear' in d) {
+    store.set('talkText', '');
+    const box = $('#talk-text');
+    box.value = ''; el.hidden = true; box.focus();
+  }
+  else if ('syncToggle' in d) { state.syncOpen = !state.syncOpen; render(); }
   else if ('swap' in d) { state.talkDir = state.talkDir === 'ko-ja' ? 'ja-ko' : 'ko-ja'; render(); }
   else if (d.phrase) { const p = state.trip.phrases[d.phrase]; showJa({ ja: p.ja, read: p.read, ko: p.ko }); }
   else if (d.speak) speak(state.trip.phrases[d.speak].ja);
@@ -1364,7 +1376,7 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.dataset.secret) store.set(t.dataset.secret, t.value.trim().toUpperCase());
-  else if (t.id === 'talk-text') store.set('talkText', t.value);
+  else if (t.id === 'talk-text') { store.set('talkText', t.value); $('.talk-clear').hidden = !t.value; }
 });
 
 document.addEventListener('submit', (e) => {
