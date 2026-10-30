@@ -1,6 +1,6 @@
 // Bump VERSION whenever app files change so phones pick up the new cache.
 // Install fetches bypass the HTTP cache, so a new VERSION never stores stale files.
-const VERSION = 'trip-v20';
+const VERSION = 'trip-v21';
 const ASSETS = [
   './',
   './index.html',

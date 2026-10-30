@@ -338,6 +338,23 @@ async function loadFx(force = false) {
   } catch { return false; /* keep the saved rate */ }
 }
 
+// Estimated costs from trip.json, with won at today's rate and the total added up here so they never drift apart.
+const span = ([lo, hi], f) => (lo === hi ? f(lo) : `${f(lo).replace(/[^0-9.,]+$/, '')}~${f(hi)}`);
+const manwon = (n) => `${(Math.round((n * fxRate()) / 1000) / 10).toLocaleString('ko-KR')}만원`;
+function costCard(g) {
+  const rows = g.costs.map((c) => ({ ...c, r: [].concat(c.yen, c.yen).slice(0, 2) }));
+  const total = rows.reduce(([a, b], c) => [a + c.r[0], b + c.r[1]], [0, 0]);
+  const row = (label, r, cls = '') => `
+    <div class="cost-row ${cls}"><span>${esc(label)}</span><b>${span(r, yen)}</b><small>${span(r, manwon)}</small></div>`;
+  return `
+    <div class="card cost">
+      ${rows.map((c) => row(c.label, c.r)).join('')}
+      ${row('합계', total, 'sum')}
+      <div class="small muted cost-note">${esc(g.costNote || '')}${g.costNote ? '<br>' : ''}100엔 = ${(fxRate() * 100).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원 기준 · 예산 ${yen(store.get('budget', state.trip.budget?.yen || 0))}
+        <button class="link" data-fx>환율 계산기</button></div>
+    </div>`;
+}
+
 // ---------- exchange calculator ----------
 // Japanese price tags often leave out the 10% consumption tax (税抜), so there is a switch to add it.
 const FX_QUICK = { yen: [100, 500, 1000, 3000, 5000, 10000], won: [10000, 30000, 50000, 100000] };
@@ -426,7 +443,7 @@ function expenseSection() {
       <div class="exp-total"><b>${yen(total)}</b><span>${won(total)}${shop ? ` · 쇼핑 ${yen(shop)}` : ''}</span></div>
       ${budget ? `
         <div class="meter"><i style="width:${pct}%"></i></div>
-        <div class="small muted exp-budget">예산 ${yen(budget)} 중 ${pct}% 사용 (쇼핑 제외) · 남은 돈 ${yen(Math.max(0, budget - used))}
+        <div class="small muted exp-budget">예산 ${yen(budget)} (약 ${manwon(budget)}) 중 ${pct}% 사용 (쇼핑 제외) · 남은 돈 ${yen(Math.max(0, budget - used))}
           <button class="link" data-budget>예산 바꾸기</button></div>` : ''}
       ${expForm()}
       ${list.length ? `<div class="exp-list">${list.map(expRow).join('')}</div>` : '<div class="small muted exp-empty">아직 기록이 없어요. 일정을 눌러서도 기록할 수 있어요.</div>'}
@@ -1082,7 +1099,7 @@ function renderWallet() {
 
     ${guides.map((g) => `
       <div class="section-title">${itemIcon(g.icon, 'sm')}<span>${esc(g.title)}</span></div>
-      <div class="card"><ul class="plain">${g.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>`).join('')}
+      ${g.costs ? costCard(g) : `<div class="card"><ul class="plain">${g.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>`}`).join('')}
   `;
 }
 
