@@ -322,17 +322,72 @@ const yen = (n) => `${Math.round(n).toLocaleString('ko-KR')}엔`;
 const won = (n) => `${(Math.round((n * (state.fx?.rate || 8.5)) / 10) * 10).toLocaleString('ko-KR')}원`;
 const who = () => store.get('who', '나');
 
-// Live JPY→KRW rate (open.er-api.com, no key), kept for offline; 6-hour refresh.
-async function loadFx() {
-  if (state.fx && Date.now() - state.fx.at < 6 * 3600 * 1000) return;
+// Live JPY→KRW rate (open.er-api.com, no key), kept for offline; 6-hour refresh, 30 minutes when forced.
+// `upd` is when the provider last moved the rate (once a day), `at` when this phone fetched it.
+async function loadFx(force = false) {
+  if (state.fx && Date.now() - state.fx.at < (force ? 30 * 60 * 1000 : 6 * 3600 * 1000)) return false;
   try {
-    const res = await fetch('https://open.er-api.com/v6/latest/JPY');
+    const res = await fetch('https://open.er-api.com/v6/latest/JPY', { cache: 'no-store' });
     const data = await res.json();
     if (data.result !== 'success') throw new Error(data.result);
-    state.fx = { rate: data.rates.KRW, at: Date.now() };
+    state.fx = { rate: data.rates.KRW, at: Date.now(), upd: data.time_last_update_unix * 1000 };
     store.set('fx', state.fx);
-    if (state.tab === 'wallet' && $('#sheet').hidden) render();
-  } catch { /* keep the saved rate */ }
+    if (!$('#sheet').hidden && $('.fx')) updateFx();
+    else if (state.tab === 'wallet' && $('#sheet').hidden) render();
+    return true;
+  } catch { return false; /* keep the saved rate */ }
+}
+
+// ---------- exchange calculator ----------
+// Japanese price tags often leave out the 10% consumption tax (税抜), so there is a switch to add it.
+const FX_QUICK = { yen: [100, 500, 1000, 3000, 5000, 10000], won: [10000, 30000, 50000, 100000] };
+const fxRate = () => state.fx?.rate || 8.5;
+const fxWhen = (t) => new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const fxShort = (n) => (n >= 10000 && n % 10000 === 0 ? `${n / 10000}만` : n.toLocaleString('ko-KR'));
+
+function fxCalc() {
+  const f = state.fxCalc;
+  const n = Number(String(f.value).replace(/[^0-9.]/g, '')) || 0;
+  const base = f.dir === 'yen' && f.tax ? n * 1.1 : n;
+  const out = f.dir === 'yen' ? base * fxRate() : n / fxRate();
+  return { n, base, out };
+}
+function updateFx() {
+  const f = state.fxCalc;
+  const { n, base, out } = fxCalc();
+  $('#fx-out').textContent = n ? (f.dir === 'yen' ? `${Math.round(out).toLocaleString('ko-KR')}원` : `${Math.round(out).toLocaleString('ko-KR')}엔`) : '0';
+  $('#fx-sub').textContent = f.dir === 'yen' && f.tax && n ? `세금 포함 ${yen(base)}` : '';
+  $('#fx-rate').textContent = state.fx
+    ? `100엔 = ${(fxRate() * 100).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원 · ${fxWhen(state.fx.upd || state.fx.at)} 고시`
+    : '환율을 아직 못 받았어요 · 100엔 = 850원으로 계산';
+  $('.fx-clear').hidden = !f.value;
+}
+function openFx() {
+  state.fxCalc ||= { dir: 'yen', value: '', tax: false };
+  const f = state.fxCalc;
+  const from = f.dir === 'yen' ? '엔' : '원';
+  $('#sheet-body').innerHTML = `
+    <div class="sheet-head">${itemIcon('💴', 'lg')}<h3>환율 계산기</h3></div>
+    <div class="fx">
+      <div class="talk-dir"><b>${f.dir === 'yen' ? '일본 엔' : '한국 원'}</b>
+        <button class="icon-btn" data-fx-swap aria-label="방향 바꾸기">${icon('swap')}</button>
+        <b>${f.dir === 'yen' ? '한국 원' : '일본 엔'}</b></div>
+      <div class="fx-field">
+        <input id="fx-in" class="fx-in" inputmode="decimal" autocomplete="off" placeholder="0" value="${esc(f.value)}">
+        <span class="fx-unit">${from}</span>
+        <button class="talk-clear fx-clear" data-fx-clear aria-label="지우기">${icon('x')}</button>
+      </div>
+      <div class="fx-res"><b id="fx-out">0</b><small id="fx-sub"></small></div>
+      <div class="fx-quick">${FX_QUICK[f.dir].map((v) => `<button data-fx-set="${v}">${fxShort(v)}${from}</button>`).join('')}</div>
+      ${f.dir === 'yen' ? `<label class="fx-tax"><input type="checkbox" id="fx-tax" ${f.tax ? 'checked' : ''}> 세금 별도 가격 (税抜) · +10%</label>` : ''}
+    </div>
+    <div class="small muted fx-meta"><span id="fx-rate"></span>
+      <button class="link" data-fx-refresh>새로 받기</button></div>
+    <div class="small muted fx-note">기준 환율이에요. 카드·환전소 실제 금액은 1~2% 더 나올 수 있어요.</div>
+    <div class="btns"><button class="btn primary wide" data-fx-log>${icon('plus')}이 금액 지출로 기록</button></div>`;
+  $('#sheet').hidden = false;
+  updateFx();
+  loadFx(true);
 }
 
 function addExpense({ amount, memo, cat, item, date }) {
@@ -364,9 +419,9 @@ function expenseSection() {
   const budget = store.get('budget', state.trip.budget?.yen || 0);
   const used = total - shop;
   const pct = budget ? Math.min(100, Math.round((used / budget) * 100)) : 0;
-  const rate = state.fx ? `100엔 = ${Math.round(state.fx.rate * 100).toLocaleString('ko-KR')}원 · ${shortDate(new Date(state.fx.at).toISOString().slice(0, 10))} 기준` : '환율을 불러오면 원화로도 보여요';
+  const rate = state.fx ? `100엔 = ${Math.round(state.fx.rate * 100).toLocaleString('ko-KR')}원` : '환율 계산기';
   return `
-    <div class="section-title" id="exp"><span>여행 경비</span><em class="muted">${esc(rate)}</em></div>
+    <div class="section-title" id="exp"><span>여행 경비</span><button class="fx-pill" data-fx>¥ ${esc(rate)}</button></div>
     <div class="card exp">
       <div class="exp-total"><b>${yen(total)}</b><span>${won(total)}${shop ? ` · 쇼핑 ${yen(shop)}` : ''}</span></div>
       ${budget ? `
@@ -776,10 +831,11 @@ function renderToday() {
         <div class="hero-meta">준비 ${list.length - todo.length} / ${list.length}</div>
       </div>
       ${todoCard(now.date, '지금 할 일', 5)}
-      <div class="quick">
+      <div class="quick four">
         <button data-go="check"><b>${todo.length}</b><span>남은 준비</span></button>
         <button data-go="wallet"><b>${icon('ext')}</b><span>예약 확인</span></button>
         <button data-go="talk"><b>あ</b><span>번역</span></button>
+        <button data-fx><b>¥</b><span>환율</span></button>
       </div>
       <div class="section-title"><span>여행 기간 날씨 · 도쿄</span></div>
       ${wxTrip()}
@@ -810,7 +866,7 @@ function renderToday() {
       <button data-nav="__stay"><b>${icon('home')}</b><span>호텔로</span></button>
       <button data-go="talk"><b>あ</b><span>번역</span></button>
       <button data-go-exp><b>${icon('money')}</b><span>지출</span></button>
-      <button data-go="wallet"><b>${icon('ticket')}</b><span>예약</span></button>
+      <button data-fx><b>¥</b><span>환율</span></button>
     </div>`;
 
   const later = upcoming.slice(1);
@@ -1295,7 +1351,7 @@ const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-item
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-doc-view],[data-doc-add],[data-viewer-del],'
   + '[data-translate],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text],[data-wx-refresh],'
   + '[data-go-exp],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
-  + '[data-talk-clear],[data-sync-toggle]';
+  + '[data-talk-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
   const el = e.target.closest(ACTIONS);
@@ -1344,6 +1400,27 @@ document.addEventListener('click', async (e) => {
     const box = $('#talk-text');
     box.value = ''; el.hidden = true; box.focus();
   }
+  else if ('fx' in d) openFx();
+  else if ('fxSwap' in d) {
+    const f = state.fxCalc; const { out } = fxCalc();
+    f.value = out ? String(Math.round(out)) : ''; f.dir = f.dir === 'yen' ? 'won' : 'yen'; f.tax = false; openFx();
+  }
+  else if ('fxClear' in d) { state.fxCalc.value = ''; $('#fx-in').value = ''; updateFx(); $('#fx-in').focus(); }
+  else if (d.fxSet) { state.fxCalc.value = d.fxSet; $('#fx-in').value = d.fxSet; updateFx(); }
+  else if ('fxRefresh' in d) {
+    if (state.fx) state.fx.at = 0;
+    toast((await loadFx(true)) ? '환율을 새로 받았어요' : '지금은 환율을 받을 수 없어요 · 저장된 환율로 계산해요');
+  }
+  else if ('fxLog' in d) {
+    const f = state.fxCalc; const { base, out } = fxCalc();
+    const amount = Math.round(f.dir === 'yen' ? base : out);
+    if (!amount) return toast('금액을 먼저 넣어 주세요.');
+    closeSheet(); go('wallet');
+    const box = $('.exp-form [name=amount]');
+    box.value = amount; $('#exp')?.scrollIntoView({ block: 'start' }); scrollBy(0, -100);
+    $('.exp-form [name=memo]').focus();
+    toast(`${yen(amount)} · 메모와 분류를 고르고 '기록'을 누르세요`);
+  }
   else if ('syncToggle' in d) { state.syncOpen = !state.syncOpen; render(); }
   else if ('swap' in d) { state.talkDir = state.talkDir === 'ko-ja' ? 'ja-ko' : 'ko-ja'; render(); }
   else if (d.phrase) { const p = state.trip.phrases[d.phrase]; showJa({ ja: p.ja, read: p.read, ko: p.ko }); }
@@ -1376,6 +1453,8 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.dataset.secret) store.set(t.dataset.secret, t.value.trim().toUpperCase());
+  else if (t.id === 'fx-in') { state.fxCalc.value = t.value; updateFx(); }
+  else if (t.id === 'fx-tax') { state.fxCalc.tax = t.checked; updateFx(); }
   else if (t.id === 'talk-text') { store.set('talkText', t.value); $('.talk-clear').hidden = !t.value; }
 });
 

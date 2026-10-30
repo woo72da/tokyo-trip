@@ -622,3 +622,27 @@ ul.plain li + li { margin-top: 4px; }
 .sync.open .sync-head { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
 .sync .btns { margin-top: 12px; }
 .sync-note { margin-top: 10px; line-height: 1.5; }
+
+/* exchange calculator */
+.section-title .fx-pill { margin-left: auto; align-self: center; }
+.fx-pill { font-size: 12px; font-weight: 750; padding: 5px 10px; border-radius: 999px; background: var(--soft); color: var(--ink); }
+.fx { background: var(--night); color: var(--on-night); border-radius: 26px; padding: 16px; margin-top: 14px; box-shadow: inset 0 0 0 1px var(--night-edge); }
+.fx .talk-dir .icon-btn { background: rgba(255,255,255,.1); color: var(--on-night); }
+.fx-field { position: relative; margin-top: 12px; }
+.fx-in {
+  width: 100%; border: 0; border-radius: 18px; padding: 14px 84px 14px 16px; outline: none;
+  background: rgba(255,255,255,.08); color: var(--on-night); font: inherit; font-size: 30px; font-weight: 800; letter-spacing: -.02em;
+}
+.fx-in::placeholder { color: var(--on-night-muted); }
+.fx-unit { position: absolute; right: 48px; top: 50%; transform: translateY(-50%); font-size: 16px; font-weight: 750; color: var(--on-night-muted); }
+.fx-field .fx-clear { top: 50%; transform: translateY(-50%); }
+.fx-res { padding: 14px 4px 4px; }
+.fx-res b { display: block; font-size: 34px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; color: #fff; }
+.fx-res small { display: block; min-height: 18px; margin-top: 4px; font-size: 13px; color: var(--on-night-muted); }
+.fx-quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+.fx-quick button { padding: 9px 0; border-radius: 12px; background: rgba(255,255,255,.1); color: var(--on-night); font-size: 13.5px; font-weight: 700; }
+.fx-quick button:active { background: rgba(255,255,255,.2); }
+.fx-tax { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13.5px; font-weight: 650; color: var(--on-night); }
+.fx-tax input { width: 20px; height: 20px; accent-color: var(--accent); }
+.fx-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.fx-note { margin-top: 4px; }
