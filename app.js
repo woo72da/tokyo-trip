@@ -593,24 +593,52 @@ function translate(engine, text) {
       'Google 번역',
     );
   } else {
-    // Papago documents no link that carries text, so copy it first and open the app to paste.
+    // Papago has no app link that takes text (papago:// is rejected on iPhone), so hand the text to the
+    // share sheet, where the Papago app appears; the Papago website is the fallback.
+    const web = `https://papago.naver.com/?sk=${sl}&tk=${tl}&st=${t}`;
     navigator.clipboard?.writeText(text).catch(() => {});
-    toast('문장을 복사했어요 · 파파고 입력창을 길게 눌러 붙여넣기');
-    openApp('papago://', `https://papago.naver.com/?sk=${sl}&tk=${tl}&st=${t}`, '파파고');
+    if (navigator.share) {
+      navigator.share({ text })
+        .catch((e) => { if (e.name !== 'AbortError') window.open(web, '_blank', 'noopener'); });
+      toast('목록에서 파파고를 고르세요 · 없으면 웹으로', web, '파파고 웹');
+    } else window.open(web, '_blank', 'noopener');
   }
 }
 
-// iPhone: speak() must run inside the tap, an explicit Japanese voice is needed (lang alone can stay
-// silent), and cancel() right before speak() can drop the new utterance, so only cancel when busy.
+// Japanese audio: recorded clips (tools/make_audio.py) play through <audio>, which the iPhone
+// silent switch doesn't mute; the browser speech engine is the backup for text without a clip.
+// Clips are loaded into memory ahead of time so play() runs inside the tap, as iPhone requires.
+const clips = new Map();
+const player = new Audio();
+async function loadClips() {
+  try {
+    const index = await (await fetch('audio/index.json')).json();
+    for (const [text, file] of Object.entries(index)) {
+      if (clips.has(text)) continue;
+      const blob = await (await fetch(file)).blob();
+      clips.set(text, URL.createObjectURL(blob));
+    }
+  } catch { /* offline before the first load: speech engine backup */ }
+}
+
 const jaVoice = () => {
   const ja = (window.speechSynthesis?.getVoices() || []).filter((v) => /^ja/i.test(v.lang));
   // Prefer the standard voices (iPhone: Kyoko/O-ren/Otoya, Android/Chrome: Google 日本語) over novelty ones.
   return ja.find((v) => /Kyoko|O-ren|Otoya|Hattori|Google|日本語/i.test(v.name)) || ja.find((v) => v.default) || ja[0];
 };
 window.speechSynthesis?.getVoices();
-window.speechSynthesis?.addEventListener?.('voiceschanged', jaVoice);
 
 function speak(text) {
+  const clip = clips.get(text);
+  if (clip) {
+    window.speechSynthesis?.cancel();
+    player.src = clip;
+    player.play().catch(() => speakEngine(text));
+    return;
+  }
+  speakEngine(text);
+}
+function speakEngine(text) {
   const synth = window.speechSynthesis;
   if (!synth) return speakFallback(text, '이 기기 브라우저는 음성을 지원하지 않아요.');
   const voice = jaVoice();
@@ -623,10 +651,6 @@ function speak(text) {
   u.rate = 0.9;
   u.onerror = (e) => { if (e.error !== 'interrupted' && e.error !== 'canceled') speakFallback(text, '음성이 재생되지 않았어요.'); };
   synth.speak(u);
-  if (/iPhone|iPad/.test(navigator.userAgent) && !store.get('muteTip', false)) {
-    store.set('muteTip', true);
-    toast('소리가 안 들리면 무음 모드를 끄고 볼륨을 올려 주세요.');
-  }
 }
 // No usable voice: Google 번역 reads Japanese aloud with its speaker button.
 function speakFallback(text, why) {
@@ -1019,9 +1043,9 @@ function renderTalk() {
       <textarea id="talk-text" class="talk-input" rows="3" placeholder="${state.talkDir === 'ko-ja' ? '번역할 말을 입력하세요' : '日本語を入力'}">${esc(store.get('talkText', ''))}</textarea>
       <div class="btns">
         <button class="btn primary" data-translate="google">Google 번역 앱</button>
-        <button class="btn papago" data-translate="papago">파파고 앱</button>
+        <button class="btn papago" data-translate="papago">파파고로 보내기</button>
       </div>
-      <div class="small muted talk-hint">Google 번역은 문장이 바로 들어가고, 파파고는 복사된 문장을 붙여넣으면 돼요. 음성·카메라 통역은 각 앱의 마이크·카메라 버튼으로.</div>
+      <div class="small muted talk-hint">Google 번역은 앱에 문장이 바로 들어가요. 파파고는 공유 목록에서 파파고를 고르면 되고, 목록에 없으면 '파파고 웹'으로 열어요. 음성·카메라 통역은 각 앱의 마이크·카메라 버튼으로.</div>
     </div>
 
     ${nowPhrases()}
@@ -1413,6 +1437,7 @@ async function init() {
   render();
   loadWeather();
   loadFx();
+  loadClips();
 }
 
 if ('serviceWorker' in navigator) {

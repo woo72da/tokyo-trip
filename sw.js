@@ -1,6 +1,6 @@
 // Bump VERSION whenever app files change so phones pick up the new cache.
 // Install fetches bypass the HTTP cache, so a new VERSION never stores stale files.
-const VERSION = 'trip-v16';
+const VERSION = 'trip-v17';
 const ASSETS = [
   './',
   './index.html',
@@ -13,8 +13,18 @@ const ASSETS = [
   './icons/apple-touch-icon.png',
 ];
 
+// Japanese audio clips are listed in audio/index.json and cached with the app for offline use.
+const fresh = (url) => new Request(url, { cache: 'reload' });
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' })))).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(VERSION)
+      .then(async (cache) => {
+        await cache.addAll(ASSETS.map(fresh));
+        const index = await (await fetch(fresh('./audio/index.json'))).json();
+        await cache.addAll(['./audio/index.json', ...Object.values(index).map((f) => './' + f)].map(fresh));
+      })
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (event) => {
