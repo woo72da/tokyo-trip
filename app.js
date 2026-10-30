@@ -615,8 +615,8 @@ async function loadClips() {
     const index = await (await fetch('audio/index.json')).json();
     for (const [text, file] of Object.entries(index)) {
       if (clips.has(text)) continue;
-      const blob = await (await fetch(file)).blob();
-      clips.set(text, URL.createObjectURL(blob));
+      const res = await fetch(file);
+      if (res.ok) clips.set(text, URL.createObjectURL(await res.blob()));
     }
   } catch { /* offline before the first load: speech engine backup */ }
 }

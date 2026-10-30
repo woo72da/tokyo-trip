@@ -1,6 +1,6 @@
 // Bump VERSION whenever app files change so phones pick up the new cache.
 // Install fetches bypass the HTTP cache, so a new VERSION never stores stale files.
-const VERSION = 'trip-v17';
+const VERSION = 'trip-v18';
 const ASSETS = [
   './',
   './index.html',
@@ -20,8 +20,11 @@ self.addEventListener('install', (event) => {
     caches.open(VERSION)
       .then(async (cache) => {
         await cache.addAll(ASSETS.map(fresh));
-        const index = await (await fetch(fresh('./audio/index.json'))).json();
-        await cache.addAll(['./audio/index.json', ...Object.values(index).map((f) => './' + f)].map(fresh));
+        // One missing clip must not block the update, so audio is cached file by file.
+        try {
+          const index = await (await fetch(fresh('./audio/index.json'))).json();
+          await Promise.allSettled(['./audio/index.json', ...Object.values(index).map((f) => './' + f)].map((u) => cache.add(fresh(u))));
+        } catch { /* no audio list: the app falls back to the speech engine */ }
       })
       .then(() => self.skipWaiting()),
   );
