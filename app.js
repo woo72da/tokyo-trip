@@ -350,6 +350,7 @@ function costCard(g) {
     <div class="card cost">
       ${rows.map((c) => row(c.label, c.r)).join('')}
       ${row('합계', total, 'sum')}
+      ${g.cash ? `${row(g.cash.label, [g.cash.yen, g.cash.yen], 'cash')}<div class="small muted cost-cash">${esc(g.cash.note)} · 카드 약 ${span(total.map((v) => Math.max(0, v - g.cash.yen)), yen)}</div>` : ''}
       <div class="small muted cost-note">${g.costNote ? `<span class="one-line">${esc(g.costNote)}</span>` : ''}100엔 = ${(fxRate() * 100).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원 기준 · 예산 ${yen(store.get('budget', state.trip.budget?.yen || 0))}
         <button class="link" data-fx>환율 계산기</button></div>
     </div>`;
@@ -816,7 +817,7 @@ const GLYPHS = {
   '🚃': 'local move', '🚝': 'tram move', '🚉': 'station move', '🛄': 'baggage move', '🛂': 'id move',
   '🍽': 'meal eat', '🍳': 'breakfast eat', '🍣': 'sushi eat', '🍜': 'ramen eat', '☕': 'coffee eat',
   '🛍': 'shop shop', '👔': 'fashion shop', '⌚': 'watch shop', '💴': 'money shop', '🎥': 'video shop',
-  '🏨': 'bed stay', '📎': 'clip stay',
+  '🏨': 'bed stay', '📎': 'clip stay', '🛋': 'coffee stay', '🎫': 'ticket move',
   '🎮': 'game see', '🌳': 'park see', '🏛': 'museum see', '⛩': 'torii see', '🗼': 'tower see', '🌺': 'flower see',
   '🎨': 'art see', '🌉': 'bridge see', '🏮': 'lantern see', '🌇': 'sunset see', '🌤': 'wx-partly see',
 };

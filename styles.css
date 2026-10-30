@@ -667,3 +667,7 @@ ul.plain li + li { margin-top: 4px; }
 .cost-row.sum b { color: var(--accent); }
 .cost-note { margin-top: 4px; line-height: 1.55; }
 .cost-note .one-line { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cost-row.cash { border-top: 1px dashed var(--line); border-bottom: 0; margin-top: 2px; }
+.cost-row.cash span, .cost-row.cash b { font-weight: 800; }
+.cost-row.cash b { color: var(--now); }
+.cost-cash { margin: -4px 0 8px; }
