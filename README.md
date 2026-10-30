@@ -24,7 +24,11 @@ python3 -m http.server 8765 --directory travel-app
 - **GitHub Pages**: 저장소를 만들고 `travel-app` 폴더 안의 파일을 업로드한 뒤, Settings → Pages에서 브랜치를 지정합니다.
 - **Netlify Drop**: app.netlify.com/drop 에 `travel-app` 폴더를 끌어다 놓습니다.
 
-배포한 URL은 공개 주소입니다. 그래서 예약번호(항공 PNR, 아고다 번호·PIN)와 바우처·QR 사진은 `trip.json`에 넣지 않고, 앱의 예약 탭에서 각 기기에만 저장합니다 (번호는 localStorage, 사진은 IndexedDB).
+배포한 URL은 공개 주소입니다. 그래서 예약번호(항공 PNR, 아고다 예약번호)와 바우처·QR 사진은 `trip.json`에 넣지 않고, 앱의 예약 탭에서 각 기기에만 저장합니다 (번호는 localStorage, 사진은 IndexedDB).
+
+## 부부 폰 동기화
+
+예약 탭의 '부부 폰 동기화'에서 체크 상태·예약번호·지출·내가 추가한 항목·문서 사진을 파일 하나로 만들어 AirDrop이나 카카오톡으로 보냅니다. 받은 폰에서 파일을 '파일' 앱에 저장한 뒤 '받은 파일 합치기'를 누르면 합쳐집니다 (같은 항목은 나중에 바꾼 쪽이 이기고, 지운 기록은 되살아나지 않음). 서버를 쓰지 않으므로 사진과 번호는 두 폰과 주고받은 파일에만 있습니다.
 
 ## 아이폰 설치
 

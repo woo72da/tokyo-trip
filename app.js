@@ -4,7 +4,10 @@ const TZ = 'Asia/Tokyo';
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const TABS = ['today', 'days', 'wallet', 'talk', 'check'];
 
-const state = { trip: null, wx: null, tab: 'today', dayIndex: 0, talkDir: 'ko-ja', pendingDoc: null };
+const state = {
+  trip: null, wx: null, fx: null, tab: 'today', dayIndex: 0, talkDir: 'ko-ja',
+  pendingDoc: null, viewer: null, docSlots: new Set(), syncFile: null,
+};
 
 // ---------- storage (localStorage can throw in private mode) ----------
 const store = {
@@ -12,12 +15,27 @@ const store = {
     try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); }
     catch { return fallback; }
   },
-  set(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+  // Shared records also get a "last changed" time so two phones can merge (newest wins).
+  set(key, value, at = Date.now()) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      if (isShared(key)) localStorage.setItem('meta', JSON.stringify({ ...this.get('meta', {}), [key]: at }));
+    } catch { /* ignore */ }
   },
 };
+// What the couple sync carries: checks, done marks, own checklist items, booking numbers, expenses, budget.
+const isShared = (key) => /^(ck|done):/.test(key) || ['custom', 'pnr', 'agoda', 'exp', 'budget'].includes(key);
+// Deleted list entries and photos are remembered so a sync doesn't bring them back.
+// Ids stay unique across both phones even when two records are made in the same millisecond.
+const uid = (prefix) => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const forget = (id) => store.set('tomb', { ...store.get('tomb', {}), [id]: Date.now() });
 // Items marked `done` in trip.json (already booked) start checked.
-const isChecked = (id) => store.get('ck:' + id, !!state.trip?.checklist.find((c) => c.id === id)?.done);
+// A checklist item linked to document photos counts as done once every photo is in.
+const docsReady = (c) => !!c?.docs?.length && c.docs.every((slot) => state.docSlots.has(slot));
+const isChecked = (id) => {
+  const c = state.trip?.checklist.find((x) => x.id === id);
+  return docsReady(c) || store.get('ck:' + id, !!c?.done);
+};
 const setChecked = (id, on) => store.set('ck:' + id, on);
 const isDone = (id) => store.get('done:' + id, false);
 const setDone = (id, on) => store.set('done:' + id, on);
@@ -26,7 +44,6 @@ const setDone = (id, on) => store.set('done:' + id, on);
 const SECRETS = [
   { key: 'pnr', label: '항공 예약번호 (PNR)', placeholder: '예: AB12CD' },
   { key: 'agoda', label: '아고다 예약번호', placeholder: '숫자 9~10자리' },
-  { key: 'agodaPin', label: '아고다 PIN / 호텔 확인번호', placeholder: '바우처에 적힌 번호' },
 ];
 
 // Photos of vouchers and QR codes live in IndexedDB on this phone (too big for localStorage).
@@ -52,8 +69,13 @@ const docs = {
   },
   get: (id) => docs.run('readonly', (s) => s.get(id)),
   put: (id, blob) => docs.run('readwrite', (s) => s.put(blob, id)),
-  del: (id) => docs.run('readwrite', (s) => s.delete(id)),
+  del: (id) => { forget('doc:' + id); return docs.run('readwrite', (s) => s.delete(id)); },
   keys: () => docs.run('readonly', (s) => s.getAllKeys()),
+  // Photo keys for one slot, oldest first.
+  async of(slot) {
+    const keys = await docs.keys();
+    return keys.filter((k) => k === slot || k.startsWith(slot + '#')).sort((a, b) => (a === slot ? -1 : b === slot ? 1 : a.localeCompare(b)));
+  },
 };
 
 // Downscale phone photos to ~1800px JPEG; keep the original if the browser can't decode it.
@@ -292,6 +314,237 @@ function wxTrip() {
     </div>`;
 }
 
+// ---------- expenses (yen, shown with won) ----------
+const EXP_CATS = ['식당', '카페', '교통', '쇼핑', '관광', '기타'];
+const SCENE_CAT = { 식당: '식당', 카페: '카페', 교통: '교통', 공항: '교통', 쇼핑: '쇼핑', 관광: '관광', 호텔: '기타' };
+const expenses = () => store.get('exp', []);
+const yen = (n) => `${Math.round(n).toLocaleString('ko-KR')}엔`;
+const won = (n) => `${(Math.round((n * (state.fx?.rate || 8.5)) / 10) * 10).toLocaleString('ko-KR')}원`;
+const who = () => store.get('who', '나');
+
+// Live JPY→KRW rate (open.er-api.com, no key), kept for offline; 6-hour refresh.
+async function loadFx() {
+  if (state.fx && Date.now() - state.fx.at < 6 * 3600 * 1000) return;
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/JPY');
+    const data = await res.json();
+    if (data.result !== 'success') throw new Error(data.result);
+    state.fx = { rate: data.rates.KRW, at: Date.now() };
+    store.set('fx', state.fx);
+    if (state.tab === 'wallet' && $('#sheet').hidden) render();
+  } catch { /* keep the saved rate */ }
+}
+
+function addExpense({ amount, memo, cat, item, date }) {
+  const list = expenses();
+  list.push({ id: uid('e-'), amount, memo, cat, item: item || null, date: date || tokyoNow().date, by: who() });
+  store.set('exp', list);
+}
+function expRow(e) {
+  return `
+    <div class="exp-row">
+      <span class="exp-cat">${esc(e.cat)}</span>
+      <span class="grow"><b>${esc(e.memo || e.cat)}</b><small>${esc(shortDate(e.date))} · ${esc(e.by)}</small></span>
+      <span class="exp-amt"><b>${yen(e.amount)}</b><small>${won(e.amount)}</small></span>
+      <button class="ck-del" data-exp-del="${esc(e.id)}" aria-label="삭제">${icon('x')}</button>
+    </div>`;
+}
+const expForm = (item = null, memo = '', cat = '식당') => `
+  <form class="exp-form" data-exp-item="${esc(item || '')}">
+    <input class="input" name="amount" inputmode="numeric" pattern="[0-9]*" placeholder="금액 (엔)" autocomplete="off" required>
+    <input class="input" name="memo" placeholder="메모" value="${esc(memo)}" autocomplete="off">
+    <select class="input" name="cat">${EXP_CATS.map((c) => `<option ${c === cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
+    <button class="btn primary" type="submit">${icon('plus')}기록</button>
+  </form>`;
+
+function expenseSection() {
+  const list = expenses().sort((a, b) => (a.date === b.date ? b.id.localeCompare(a.id) : b.date.localeCompare(a.date)));
+  const total = list.reduce((a, e) => a + e.amount, 0);
+  const shop = list.filter((e) => e.cat === '쇼핑').reduce((a, e) => a + e.amount, 0);
+  const budget = store.get('budget', state.trip.budget?.yen || 0);
+  const used = total - shop;
+  const pct = budget ? Math.min(100, Math.round((used / budget) * 100)) : 0;
+  const rate = state.fx ? `100엔 = ${Math.round(state.fx.rate * 100).toLocaleString('ko-KR')}원 · ${shortDate(new Date(state.fx.at).toISOString().slice(0, 10))} 기준` : '환율을 불러오면 원화로도 보여요';
+  return `
+    <div class="section-title" id="exp"><span>여행 경비</span><em class="muted">${esc(rate)}</em></div>
+    <div class="card exp">
+      <div class="exp-total"><b>${yen(total)}</b><span>${won(total)}${shop ? ` · 쇼핑 ${yen(shop)}` : ''}</span></div>
+      ${budget ? `
+        <div class="meter"><i style="width:${pct}%"></i></div>
+        <div class="small muted exp-budget">예산 ${yen(budget)} 중 ${pct}% 사용 (쇼핑 제외) · 남은 돈 ${yen(Math.max(0, budget - used))}
+          <button class="link" data-budget>예산 바꾸기</button></div>` : ''}
+      ${expForm()}
+      ${list.length ? `<div class="exp-list">${list.map(expRow).join('')}</div>` : '<div class="small muted exp-empty">아직 기록이 없어요. 일정을 눌러서도 기록할 수 있어요.</div>'}
+    </div>`;
+}
+
+// ---------- to-dos with a due date ----------
+function dueLabel(c, today) {
+  if (!c.due) return '';
+  const n = daysBetween(today, c.due);
+  return n < 0 ? '지남' : n === 0 ? '오늘' : n === 1 ? '내일' : shortDate(c.due);
+}
+// Open items due by tomorrow, soonest first. Before the trip overdue ones and open bookings count too;
+// during the trip only today and tomorrow, so prep leftovers don't push the schedule down.
+function todoNow(today) {
+  const before = today < state.trip.trip.start;
+  return checklist()
+    .filter((c) => {
+      if (isChecked(c.id)) return false;
+      if (!c.due) return before && c.group === '예약';
+      const n = daysBetween(today, c.due);
+      return n <= 1 && (before || n >= 0);
+    })
+    .sort((a, b) => (a.due || '0').localeCompare(b.due || '0'));
+}
+function todoCard(today, title, limit) {
+  const list = todoNow(today);
+  if (!list.length) return '';
+  const more = list.length - limit;
+  return `
+    <div class="section-title"><span>${title}</span><em>${list.length}</em></div>
+    <div class="card list todo">${list.slice(0, limit).map((c) => checkRow(c, today)).join('')}
+      ${more > 0 ? `<button class="todo-more" data-go="check">나머지 ${more}개는 체크 탭에서</button>` : ''}</div>`;
+}
+
+// ---------- couple sync (one file with records and photos, sent by AirDrop or KakaoTalk) ----------
+const blobToB64 = (blob) => new Promise((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve(String(r.result).split(',')[1]);
+  r.onerror = () => reject(r.error);
+  r.readAsDataURL(blob);
+});
+const b64ToBlob = async (b64, type) => (await fetch(`data:${type};base64,${b64}`)).blob();
+
+async function buildSyncFile() {
+  const meta = store.get('meta', {});
+  const kv = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (isShared(k)) kv[k] = { v: store.get(k), t: meta[k] || 0 };
+  }
+  const photos = [];
+  for (const k of await docs.keys()) {
+    const blob = await docs.get(k);
+    photos.push({ k, type: blob.type || 'image/jpeg', data: await blobToB64(blob) });
+  }
+  const body = JSON.stringify({ app: 'tokyo-trip', v: 1, from: who(), at: Date.now(), kv, tomb: store.get('tomb', {}), photos });
+  const d = new Date();
+  const name = `도쿄여행-${who()}폰-${d.getMonth() + 1}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`;
+  state.syncFile = new File([body], name, { type: 'application/json' });
+  return { photos: photos.length, records: Object.keys(kv).length };
+}
+
+// Share must run straight from a tap on iPhone, so the file is built first and shared on a second tap.
+async function shareSyncFile() {
+  const file = state.syncFile;
+  if (!file) return;
+  try {
+    if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: '도쿄 여행 동기화' });
+    else {
+      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(file), download: file.name });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    }
+    store.set('syncSent', Date.now());
+  } catch (e) { if (e.name !== 'AbortError') toast('파일을 보내지 못했어요. 다시 눌러 주세요.'); }
+  render();
+}
+
+// Merge the other phone's file: newer value wins per record, lists and photos are combined, deletions are kept.
+async function importSync(file) {
+  let data;
+  try { data = JSON.parse(await file.text()); } catch { return toast('동기화 파일을 읽지 못했어요.'); }
+  if (data?.app !== 'tokyo-trip') return toast('도쿄 여행 앱의 동기화 파일이 아니에요.');
+  const tomb = { ...store.get('tomb', {}) };
+  for (const [id, t] of Object.entries(data.tomb || {})) tomb[id] = Math.max(tomb[id] || 0, t);
+  localStorage.setItem('tomb', JSON.stringify(tomb));
+  const meta = store.get('meta', {});
+  let records = 0;
+  for (const [k, { v, t }] of Object.entries(data.kv || {})) {
+    if (!isShared(k)) continue;
+    if (k === 'custom' || k === 'exp') {
+      const mine = store.get(k, []);
+      const ids = new Set(mine.map((x) => x.id));
+      const extra = (v || []).filter((x) => !ids.has(x.id));
+      const merged = [...mine, ...extra].filter((x) => !tomb[`${k}:${x.id}`]);
+      if (extra.length || merged.length !== mine.length) { store.set(k, merged, Math.max(t, meta[k] || 0)); records += extra.length; }
+    } else if (t > (meta[k] || 0)) { store.set(k, v, t); records += 1; }
+  }
+  for (const k of ['custom', 'exp']) {
+    const list = store.get(k, []);
+    const kept = list.filter((x) => !tomb[`${k}:${x.id}`]);
+    if (kept.length !== list.length) store.set(k, kept);
+  }
+  const have = new Set(await docs.keys());
+  let photos = 0;
+  for (const k of have) if (tomb['doc:' + k]) await docs.run('readwrite', (st) => st.delete(k));
+  for (const ph of data.photos || []) {
+    if (have.has(ph.k) || tomb['doc:' + ph.k]) continue;
+    await docs.put(ph.k, await b64ToBlob(ph.data, ph.type));
+    photos += 1;
+  }
+  // Single-photo slots keep only the newest picture.
+  for (const slot of state.trip.docs.filter((x) => (x.max || 1) === 1)) {
+    const keys = await docs.of(slot.id);
+    for (const k of keys.slice(0, -1)) await docs.del(k);
+  }
+  await refreshDocSlots();
+  store.set('syncGot', { at: Date.now(), from: data.from });
+  render();
+  toast(records || photos ? `${data.from}폰에서 기록 ${records}건 · 사진 ${photos}장을 합쳤어요` : '이미 같은 내용이에요');
+}
+
+function syncCard() {
+  const got = store.get('syncGot', null);
+  const sent = store.get('syncSent', 0);
+  const f = state.syncFile;
+  return `
+    <div class="section-title"><span>부부 폰 동기화</span><em class="muted">체크·예약번호·지출·사진</em></div>
+    <div class="card sync">
+      <div class="sync-who"><span>이 폰은</span>${['나', '와이프'].map((w) => `<button class="seg ${who() === w ? 'on' : ''}" data-who="${w}">${w} 폰</button>`).join('')}</div>
+      <div class="btns">
+        ${f ? `<button class="btn primary" data-sync-share>${icon('ext')}파일 보내기 · ${f.size < 1048576 ? Math.max(1, Math.round(f.size / 1024)) + 'KB' : (f.size / 1048576).toFixed(1) + 'MB'}</button>`
+            : `<button class="btn primary" data-sync-build>${icon('refresh')}보낼 파일 만들기</button>`}
+        <button class="btn" data-sync-pick>${icon('clip')}받은 파일 합치기</button>
+      </div>
+      <div class="small muted sync-note">
+        보낸 파일을 상대 폰에서 열어 '파일에 저장'한 뒤, 상대 폰 앱에서 '받은 파일 합치기'를 누르세요. 서로 한 번씩 주고받으면 두 폰이 같아져요.
+        ${sent ? `<br>보낸 시각 ${new Date(sent).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
+        ${got ? `<br>${esc(got.from)}폰에서 받은 시각 ${new Date(got.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
+      </div>
+    </div>`;
+}
+
+// ---------- phrases for a schedule item ----------
+// Which phrase group fits an item: by its icon, with title words for airport and hotel stops.
+const SCENES = {
+  meal: '식당', breakfast: '식당', sushi: '식당', ramen: '식당', lantern: '식당', coffee: '카페',
+  shop: '쇼핑', fashion: '쇼핑', watch: '쇼핑', bed: '호텔', luggage: '호텔',
+  plane: '공항', baggage: '공항', id: '공항',
+  walk: '교통', train: '교통', local: '교통', metro: '교통', tram: '교통', station: '교통', bus: '교통',
+};
+function sceneOf(it) {
+  if (!it?.place || it.place.lang === 'ko') return null;
+  if (/공항|나리타|수하물|출발 →/.test(it.title)) return '공항';
+  if (/coffee|커피|카페|스타벅스/i.test(it.title)) return '카페';
+  if (/체크인|체크아웃|짐/.test(it.title)) return '호텔';
+  return SCENES[glyph(it.icon)[0]] || '관광';
+}
+const phrasesFor = (scene) => state.trip.phrases.map((p, i) => ({ ...p, i })).filter((p) => p.group === scene);
+
+function phraseRow(p) {
+  return `
+    <div class="phrase">
+      <button class="phrase-main" data-phrase="${p.i}">
+        <span class="phrase-ko">${esc(p.ko)}</span>
+        <span class="phrase-ja ja">${esc(p.ja)}</span>
+        <span class="phrase-read">${esc(p.read)}</span>
+      </button>
+      <button class="icon-btn" data-speak="${p.i}" aria-label="발음 듣기">${icon('sound')}</button>
+    </div>`;
+}
+
 // ---------- external apps ----------
 // Try the native app's URL scheme; if the page is still visible afterwards, offer the web version.
 function openApp(appUrl, webUrl, name) {
@@ -340,17 +593,45 @@ function translate(engine, text) {
       'Google 번역',
     );
   } else {
-    window.open(`https://papago.naver.com/?sk=${sl}&tk=${tl}&st=${t}`, '_blank', 'noopener');
+    // Papago documents no link that carries text, so copy it first and open the app to paste.
+    navigator.clipboard?.writeText(text).catch(() => {});
+    toast('문장을 복사했어요 · 파파고 입력창을 길게 눌러 붙여넣기');
+    openApp('papago://', `https://papago.naver.com/?sk=${sl}&tk=${tl}&st=${t}`, '파파고');
   }
 }
 
+// iPhone: speak() must run inside the tap, an explicit Japanese voice is needed (lang alone can stay
+// silent), and cancel() right before speak() can drop the new utterance, so only cancel when busy.
+const jaVoice = () => {
+  const ja = (window.speechSynthesis?.getVoices() || []).filter((v) => /^ja/i.test(v.lang));
+  // Prefer the standard voices (iPhone: Kyoko/O-ren/Otoya, Android/Chrome: Google 日本語) over novelty ones.
+  return ja.find((v) => /Kyoko|O-ren|Otoya|Hattori|Google|日本語/i.test(v.name)) || ja.find((v) => v.default) || ja[0];
+};
+window.speechSynthesis?.getVoices();
+window.speechSynthesis?.addEventListener?.('voiceschanged', jaVoice);
+
 function speak(text) {
-  if (!('speechSynthesis' in window)) return toast('이 기기에서는 음성을 지원하지 않아요.');
-  speechSynthesis.cancel();
+  const synth = window.speechSynthesis;
+  if (!synth) return speakFallback(text, '이 기기 브라우저는 음성을 지원하지 않아요.');
+  const voice = jaVoice();
+  if (!voice && synth.getVoices().length) return speakFallback(text, '이 폰에 일본어 음성이 없어요.');
+  if (synth.speaking || synth.pending) synth.cancel();
+  synth.resume();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'ja-JP';
+  if (voice) u.voice = voice;
   u.rate = 0.9;
-  speechSynthesis.speak(u);
+  u.onerror = (e) => { if (e.error !== 'interrupted' && e.error !== 'canceled') speakFallback(text, '음성이 재생되지 않았어요.'); };
+  synth.speak(u);
+  if (/iPhone|iPad/.test(navigator.userAgent) && !store.get('muteTip', false)) {
+    store.set('muteTip', true);
+    toast('소리가 안 들리면 무음 모드를 끄고 볼륨을 올려 주세요.');
+  }
+}
+// No usable voice: Google 번역 reads Japanese aloud with its speaker button.
+function speakFallback(text, why) {
+  const t = encodeURIComponent(text);
+  toast(`${why} Google 번역에서 스피커를 눌러 들을 수 있어요.`, `https://translate.google.com/?sl=ja&tl=ko&text=${t}&op=translate`, 'Google 번역');
 }
 
 let toastTimer;
@@ -455,7 +736,6 @@ function renderToday() {
     const left = daysBetween(now.date, trip.start);
     const list = checklist();
     const todo = list.filter((c) => !isChecked(c.id));
-    const urgent = todo.filter((c) => c.group === '예약');
     const f = flights[0];
     setHeader('도쿄 · 2026년 11월', trip.title, `${dayLabel(trip.start)} 출발 · ${trip.travelers}명`);
     return `
@@ -469,9 +749,7 @@ function renderToday() {
         <div class="meter"><i style="width:${Math.round(((list.length - todo.length) / list.length) * 100)}%"></i></div>
         <div class="hero-meta">준비 ${list.length - todo.length} / ${list.length}</div>
       </div>
-      ${urgent.length ? `
-        <div class="section-title"><span>지금 예약해야 할 것</span><em>${urgent.length}</em></div>
-        <div class="card list">${urgent.map(checkRow).join('')}</div>` : ''}
+      ${todoCard(now.date, '지금 할 일', 5)}
       <div class="quick">
         <button data-go="check"><b>${todo.length}</b><span>남은 준비</span></button>
         <button data-go="wallet"><b>${icon('ext')}</b><span>예약 확인</span></button>
@@ -497,14 +775,16 @@ function renderToday() {
   setHeader(`${dayIdx + 1}일차 · ${dayLabel(day.date)}`, stripEmoji(day.title), `일몰 ${day.sunset} · ${items.length}개 일정`);
 
   let html = wxCard(day.date, now);
+  html += todoCard(now.date, '오늘 할 일', 3);
   if (current) html += heroCard(current, 'now', now);
   if (next) html += heroCard(next, 'next', now);
   if (!current && !next) html += `<div class="card empty">오늘 일정이 모두 끝났어요. 푹 쉬세요.</div>`;
   html += `
-    <div class="quick">
+    <div class="quick four">
       <button data-nav="__stay"><b>${icon('home')}</b><span>호텔로</span></button>
       <button data-go="talk"><b>あ</b><span>번역</span></button>
-      <button data-go="wallet"><b>${icon('ext')}</b><span>예약</span></button>
+      <button data-go-exp><b>${icon('money')}</b><span>지출</span></button>
+      <button data-go="wallet"><b>${icon('ticket')}</b><span>예약</span></button>
     </div>`;
 
   const later = upcoming.slice(1);
@@ -527,10 +807,11 @@ function heroCard(it, kind, now) {
       ${it.note ? `<div class="hero-note">${esc(it.note)}</div>` : ''}
       ${chipsHtml(chipsFor(it, now))}
       ${kind === 'now' ? `<div class="meter"><i style="width:${progress}%"></i></div>` : ''}
+      ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
       <div class="btns">
         ${it.place?.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', 'primary wide') : ''}
         ${it.place && it.place.lang !== 'ko' ? `${navBtn(it.id, '구글맵 길찾기')}<button class="btn ghost" data-ja="${esc(it.id)}">${icon('ja')}일본어</button>` : ''}
-        <button class="btn ghost wide" data-item="${esc(it.id)}">자세히</button>
+        <button class="btn ghost wide" data-item="${esc(it.id)}">${sceneOf(it) ? '자세히 · 현지 회화' : '자세히'}</button>
       </div>
     </div>`;
 }
@@ -560,6 +841,7 @@ function timeline(items, now) {
             <div class="tl-title">${esc(it.title)}</div>
             ${it.note ? `<div class="tl-sub">${esc(it.note)}</div>` : ''}
             ${chipsHtml(warn)}
+            ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
           </div>
           ${it.place ? `<button class="tl-nav" data-nav="${esc(it.id)}" aria-label="구글맵 길찾기">${icon('nav')}</button>` : ''}
         </div>
@@ -644,9 +926,10 @@ function transferPass(t) {
 function renderWallet() {
   const { flights, stay, guides, trip, links, docs: slots } = state.trip;
   const agoda = store.get('agoda', '');
-  const pin = store.get('agodaPin', '');
   setHeader('도쿄 · 2026년 11월', '예약 · 문서', `${dayLabel(trip.start)} ~ ${dayLabel(trip.end)} · ${trip.travelers}명`);
   return `
+    ${syncCard()}
+    ${expenseSection()}
     <div class="section-title"><span>항공</span></div>
     ${flights.map(boardingPass).join('')}
     <div class="btns solo">
@@ -670,13 +953,13 @@ function renderWallet() {
         <div><small>체크인</small><b>${esc(dayLabel(trip.start))} ${esc(stay.checkIn)}</b></div>
         <div><small>체크아웃</small><b>${esc(dayLabel(trip.end))} ${esc(stay.checkOut)}</b></div>
         <div><small>아고다</small><b class="mono">${esc(agoda || '—')}</b></div>
-        <div><small>PIN</small><b class="mono">${esc(pin || '—')}</b></div>
+        <div><small>조식</small><b>${esc(stay.breakfast.split(' ')[0])}</b></div>
       </div>
       <div class="addr">
         <div class="ja">${esc(stay.address)}</div>
         <div class="muted small">${esc(stay.addressKo)}</div>
       </div>
-      <div class="small muted">조식 ${esc(stay.breakfast)}</div>
+      <div class="small muted">조식 ${esc(stay.breakfast.split(' · ').slice(1).join(' · '))}</div>
       <div class="btns">
         ${navBtn('__stay', '호텔 길찾기')}
         <button class="btn" data-ja="__stay">${icon('ja')}택시 기사용</button>
@@ -702,15 +985,15 @@ function renderWallet() {
         </label>`).join('')}
     </div>
 
-    <div class="section-title"><span>문서 사진</span><em class="muted">캡처해 두면 오프라인에서도 열려요</em></div>
+    <div class="section-title"><span>문서 사진</span><em class="muted">폰에 저장돼 오프라인에서도 열려요</em></div>
     <div class="docs">
       ${slots.map((s) => `
         <div class="doc" data-doc="${esc(s.id)}">
-          <button class="doc-thumb" data-doc-view="${esc(s.id)}">${itemIcon(s.icon, 'lg')}</button>
+          <button class="doc-thumb" data-doc-view="${esc(s.id)}">${itemIcon(s.icon, 'lg')}<i class="doc-count" hidden></i></button>
           <div class="doc-label">${esc(s.label)}</div>
           <div class="doc-actions">
             <button data-doc-add="${esc(s.id)}">추가</button>
-            <button data-doc-del="${esc(s.id)}" hidden>삭제</button>
+            <span class="doc-max">최대 ${s.max || 1}장</span>
           </div>
         </div>`).join('')}
     </div>
@@ -736,34 +1019,44 @@ function renderTalk() {
       <textarea id="talk-text" class="talk-input" rows="3" placeholder="${state.talkDir === 'ko-ja' ? '번역할 말을 입력하세요' : '日本語を入力'}">${esc(store.get('talkText', ''))}</textarea>
       <div class="btns">
         <button class="btn primary" data-translate="google">Google 번역 앱</button>
-        <button class="btn papago" data-translate="papago">파파고</button>
+        <button class="btn papago" data-translate="papago">파파고 앱</button>
       </div>
-      <div class="small muted talk-hint">실시간 음성·카메라 통역은 열린 앱에서 마이크·카메라 버튼을 누르면 됩니다.</div>
+      <div class="small muted talk-hint">Google 번역은 문장이 바로 들어가고, 파파고는 복사된 문장을 붙여넣으면 돼요. 음성·카메라 통역은 각 앱의 마이크·카메라 버튼으로.</div>
     </div>
 
-    <div class="section-title"><span>바로 쓰는 일본어</span><em class="muted">탭하면 크게 · 스피커로 발음</em></div>
+    ${nowPhrases()}
+    <div class="section-title"><span>상황별 일본어</span><em class="muted">탭하면 크게 · 스피커로 발음</em></div>
+    <div class="scene-pick">${groups.map((g) => `<a href="#ph-${esc(g)}">${esc(g)}</a>`).join('')}</div>
     ${groups.map((g) => `
-      <div class="phrase-group">${esc(g)}</div>
-      <div class="card list">${phrases.map((p, i) => (p.group !== g ? '' : `
-        <div class="phrase">
-          <button class="phrase-main" data-phrase="${i}">
-            <span class="phrase-ko">${esc(p.ko)}</span>
-            <span class="phrase-ja ja">${esc(p.ja)}</span>
-            <span class="phrase-read">${esc(p.read)}</span>
-          </button>
-          <button class="icon-btn" data-speak="${i}" aria-label="발음 듣기">${icon('sound')}</button>
-        </div>`)).join('')}</div>`).join('')}
+      <div class="phrase-group" id="ph-${esc(g)}">${esc(g)}</div>
+      <div class="card list">${phrasesFor(g).map(phraseRow).join('')}</div>`).join('')}
   `;
 }
 
-function checkRow(c) {
+// During the trip, the talk tab opens with phrases for what is happening now (or next).
+function nowPhrases() {
+  const now = tokyoNow();
+  const day = state.trip.days.find((d) => d.date === now.date);
+  if (!day) return '';
+  const items = dayItems(day).filter((it) => sceneOf(it));
+  const it = items.find((x) => x.startMin <= now.min && now.min < x.endMin) || items.find((x) => x.startMin > now.min);
+  if (!it) return '';
+  const scene = sceneOf(it);
+  return `
+    <div class="section-title">${itemIcon(it.icon, 'sm')}<span>${esc(it.start)} ${esc(it.title)}</span><em>${esc(scene)}</em></div>
+    <div class="card list">${phrasesFor(scene).map(phraseRow).join('')}</div>`;
+}
+
+function checkRow(c, today = tokyoNow().date) {
   const on = isChecked(c.id);
+  const due = !on && c.due && daysBetween(today, c.due) <= 2 ? dueLabel(c, today) : '';
   return `
     <div class="ck ${on ? 'on' : ''}">
       <button class="ck-hit" data-check="${esc(c.id)}" aria-pressed="${on}">
         <span class="ck-box"><svg viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-9"/></svg></span>
-        <span class="ck-text">${esc(c.text)}</span>
+        <span class="ck-text">${esc(c.text)}${due ? ` <em class="due ${due === '지남' || due === '오늘' ? 'hot' : ''}">${due}</em>` : ''}${docsReady(c) ? ' <em class="due ok">사진 등록됨</em>' : ''}</span>
       </button>
+      ${c.docs ? `<div class="ck-docs">${c.docs.map((slotId) => `<button class="doc-mini ${state.docSlots.has(slotId) ? 'has' : ''}" data-doc-view="${esc(slotId)}" aria-label="${esc(docLabel(slotId))} 사진">${icon('id')}</button>`).join('')}</div>` : ''}
       ${c.custom ? `<button class="ck-del" data-del="${esc(c.id)}" aria-label="삭제">${icon('x')}</button>` : ''}
     </div>`;
 }
@@ -793,35 +1086,81 @@ function renderCheck() {
 const thumbUrls = [];
 async function hydrateDocs() {
   thumbUrls.splice(0).forEach((u) => URL.revokeObjectURL(u));
-  let keys = [];
-  try { keys = await docs.keys(); } catch { return; }
-  for (const id of keys) {
-    const el = document.querySelector(`[data-doc="${CSS.escape(id)}"]`);
-    if (!el) continue;
-    const blob = await docs.get(id);
-    const url = URL.createObjectURL(blob);
+  for (const slot of state.trip.docs) {
+    const el = document.querySelector(`[data-doc="${CSS.escape(slot.id)}"]`);
+    let keys = [];
+    try { keys = await docs.of(slot.id); } catch { return; }
+    if (!el || !keys.length) continue;
+    const url = URL.createObjectURL(await docs.get(keys[0]));
     thumbUrls.push(url);
+    const max = slot.max || 1;
     el.classList.add('has');
     el.querySelector('.doc-thumb').style.backgroundImage = `url("${url}")`;
-    el.querySelector('[data-doc-add]').textContent = '교체';
-    el.querySelector('[data-doc-del]').hidden = false;
+    const count = el.querySelector('.doc-count');
+    count.hidden = keys.length < 2;
+    count.textContent = keys.length;
+    el.querySelector('[data-doc-add]').textContent = max === 1 ? '교체' : keys.length >= max ? '가득 참' : '추가';
+    el.querySelector('[data-doc-add]').disabled = max > 1 && keys.length >= max;
+    el.querySelector('.doc-max').textContent = max === 1 ? '1장' : `${keys.length} / ${max}장`;
   }
 }
 
+// Store a picked photo: single-photo slots replace, others append up to their limit.
+const slotOf = (key) => key.split('#')[0];
+async function refreshDocSlots() {
+  try { state.docSlots = new Set((await docs.keys()).map(slotOf)); } catch { /* ignore */ }
+}
+
+async function addDoc(slotId, file) {
+  const slot = state.trip.docs.find((s) => s.id === slotId);
+  const max = slot?.max || 1;
+  const keys = await docs.of(slotId);
+  if (max === 1) for (const k of keys) await docs.del(k);
+  else if (keys.length >= max) return toast(`${slot.label}은 ${max}장까지 넣을 수 있어요.`);
+  await docs.put(`${slotId}#${uid('')}`, await shrink(file));
+  await refreshDocSlots();
+}
+
+// Buttons that open the photos an item needs (tickets at the airport, QR at immigration, voucher at check-in).
+const docLabel = (slotId) => (state.trip.docs.find((s) => s.id === slotId)?.label || '').replace(/ \(2인\)$/, '');
+const docBtns = (it, cls = 'btn') => (it.docs || []).map((slotId) => {
+  const slot = state.trip.docs.find((s) => s.id === slotId);
+  const has = state.docSlots.has(slotId);
+  return `<button class="${cls} ${has ? 'has' : 'missing'}" data-doc-view="${esc(slotId)}">${itemIcon(slot?.icon, 'inline')}${esc(docLabel(slotId))}${has ? '' : ' · 추가'}</button>`;
+}).join('');
+
+// Full-screen viewer for every photo in a slot; swipe sideways between them.
+const viewerUrls = [];
 async function viewDoc(id) {
   const slot = state.trip.docs.find((s) => s.id === id);
-  let blob;
-  try { blob = await docs.get(id); } catch { /* ignore */ }
-  if (!blob) {
-    toast(`${slot?.label || '문서'} 사진이 아직 없어요.`);
+  let keys = [];
+  try { keys = await docs.of(id); } catch { /* ignore */ }
+  if (!keys.length) {
+    toast(`${slot?.label || '문서'} 사진이 아직 없어요. 예약 탭의 문서 사진에서 추가하세요.`);
     if (state.tab === 'wallet') document.querySelector(`[data-doc="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
-  const img = $('#viewer-img');
-  if (img.src) URL.revokeObjectURL(img.src);
-  img.src = URL.createObjectURL(blob);
-  $('#viewer-cap').textContent = `${slot?.label || ''} · QR은 화면 밝기를 올려 보여주세요`;
+  viewerUrls.splice(0).forEach((u) => URL.revokeObjectURL(u));
+  const track = $('#viewer-track');
+  track.innerHTML = '';
+  for (const k of keys) {
+    const url = URL.createObjectURL(await docs.get(k));
+    viewerUrls.push(url);
+    track.insertAdjacentHTML('beforeend', `<figure data-key="${esc(k)}"><img src="${url}" alt=""></figure>`);
+  }
+  track.scrollLeft = 0;
+  state.viewer = { slot: id, keys };
+  updateViewerCap();
   $('#viewer').hidden = false;
+}
+function viewerIndex() {
+  const t = $('#viewer-track');
+  return Math.round(t.scrollLeft / Math.max(1, t.clientWidth));
+}
+function updateViewerCap() {
+  const slot = state.trip.docs.find((s) => s.id === state.viewer.slot);
+  const n = state.viewer.keys.length;
+  $('#viewer-cap').textContent = `${slot?.label || ''}${n > 1 ? ` · ${viewerIndex() + 1} / ${n}` : ''} · QR은 화면 밝기를 올려 보여주세요`;
 }
 
 // ---------- sheet & big japanese ----------
@@ -837,6 +1176,16 @@ function openItem(id) {
     ${chipsHtml(chipsFor(it, now))}
     ${it.note ? `<div class="card note">${esc(it.note)}</div>` : ''}
     ${it.rainPlan ? `<div class="card note"><b class="note-h">${icon('umbrella')}비 올 때</b><div class="small">${esc(it.rainPlan)}</div></div>` : ''}
+    ${sceneOf(it) ? `
+      <div class="section-title"><span>여기서 쓸 일본어 · ${esc(sceneOf(it))}</span><em class="muted">탭하면 크게</em></div>
+      <div class="card list">${phrasesFor(sceneOf(it)).slice(0, 6).map(phraseRow).join('')}</div>` : ''}
+    ${it.docs ? `<div class="section-title"><span>여기서 꺼낼 서류</span></div><div class="btns">${docBtns(it)}</div>` : ''}
+    ${it.place && it.place.lang !== 'ko' ? `
+      <div class="section-title"><span>여기서 쓴 돈</span>${expenses().some((e) => e.item === it.id) ? `<em>${yen(expenses().filter((e) => e.item === it.id).reduce((a, e) => a + e.amount, 0))}</em>` : ''}</div>
+      <div class="card exp">
+        ${expForm(it.id, stripEmoji(it.title).split(' · ').pop(), SCENE_CAT[sceneOf(it)] || '기타')}
+        ${expenses().filter((e) => e.item === it.id).map(expRow).join('')}
+      </div>` : ''}
     <div class="btns">
       ${it.place?.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', 'primary wide') : ''}
       ${it.place && it.place.lang !== 'ko' ? `${navBtn(it.id, '구글맵 길찾기', 'primary wide')}
@@ -914,8 +1263,9 @@ async function copy(key) {
 }
 
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-item],[data-check],[data-del],[data-done],'
-  + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-doc-view],[data-doc-add],[data-doc-del],'
-  + '[data-translate],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text],[data-wx-refresh]';
+  + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-doc-view],[data-doc-add],[data-viewer-del],'
+  + '[data-translate],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text],[data-wx-refresh],'
+  + '[data-go-exp],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick]';
 
 document.addEventListener('click', async (e) => {
   const el = e.target.closest(ACTIONS);
@@ -927,20 +1277,33 @@ document.addEventListener('click', async (e) => {
   else if (d.nav) navigate(d.nav);
   else if (d.ja) openJa(d.ja);
   else if (d.item) openItem(d.item);
-  else if (d.check) { setChecked(d.check, !isChecked(d.check)); render(); }
-  else if (d.del) { store.set('custom', store.get('custom', []).filter((c) => c.id !== d.del)); render(); }
+  else if (d.check) {
+    const c = checklist().find((x) => x.id === d.check);
+    if (docsReady(c)) return viewDoc(c.docs[0]);
+    setChecked(d.check, !isChecked(d.check));
+    render();
+  }
+  else if (d.del) { forget('custom:' + d.del); store.set('custom', store.get('custom', []).filter((c) => c.id !== d.del)); render(); }
   else if (d.done) { setDone(d.done, !isDone(d.done)); closeSheet(); render(); }
   else if ('close' in d) closeSheet();
   else if ('closeJa' in d) { $('#bigja').hidden = true; window.speechSynthesis?.cancel(); }
   else if ('closeViewer' in d) $('#viewer').hidden = true;
-  else if (d.copy) copy(d.copy);
-  else if (d.docView) viewDoc(d.docView);
-  else if (d.docAdd) { state.pendingDoc = d.docAdd; $('#doc-file').click(); }
-  else if (d.docDel) {
-    if (!confirm('이 사진을 삭제할까요?')) return;
-    try { await docs.del(d.docDel); } catch { /* ignore */ }
+  else if ('viewerDel' in d) {
+    if (!confirm('지금 보고 있는 사진을 삭제할까요?')) return;
+    const key = state.viewer.keys[viewerIndex()];
+    try { await docs.del(key); } catch { /* ignore */ }
+    await refreshDocSlots();
+    $('#viewer').hidden = true;
     render();
+    if (state.viewer.keys.length > 1) viewDoc(state.viewer.slot);
   }
+  else if (d.copy) copy(d.copy);
+  else if (d.docView) {
+    // No photo yet: open the picker right away (it has to happen inside the tap on iPhone).
+    if (!state.docSlots.has(d.docView)) { state.pendingDoc = d.docView; toast(`${docLabel(d.docView)} 사진을 골라 주세요`); $('#doc-file').click(); }
+    else viewDoc(d.docView);
+  }
+  else if (d.docAdd) { state.pendingDoc = d.docAdd; $('#doc-file').click(); }
   else if (d.translate) {
     const text = $('#talk-text').value.trim();
     if (!text) return toast('번역할 말을 입력해 주세요.');
@@ -952,6 +1315,26 @@ document.addEventListener('click', async (e) => {
   else if (d.speakText) speak(d.speakText);
   else if ('wxRefresh' in d) loadWeather(true);
   else if (d.talkText) { store.set('talkText', d.talkText); state.talkDir = 'ja-ko'; go('talk'); }
+  else if ('goExp' in d) { go('wallet'); $('#exp')?.scrollIntoView({ block: 'start' }); scrollBy(0, -100); }
+  else if (d.expDel) {
+    if (!confirm('이 지출 기록을 삭제할까요?')) return;
+    forget('exp:' + d.expDel);
+    store.set('exp', expenses().filter((x) => x.id !== d.expDel));
+    if ($('#sheet').hidden) render(); else { const id = $('.exp-form')?.dataset.expItem; render(); if (id) openItem(id); }
+  }
+  else if ('budget' in d) {
+    const v = prompt('예산 (엔, 쇼핑 제외)', String(store.get('budget', state.trip.budget?.yen || 0)));
+    if (v !== null && Number(v.replace(/[^0-9]/g, '')) >= 0) { store.set('budget', Number(v.replace(/[^0-9]/g, ''))); render(); }
+  }
+  else if (d.who) { store.set('who', d.who); state.syncFile = null; render(); }
+  else if ('syncBuild' in d) {
+    toast('파일을 만드는 중이에요…');
+    const { photos, records } = await buildSyncFile();
+    render();
+    toast(`기록 ${records}건 · 사진 ${photos}장을 담았어요. '파일 보내기'를 누르세요.`);
+  }
+  else if ('syncShare' in d) shareSyncFile();
+  else if ('syncPick' in d) $('#sync-file').click();
 });
 
 document.addEventListener('input', (e) => {
@@ -961,11 +1344,23 @@ document.addEventListener('input', (e) => {
 });
 
 document.addEventListener('submit', (e) => {
+  if (e.target.classList.contains('exp-form')) {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const amount = Number(String(f.get('amount')).replace(/[^0-9]/g, ''));
+    if (!amount) return toast('금액을 엔으로 입력해 주세요.');
+    const item = e.target.dataset.expItem || null;
+    addExpense({ amount, memo: String(f.get('memo') || '').trim(), cat: f.get('cat'), item, date: item ? findItem(item)?.date : undefined });
+    toast(`${yen(amount)} (${won(amount)}) 기록했어요`);
+    render();
+    if (item) openItem(item);
+    return;
+  }
   if (e.target.id !== 'add-form') return;
   e.preventDefault();
   const text = $('#add-text').value.trim();
   if (!text) return;
-  store.set('custom', [...store.get('custom', []), { id: 'u-' + Date.now(), text }]);
+  store.set('custom', [...store.get('custom', []), { id: uid('u-'), text }]);
   render();
   $('#add-text')?.focus();
 });
@@ -975,17 +1370,26 @@ $('#doc-file').addEventListener('change', async (e) => {
   e.target.value = '';
   if (!file || !state.pendingDoc) return;
   try {
-    await docs.put(state.pendingDoc, await shrink(file));
-    toast('저장했어요 · 이 폰에서만 보여요');
-  } catch { toast('사진을 저장하지 못했어요'); }
+    await addDoc(state.pendingDoc, file);
+    toast('저장했어요 · 와이프 폰과는 동기화로 맞출 수 있어요');
+  } catch { toast('사진을 저장하지 못했어요. 저장 공간을 확인해 주세요.'); }
   render();
 });
 
+$('#sync-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (file) await importSync(file);
+});
+
+$('#viewer-track').addEventListener('scroll', () => { if (state.viewer) updateViewerCap(); }, { passive: true });
+
 // Re-render every minute so "now / next" stays current while the app is open.
-setInterval(() => { loadWeather(); if (state.tab === 'today' && $('#sheet').hidden) render(); }, 60000);
+setInterval(() => { loadWeather(); loadFx(); if (state.tab === 'today' && $('#sheet').hidden) render(); }, 60000);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   loadWeather();
+  loadFx();
   if (!['wallet', 'talk', 'check'].includes(state.tab)) render();
 });
 
@@ -1004,8 +1408,11 @@ async function init() {
   state.tab = TABS.includes(saved) ? saved : saved === 'info' ? 'wallet' : 'today';
   if (todayIdx >= 0) state.tab = 'today';
   state.wx = store.get('wx', null);
+  state.fx = store.get('fx', null);
+  await refreshDocSlots();
   render();
   loadWeather();
+  loadFx();
 }
 
 if ('serviceWorker' in navigator) {
