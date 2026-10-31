@@ -57,6 +57,8 @@ const SOS_FIELDS = [
   { key: 'sosIns', label: '여행자보험 긴급 지원', placeholder: '보험사 해외 긴급 번호' },
 ];
 
+const isTyped = (key) => [...SECRETS, ...SOS_FIELDS].some((s) => s.key === key);
+
 // Photos of vouchers and QR codes live in IndexedDB on this phone (too big for localStorage).
 const docs = {
   db: null,
@@ -549,7 +551,8 @@ async function buildSyncFile() {
   const kv = {};
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (isShared(k)) kv[k] = { v: store.get(k), t: meta[k] || 0 };
+    // Values saved before change times existed still have to reach the other phone.
+    if (isShared(k)) kv[k] = { v: store.get(k), t: meta[k] || 1 };
   }
   const photos = [];
   for (const k of await docs.keys()) {
@@ -607,7 +610,7 @@ async function importSync(file) {
       const extra = (v || []).filter((x) => !ids.has(x.id));
       const merged = [...mine, ...extra].filter((x) => !tomb[`${k}:${x.id}`]);
       if (extra.length || merged.length !== mine.length) { store.set(k, merged, Math.max(t, meta[k] || 0)); records += extra.length; }
-    } else if (t > (meta[k] || 0)) { store.set(k, v, t); records += 1; }
+    } else if (t > (meta[k] || 0) || (isTyped(k) && v && !store.get(k, ''))) { store.set(k, v, Math.max(t, 1)); records += 1; }
   }
   for (const k of ['custom', 'cdocs', 'exp']) {
     const list = store.get(k, []);
@@ -1540,7 +1543,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 51;
+const APP_VERSION = 52;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
