@@ -741,6 +741,14 @@ const navBtn = (key, label = '길찾기', cls = 'primary') =>
   `<button class="btn ${cls}" data-nav="${esc(key)}">${icon('nav')}${esc(label)}</button>`;
 
 const LANG = { 'ko-ja': ['ko', 'ja'], 'ja-ko': ['ja', 'ko'] };
+// Google publishes no link into the live mode itself, so this opens the app with the languages set.
+function openLive() {
+  const [sl, tl] = LANG[state.talkDir];
+  const web = `https://translate.google.com/?sl=${sl}&tl=${tl}&op=translate`;
+  if (/Android/i.test(navigator.userAgent)) {
+    location.href = `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.google.android.apps.translate;S.browser_fallback_url=${encodeURIComponent(web)};end`;
+  } else openApp(`googletranslate://?sl=${sl}&tl=${tl}`, web, 'Google 번역');
+}
 function translate(engine, text) {
   const [sl, tl] = LANG[state.talkDir];
   const t = encodeURIComponent(text);
@@ -1294,8 +1302,9 @@ function renderTalk() {
       <div class="btns">
         <button class="btn primary" data-translate="google">Google 번역 앱</button>
         <button class="btn papago" data-translate="papago">파파고 웹</button>
+        <button class="btn wide" data-live>${icon('ext')}Google 실시간 번역 열기</button>
       </div>
-      <div class="small muted talk-hint">Google 번역은 앱에 문장이 바로 들어가요. 파파고는 웹에서 열려요. 음성·카메라 통역은 각 앱의 마이크·카메라 버튼으로.</div>
+      <div class="small muted talk-hint">Google 번역은 앱에 문장이 바로 들어가요. 파파고는 웹에서 열려요. 실시간 번역은 앱이 열리면 하단의 실시간 번역이나 대화 버튼을 누르세요.</div>
     </div>
 
     ${nowPhrases()}
@@ -1543,7 +1552,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 52;
+const APP_VERSION = 54;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -1592,7 +1601,7 @@ async function copy(key) {
 
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-item],[data-check],[data-del],[data-done],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-call],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
-  + '[data-translate],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text],[data-wx-refresh],'
+  + '[data-translate],[data-live],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text],[data-wx-refresh],'
   + '[data-update],[data-alarm-sheet],[data-go-exp],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
@@ -1696,6 +1705,7 @@ document.addEventListener('click', async (e) => {
     toast(`${yen(amount)} · 메모와 분류를 고르고 '기록'을 누르세요`);
   }
   else if ('syncToggle' in d) { state.syncOpen = !state.syncOpen; render(); }
+  else if ('live' in d) openLive();
   else if ('swap' in d) { state.talkDir = state.talkDir === 'ko-ja' ? 'ja-ko' : 'ko-ja'; render(); }
   else if (d.phrase) { const p = state.trip.phrases[d.phrase]; showJa({ ja: p.ja, read: p.read, ko: p.ko }); }
   else if (d.speak) speak(state.trip.phrases[d.speak].ja);
