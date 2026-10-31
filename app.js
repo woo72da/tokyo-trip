@@ -27,7 +27,7 @@ const store = {
   },
 };
 // What the sync carries: checks, done marks, own checklist items, added document sets, booking numbers, links, expenses, budget.
-const isShared = (key) => /^(ck|done):/.test(key) || ['custom', 'cdocs', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
+const isShared = (key) => /^(ck|done):/.test(key) || ['custom', 'cdocs', 'pnr', 'agoda', 'esim1', 'esim2', 'sosCard', 'sosIns', 'exp', 'budget'].includes(key);
 // Deleted list entries and photos are remembered so a sync doesn't bring them back.
 // Ids stay unique across both phones even when two records are made in the same millisecond.
 const uid = (prefix) => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -49,6 +49,12 @@ const SECRETS = [
   { key: 'agoda', label: '아고다 예약번호', placeholder: '숫자 9~10자리' },
   { key: 'esim1', label: 'eSIM 설치 링크 · 안드레아', placeholder: '카카오톡 링크 붙여넣기', link: true },
   { key: 'esim2', label: 'eSIM 설치 링크 · 다희', placeholder: '카카오톡 링크 붙여넣기', link: true },
+];
+
+// Our own contacts for emergencies, kept with the booking numbers on the phones only.
+const SOS_FIELDS = [
+  { key: 'sosCard', label: '카드 분실 신고', placeholder: '카드사 해외 분실 번호' },
+  { key: 'sosIns', label: '여행자보험 긴급 지원', placeholder: '보험사 해외 긴급 번호' },
 ];
 
 // Photos of vouchers and QR codes live in IndexedDB on this phone (too big for localStorage).
@@ -154,8 +160,18 @@ function bookingNeeded(it) {
 }
 
 // Warning chips for an item on its date; `now` adds "closing soon" when it is today.
+// A must or fixed-time stop whose time has passed without being marked done, today only.
+function lateness(it, now) {
+  if (!now || now.date !== it.date || isDone(it.id) || !(it.hard || it.priority === 'must')) return null;
+  const over = now.min - it.endMin;
+  return over > 0 ? { hard: !!it.hard, over } : null;
+}
+const clock = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
 function chipsFor(it, now) {
   const chips = [];
+  const late = lateness(it, now);
+  if (late) chips.push(late.hard ? ['late', `${formatLeft(late.over)} 지연`] : ['warn', '시간 지남']);
   if (it.priority === 'must') chips.push(['must', '필수']);
   if (it.priority === 'optional') chips.push(['', '선택']);
   if (it.booking?.required) chips.push(bookingNeeded(it) ? ['warn', '예약 필요'] : ['ok', '예약 완료']);
@@ -906,6 +922,7 @@ function renderToday() {
         <div class="hero-meta">준비 ${list.length - todo.length} / ${list.length}</div>
       </div>
       ${todoCard(now.date, '지금 할 일', 5)}
+      <button class="btn wide alarm-btn" data-alarm-sheet>${icon('ext')}일정 알림 받기</button>
       <div class="quick four">
         <button data-go="check"><b>${todo.length}</b><span>남은 준비</span></button>
         <button data-go="wallet"><b>${icon('ext')}</b><span>예약 확인</span></button>
@@ -932,6 +949,8 @@ function renderToday() {
   setHeader(`${dayIdx + 1}일차 · ${dayLabel(day.date)}`, stripEmoji(day.title), `일몰 ${day.sunset} · ${items.length}개 일정`);
 
   let html = wxCard(day.date, now);
+  html += leaveCard(items, now);
+  html += lateCard(items, now);
   html += todoCard(now.date, '오늘 할 일', 3);
   if (current) html += heroCard(current, 'now', now);
   if (next) html += heroCard(next, 'next', now);
@@ -947,6 +966,69 @@ function renderToday() {
   const later = upcoming.slice(1);
   if (later.length) html += `<div class="section-title"><span>이후 일정</span><em>${later.length}</em></div>${timeline(later, now)}`;
   return html;
+}
+
+// Calendar alarms: one file for everything, or a Google Calendar link per stop where a phone drops the file's alarms.
+const alarmItems = () => state.trip.days.flatMap((d) => dayItems(d).filter((it) => 'alarm' in it));
+function gcalUrl(it) {
+  const [y, m, d] = it.date.split('-').map(Number);
+  const utc = (min) => new Date(Date.UTC(y, m - 1, d, 0, min - 540)).toISOString().replace(/[-:]|\.\d+/g, '');
+  const q = new URLSearchParams({ action: 'TEMPLATE', text: it.alarmTitle || it.title, dates: `${utc(it.startMin)}/${utc(it.endMin)}` });
+  if (it.note) q.set('details', it.note);
+  if (it.place) q.set('location', it.place.query);
+  return `https://calendar.google.com/calendar/render?${q}`;
+}
+function openAlarms() {
+  const list = alarmItems();
+  const android = /Android/i.test(navigator.userAgent);
+  $('#sheet-body').innerHTML = `
+    <div class="sheet-head"><h3>일정 알림 받기</h3></div>
+    <div class="small muted alarm-note">놓치면 안 되는 일정 ${list.length}개를 폰 캘린더에 넣어요. 앱을 닫아도 캘린더가 알려 줘요.</div>
+    <a class="btn primary wide alarm-file" href="calendar.ics" target="_blank" rel="noopener" ${android ? 'download="tokyo-trip.ics"' : ''}>${icon('ext')}캘린더에 한 번에 추가</a>
+    <ol class="small muted alarm-note">
+      ${android
+    ? `<li>내려받은 파일을 눌러 Samsung 캘린더나 Google 캘린더로 가져오세요.</li>`
+    : `<li>일정 추가 화면이 나오면 전체 추가를 누르세요.</li>`}
+      <li>11/2 일정을 열어 알림이 설정됐는지 확인하세요.</li>
+      <li>알림이 없으면 아래에서 일정별로 추가하세요.</li>
+    </ol>
+    <details class="more alarm-more"><summary>Google 캘린더에 하나씩 추가</summary>
+      ${list.map((it) => `<a class="alarm-row" href="${esc(gcalUrl(it))}" target="_blank" rel="noopener"><span class="grow"><b>${esc(it.alarmTitle || it.title)}</b><small>${esc(dayLabel(it.date))} ${esc(it.start)}</small></span>${icon('ext')}</a>`).join('')}
+      <div class="small muted alarm-note">Google 캘린더 기본 알림 시간이 적용돼요.</div>
+    </details>`;
+  $('#sheet').hidden = false;
+}
+
+// Countdown to when we must walk out the door for the next fixed-time stop.
+function leaveCard(items, now) {
+  const it = items.find((x) => x.hard && !isDone(x.id) && now.min >= x.startMin - (x.lead || 0) - 30 && now.min < x.startMin);
+  if (!it) return '';
+  const leave = it.startMin - (it.lead || 0);
+  const left = leave - now.min;
+  return `
+    <div class="leave ${left <= 15 ? 'urgent' : ''}">
+      <div class="leave-main">
+        <b>${left > 0 ? `${formatLeft(left)} 뒤 출발` : left === 0 ? '지금 출발하세요' : `출발 시간 ${formatLeft(-left)} 지남`}</b>
+        <span>${esc(it.title)} · ${clock(leave)}까지 출발 · ${esc(it.start)} 시작</span>
+      </div>
+      <button class="btn" data-done="${esc(it.id)}">${icon('check')}완료</button>
+    </div>`;
+}
+
+// One line for the most pressing stop still not marked done, so a forgotten tap doesn't pile up warnings.
+function lateCard(items, now) {
+  const late = items.filter((it) => lateness(it, now));
+  if (!late.length) return '';
+  const it = late.find((x) => x.hard) || late[late.length - 1];
+  const info = lateness(it, now);
+  return `
+    <div class="leave late ${info.hard ? 'urgent' : ''}">
+      <div class="leave-main">
+        <b>${info.hard ? `${formatLeft(info.over)} 지연` : '시간 지남'} · ${esc(it.title)}</b>
+        <span>끝났으면 완료를 눌러 주세요${late.length > 1 ? ` · 외 ${late.length - 1}개` : ''}</span>
+      </div>
+      <button class="btn" data-done="${esc(it.id)}">${icon('check')}완료</button>
+    </div>`;
 }
 
 function heroCard(it, kind, now) {
@@ -986,9 +1068,10 @@ function timeline(items, now) {
       isDone(it.id) ? 'done' : '',
       isToday && it.endMin <= now.min ? 'past' : '',
       isToday && it.startMin <= now.min && now.min < it.endMin ? 'current' : '',
+      lateness(it, now)?.hard ? 'late' : '',
       it.priority || '',
     ].join(' ');
-    const warn = chipsFor(it, now).filter(([c]) => c === 'warn');
+    const warn = chipsFor(it, now).filter(([c]) => c === 'warn' || c === 'late');
     return `
       <div class="tl-item ${cls}">
         <div class="tl-time">${esc(it.start)}${tlWx(it)}</div>
@@ -1154,6 +1237,24 @@ function renderWallet() {
             <span class="doc-max">${s.custom ? '' : `최대 ${s.max || 1}장`}</span>
           </div>
         </div>`).join('')}
+    </div>
+
+    <div class="section-title"><span>긴급 연락처</span></div>
+    <div class="card">
+      ${(state.trip.emergency || []).map((e) => `
+        <a class="sos-row" href="tel:${esc(e.tel.replace(/-/g, ''))}">
+          <span class="grow"><b>${esc(e.label)}</b>${e.note ? `<small>${esc(e.note)}</small>` : ''}</span>
+          <span class="sos-tel">${icon('phone')}${esc(e.tel)}</span>
+        </a>`).join('')}
+      ${SOS_FIELDS.map((s) => `
+        <label class="field">
+          <span>${esc(s.label)}</span>
+          <div class="field-row">
+            <input class="input mono" data-secret="${s.key}" type="tel" autocomplete="off" value="${esc(store.get(s.key, ''))}" placeholder="${esc(s.placeholder)}">
+            <button class="icon-btn" data-call="${s.key}" aria-label="전화 걸기">${icon('phone')}</button>
+          </div>
+        </label>`).join('')}
+      <button class="btn wide sos-hotel" data-ja="__stay">${icon('ja')}호텔 주소 크게 보기</button>
     </div>
 
     ${guides.filter((g) => !g.costs).map((g) => `
@@ -1429,10 +1530,35 @@ function fitTitle() {
 }
 addEventListener('resize', fitTitle);
 
+// The version this running code belongs to; keep it equal to VERSION in sw.js.
+const APP_VERSION = 50;
+async function loadLatest() {
+  try {
+    const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
+    const latest = Number(text.match(/trip-v(\d+)/)?.[1]);
+    if (latest && latest !== state.latest) { state.latest = latest; render(); }
+  } catch { /* offline: keep showing the running version */ }
+}
+const versionLine = () => (state.latest > APP_VERSION
+  ? `<button class="app-ver new" data-update>새 버전 v${state.latest} 있음 · 지금 업데이트</button>`
+  : `<div class="app-ver">앱 버전 v${APP_VERSION}${state.latest === APP_VERSION ? ' · 최신' : ''}</div>`);
+
+// Clear the saved app files and load everything fresh; photos and records live elsewhere and stay.
+async function updateApp() {
+  toast('업데이트하는 중이에요…');
+  try {
+    const regs = await navigator.serviceWorker?.getRegistrations() || [];
+    await Promise.all(regs.map((r) => r.unregister()));
+    await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+    await Promise.all(['./', 'index.html', 'app.js', 'styles.css', 'data/trip.json'].map((f) => fetch(f, { cache: 'reload' })));
+  } catch { /* reload anyway */ }
+  location.reload();
+}
+
 function render() {
   if (!state.trip) return;
   const views = { today: renderToday, days: renderDays, wallet: renderWallet, talk: renderTalk, check: renderCheck };
-  $('#view').innerHTML = views[state.tab]();
+  $('#view').innerHTML = views[state.tab]() + versionLine();
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === state.tab)));
   if (state.tab === 'wallet') hydrateDocs();
 }
@@ -1453,9 +1579,9 @@ async function copy(key) {
 }
 
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-item],[data-check],[data-del],[data-done],'
-  + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
+  + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-call],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text],[data-wx-refresh],'
-  + '[data-go-exp],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-update],[data-alarm-sheet],[data-go-exp],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -1494,6 +1620,10 @@ document.addEventListener('click', async (e) => {
     if (state.viewer.keys.length > 1) viewDoc(state.viewer.slot);
   }
   else if (d.copy) copy(d.copy);
+  else if (d.call) {
+    const tel = store.get(d.call, '').replace(/[^0-9+]/g, '');
+    if (tel) location.href = `tel:${tel}`; else toast('먼저 번호를 입력해 주세요.');
+  }
   else if (d.openSecret) {
     const url = store.get(d.openSecret, '');
     if (/^https?:\/\//i.test(url)) window.open(url, '_blank', 'noopener');
@@ -1505,6 +1635,8 @@ document.addEventListener('click', async (e) => {
     else viewDoc(d.docView);
   }
   else if (d.docAdd) pickPhotos(d.docAdd);
+  else if ('update' in d) updateApp();
+  else if ('alarmSheet' in d) openAlarms();
   else if ('docNew' in d) openDocNew();
   else if ('docPick' in d) {
     const title = $('#doc-title').value.trim();
@@ -1574,7 +1706,7 @@ document.addEventListener('click', async (e) => {
 
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.dataset.secret) store.set(t.dataset.secret, t.type === 'url' ? t.value.trim() : t.value.trim().toUpperCase());
+  if (t.dataset.secret) store.set(t.dataset.secret, t.type === 'url' || t.type === 'tel' ? t.value.trim() : t.value.trim().toUpperCase());
   else if (t.id === 'fx-in') { state.fxCalc.value = t.value; updateFx(); }
   else if (t.id === 'fx-tax') { state.fxCalc.tax = t.checked; updateFx(); }
   else if (t.id === 'talk-text') { store.set('talkText', t.value); $('.talk-clear').hidden = !t.value; }
@@ -1639,6 +1771,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   loadWeather();
   loadFx();
+  loadLatest();
   if (!['wallet', 'talk', 'check'].includes(state.tab)) render();
 });
 
@@ -1663,6 +1796,7 @@ async function init() {
   loadWeather();
   loadFx();
   loadClips();
+  loadLatest();
 }
 
 if ('serviceWorker' in navigator) {

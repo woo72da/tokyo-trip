@@ -87,7 +87,10 @@
           "note": "일반 2명 · 22,800원 결제 완료 · 출발 10분 전 정류장 도착 (도착 06:30경 예상)",
           "docs": [
             "doc-limo"
-          ]
+          ],
+          "alarm": 30,
+          "hard": true,
+          "lead": 10
         },
         {
           "id": "d1-exchange",
@@ -105,7 +108,8 @@
           "link": {
             "label": "T1 3층 환전소 지도 보기",
             "url": "https://cdn.kbthink.com/content/dam/tam-dcp-cms/kbcontent/%EC%9E%90%EC%82%B0%EA%B4%80%EB%A6%AC/wealt-manage-tip/2025/icn-currency-exchange/2025_12_update/T1_3F.png"
-          }
+          },
+          "alarm": 0
         },
         {
           "id": "d1-icn",
@@ -148,7 +152,11 @@
           "title": "7C1125 인천 T1 → 나리타 T3",
           "icon": "✈️",
           "priority": "must",
-          "note": "제주항공 · 2시간 25분"
+          "note": "제주항공 · 2시간 25분",
+          "alarm": 40,
+          "alarmTitle": "7C1125 탑승 마감 08:15",
+          "hard": true,
+          "lead": 35
         },
         {
           "id": "d1-arrive",
@@ -196,7 +204,8 @@
           "note": "약 41분 · Klook 나리타 출발 바우처를 T2·3역 매표기나 인포메이션 센터(07:00~23:30)에서 교환 · 2장 선택 · 여권 지참 · 출발 10~15분 전 열차는 카운터로",
           "docs": [
             "doc-skyliner"
-          ]
+          ],
+          "alarm": 30
         },
         {
           "id": "d1-bags",
@@ -590,7 +599,10 @@
           "note": "입구에서 바우처 QR 보여주기 · 물에 들어가는 구간 있음, 반바지 대여 가능",
           "docs": [
             "doc-teamlab"
-          ]
+          ],
+          "alarm": 60,
+          "hard": true,
+          "lead": 35
         },
         {
           "id": "d3-izakaya",
@@ -725,7 +737,10 @@
           "rainPlan": "실내 층만 운영될 수 있음",
           "docs": [
             "doc-sky"
-          ]
+          ],
+          "alarm": 40,
+          "hard": true,
+          "lead": 10
         },
         {
           "id": "d4-beams",
@@ -829,7 +844,8 @@
           "place": {
             "nameJa": "ホテル サードニクス上野",
             "query": "Hotel Sardonyx Ueno"
-          }
+          },
+          "alarm": 30
         },
         {
           "id": "d5-tokyo-st",
@@ -896,7 +912,8 @@
           "place": {
             "nameJa": "ホテル サードニクス上野",
             "query": "Hotel Sardonyx Ueno"
-          }
+          },
+          "alarm": 30
         },
         {
           "id": "d5-skyliner",
@@ -912,7 +929,10 @@
           "note": "15:00 호텔 출발 · Klook 우에노 출발 바우처를 게이세이 우에노역 매표기나 카운터(05:10~20:20)에서 교환 · 2장 선택 · 여권 지참 · 빠듯하면 다음 열차로 · 이후 T3까지 도보 약 15분",
           "docs": [
             "doc-skyliner"
-          ]
+          ],
+          "alarm": 30,
+          "hard": true,
+          "lead": 20
         },
         {
           "id": "d5-checkin",
@@ -928,7 +948,9 @@
           "note": "출발 약 3시간 전 · 수하물 무게 한도 확인",
           "docs": [
             "doc-eticket"
-          ]
+          ],
+          "alarm": 30,
+          "hard": true
         },
         {
           "id": "d5-depart",
@@ -938,7 +960,9 @@
           "priority": "must",
           "docs": [
             "doc-eticket"
-          ]
+          ],
+          "hard": true,
+          "lead": 40
         }
       ]
     }
@@ -1057,6 +1081,12 @@
       "id": "c-esim-install",
       "group": "출발 전",
       "text": "eSIM 설치 (카카오톡 링크, 출국 전날 와이파이에서 · 폰별로) · 현지에서 데이터 로밍 켜기",
+      "due": "2026-11-01"
+    },
+    {
+      "id": "c-alarm",
+      "group": "출발 전",
+      "text": "일정 알림 캘린더 등록 (오늘 탭 · 두 폰 각각)",
       "due": "2026-11-01"
     },
     {
@@ -1588,5 +1618,25 @@
   "budget": {
     "yen": 80000,
     "note": "현지 예상 약 68,400~71,600엔 + 카드 수수료·여유분 (2인, 쇼핑 제외)"
-  }
+  },
+  "emergency": [
+    {
+      "label": "경찰",
+      "tel": "110"
+    },
+    {
+      "label": "구급·소방",
+      "tel": "119"
+    },
+    {
+      "label": "일본 여행 안내 24시간",
+      "tel": "050-3816-2787",
+      "note": "한국어 가능 · 사고·병원·재난"
+    },
+    {
+      "label": "영사콜센터 24시간",
+      "tel": "+82-2-3210-0404",
+      "note": "여권 분실·사건사고 · 국제전화 요금"
+    }
+  ]
 }

@@ -146,6 +146,7 @@ a { color: inherit; }
 .chip .ico { width: 13px; height: 13px; }
 .chip.must { background: var(--accent-soft); color: var(--accent); }
 .chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.late { background: var(--accent); color: var(--accent-ink); }
 .chip.ok { background: var(--now-soft); color: var(--now); }
 
 /* buttons */
@@ -235,6 +236,8 @@ a { color: inherit; }
   content: ""; position: absolute; left: 52px; top: 24px; width: 12px; height: 12px; border-radius: 50%;
   background: var(--bg); border: 2px solid var(--muted); z-index: 1;
 }
+.tl-item.late .tl-card { box-shadow: inset 0 0 0 2px var(--accent); }
+.tl-item.late.past .tl-card { opacity: 1; }
 .tl-item.must::before { border-color: var(--accent); background: var(--accent); }
 .tl-item.current::before { border-color: var(--now); background: var(--now); box-shadow: 0 0 0 4px var(--now-soft); }
 .tl-time { font: 700 13px/1 var(--mono); padding-top: 24px; color: var(--muted); text-align: right; }
@@ -690,3 +693,30 @@ ol.sync-note { padding-left: 18px; }
 .cost-pay span, .cost-pay small { display: block; font-size: 12px; color: var(--muted); }
 .cost-pay b { display: block; margin: 2px 0 1px; font-size: 14.5px; font-weight: 750; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cost-note { margin-top: 10px; line-height: 1.55; }
+
+/* time warnings */
+.leave { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; padding: 12px 12px 12px 16px; border-radius: 18px; background: var(--warn-soft); }
+.leave.urgent { background: var(--accent); color: var(--accent-ink); animation: leave-pulse 1.2s ease-in-out 3; }
+.leave.late:not(.urgent) { background: var(--soft); }
+.leave-main { flex: 1; min-width: 0; }
+.leave-main b { display: block; font-size: 15px; font-weight: 800; }
+.leave-main span { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.4; opacity: .85; }
+.leave .btn { flex: none; min-height: 40px; padding: 0 12px; background: rgba(255,255,255,.9); color: #101216; }
+@keyframes leave-pulse { 50% { opacity: .65; } }
+@media (prefers-reduced-motion: reduce) { .leave.urgent { animation: none; } }
+.alarm-btn { margin: 10px 0; }
+.sos-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; }
+.sos-row b { display: block; font-size: 14px; font-weight: 700; }
+.sos-row small { display: block; margin-top: 1px; font-size: 12px; color: var(--muted); }
+.sos-tel { display: inline-flex; align-items: center; gap: 5px; font-size: 13.5px; font-weight: 750; color: var(--accent); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sos-tel .ico { width: 14px; height: 14px; }
+.sos-hotel { margin-top: 12px; width: 100%; }
+.alarm-note { margin-top: 10px; line-height: 1.5; }
+ol.alarm-note { padding-left: 18px; }
+.alarm-file { margin-top: 12px; width: 100%; }
+.alarm-more { margin-top: 14px; }
+.alarm-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
+.alarm-row b { display: block; font-size: 14px; font-weight: 650; }
+.alarm-row small { display: block; font-size: 12px; color: var(--muted); }
+.app-ver { display: block; width: 100%; margin-top: 22px; padding: 8px; text-align: center; font-size: 12px; color: var(--muted); }
+.app-ver.new { color: var(--accent); font-weight: 700; }
