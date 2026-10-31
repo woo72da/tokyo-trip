@@ -1368,8 +1368,8 @@ function openItem(id) {
     ${sceneOf(it) ? `
       <div class="section-title"><span>여기서 쓸 일본어 · ${esc(sceneOf(it))}</span><em class="muted">탭하면 크게</em></div>
       <div class="card list">${phrasesFor(sceneOf(it)).slice(0, 6).map(phraseRow).join('')}</div>` : ''}
-    ${it.docs ? `<div class="section-title"><span>여기서 꺼낼 서류</span></div><div class="btns">${docBtns(it)}</div>` : ''}
-    ${it.link ? `<div class="section-title"><span>위치 안내</span></div><div class="btns"><a class="btn" href="${esc(it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
+    ${it.docs ? `<div class="section-title"><span>여기서 꺼낼 서류</span></div><div class="btns">${docBtns(it, 'btn wide')}</div>` : ''}
+    ${it.link ? `<div class="section-title"><span>위치 안내</span></div><div class="btns"><a class="btn wide" href="${esc(it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
     ${it.place && it.place.lang !== 'ko' ? `
       <div class="section-title"><span>여기서 쓴 돈</span>${expenses().some((e) => e.item === it.id) ? `<em>${yen(expenses().filter((e) => e.item === it.id).reduce((a, e) => a + e.amount, 0))}</em>` : ''}</div>
       <div class="card exp">
