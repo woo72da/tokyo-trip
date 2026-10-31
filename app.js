@@ -2,11 +2,12 @@
 
 const TZ = 'Asia/Tokyo';
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-const TABS = ['today', 'days', 'wallet', 'talk', 'check'];
+const TABS = ['today', 'days', 'explore', 'wallet', 'talk', 'check'];
 
 const state = {
   trip: null, wx: null, fx: null, tab: 'today', dayIndex: 0, talkDir: 'ko-ja',
   pendingDoc: null, viewer: null, docSlots: new Set(), syncFile: null,
+  ex: { cat: 'eat', area: '전체', open: false, plan: false, saved: false, again: false, near: false }, geo: null,
 };
 
 // ---------- storage (localStorage can throw in private mode) ----------
@@ -27,7 +28,7 @@ const store = {
   },
 };
 // What the sync carries: checks, done marks, own checklist items, added document sets, booking numbers, links, expenses, budget.
-const isShared = (key) => /^(ck|done):/.test(key) || ['custom', 'cdocs', 'pnr', 'agoda', 'esim1', 'esim2', 'sosCard', 'sosIns', 'exp', 'budget'].includes(key);
+const isShared = (key) => /^(ck|done|visit|save|edit):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'pnr', 'agoda', 'esim1', 'esim2', 'sosCard', 'sosIns', 'exp', 'budget'].includes(key);
 // Deleted list entries and photos are remembered so a sync doesn't bring them back.
 // Ids stay unique across both phones even when two records are made in the same millisecond.
 const uid = (prefix) => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -131,21 +132,32 @@ const dayLabel = (date) => `${shortDate(date)} (${WEEKDAYS[dowOf(date)]})`;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = (sel) => document.querySelector(sel);
 
+// A day's stops as planned here: added stops included, with any time change or skip laid over the trip file.
+function effectiveItems(day) {
+  const added = store.get('myitems', []).filter((x) => x.date === day.date);
+  return [...day.items, ...added].map((it) => {
+    const edit = store.get('edit:' + it.id, null);
+    return edit ? { ...it, ...edit } : it;
+  });
+}
 function allItems() {
-  return state.trip.days.flatMap((d) => d.items.map((it) => ({ ...it, date: d.date })));
+  return state.trip.days.flatMap((d) => effectiveItems(d).map((it) => ({ ...it, date: d.date })));
 }
 function findItem(id) {
-  return allItems().find((it) => it.id === id);
+  const it = allItems().find((x) => x.id === id);
+  const added = it?.placeId && placeById(it.placeId);
+  return added && !it.info ? { ...it, info: placeInfo(added) } : it;
 }
 
 // Items sorted by start, with startMin/endMin filled in (missing end = next start or +30 min).
 function dayItems(day) {
-  const items = [...day.items].sort((a, b) => toMin(a.start) - toMin(b.start));
+  const items = effectiveItems(day).sort((a, b) => toMin(a.start) - toMin(b.start));
   return items.map((it, i) => {
     const startMin = toMin(it.start);
     const nextStart = items.slice(i + 1).map((n) => toMin(n.start)).find((m) => m > startMin);
     const endMin = it.end ? toMin(it.end) : Math.min(nextStart ?? startMin + 30, startMin + 120);
-    return { ...it, date: day.date, startMin, endMin };
+    const added = it.placeId && placeById(it.placeId);
+    return { ...it, info: it.info || (added ? placeInfo(added) : undefined), date: day.date, startMin, endMin };
   });
 }
 
@@ -164,7 +176,7 @@ function bookingNeeded(it) {
 // Warning chips for an item on its date; `now` adds "closing soon" when it is today.
 // A must or fixed-time stop whose time has passed without being marked done, today only.
 function lateness(it, now) {
-  if (!now || now.date !== it.date || isDone(it.id) || !(it.hard || it.priority === 'must')) return null;
+  if (!now || now.date !== it.date || it.skip || isDone(it.id) || !(it.hard || it.priority === 'must')) return null;
   const over = now.min - it.endMin;
   return over > 0 ? { hard: !!it.hard, over } : null;
 }
@@ -467,7 +479,7 @@ function expRow(e) {
       <span class="exp-cat">${esc(e.cat)}</span>
       <span class="grow"><b>${esc(e.memo || e.cat)}</b><small>${esc(shortDate(e.date))} · ${esc(person(e.by))}</small></span>
       <span class="exp-amt"><b>${yen(e.amount)}</b><small>${won(e.amount)}</small></span>
-      <button class="ck-del" data-exp-del="${esc(e.id)}" aria-label="삭제">${icon('x')}</button>
+      <button type="button" class="ck-del" data-exp-del="${esc(e.id)}" aria-label="삭제">${icon('x')}</button>
     </div>`;
 }
 const expForm = (item = null, memo = '', cat = '식당') => `
@@ -534,7 +546,7 @@ function todoCard(today, title, limit) {
   return `
     <div class="section-title"><span>${title}</span><em>${list.length}</em></div>
     <div class="card list todo">${list.slice(0, limit).map((c) => checkRow(c, today)).join('')}
-      ${more > 0 ? `<button class="todo-more" data-go="check">나머지 ${more}개는 체크 탭에서</button>` : ''}</div>`;
+      ${more > 0 ? `<button class="todo-more" data-go="check">나머지 ${more}개는 체크리스트에서</button>` : ''}</div>`;
 }
 
 // ---------- couple sync (one file with records and photos, sent by AirDrop or KakaoTalk) ----------
@@ -545,6 +557,8 @@ const blobToB64 = (blob) => new Promise((resolve, reject) => {
   r.readAsDataURL(blob);
 });
 const b64ToBlob = async (b64, type) => (await fetch(`data:${type};base64,${b64}`)).blob();
+
+const MERGED_LISTS = ['custom', 'cdocs', 'exp', 'myitems', 'myplaces'];
 
 async function buildSyncFile() {
   const meta = store.get('meta', {});
@@ -604,7 +618,7 @@ async function importSync(file) {
   let records = 0;
   for (const [k, { v, t }] of Object.entries(data.kv || {})) {
     if (!isShared(k)) continue;
-    if (k === 'custom' || k === 'cdocs' || k === 'exp') {
+    if (MERGED_LISTS.includes(k)) {
       const mine = store.get(k, []);
       const ids = new Set(mine.map((x) => x.id));
       const extra = (v || []).filter((x) => !ids.has(x.id));
@@ -612,7 +626,7 @@ async function importSync(file) {
       if (extra.length || merged.length !== mine.length) { store.set(k, merged, Math.max(t, meta[k] || 0)); records += extra.length; }
     } else if (t > (meta[k] || 0) || (isTyped(k) && v && !store.get(k, ''))) { store.set(k, v, Math.max(t, 1)); records += 1; }
   }
-  for (const k of ['custom', 'cdocs', 'exp']) {
+  for (const k of MERGED_LISTS) {
     const list = store.get(k, []);
     const kept = list.filter((x) => !tomb[`${k}:${x.id}`]);
     if (kept.length !== list.length) store.set(k, kept);
@@ -830,6 +844,7 @@ function toast(msg, href, label) {
 // Phosphor Icons duotone (MIT, phosphoricons.com); torii, tower and lantern drawn to match.
 // The 20% layer (class "d") takes the category tint.
 const ICONS = {
+  'skip': '<path d="M184,128,64,208V48Z" class="d"/><path d="M200,32a8,8,0,0,0-8,8v73.05L72.88,33.67A16,16,0,0,0,48,47V209a16,16,0,0,0,24.88,13.33L192,142.95V216a8,8,0,0,0,16,0V40A8,8,0,0,0,200,32ZM64,209V47l121.5,81Z"/>',
   'bus': '<path d="M48,184H88v24a8,8,0,0,1-8,8H56a8,8,0,0,1-8-8Zm120,24a8,8,0,0,0,8,8h24a8,8,0,0,0,8-8V184H168ZM48,72v40H208V72Z" class="d"/><path d="M184,32H72A32,32,0,0,0,40,64V208a16,16,0,0,0,16,16H80a16,16,0,0,0,16-16V192h64v16a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16V64A32,32,0,0,0,184,32ZM56,176V120H200v56Zm0-96H200v24H56ZM72,48H184a16,16,0,0,1,16,16H56A16,16,0,0,1,72,48Zm8,160H56V192H80Zm96,0V192h24v16Zm-72-60a12,12,0,1,1-12-12A12,12,0,0,1,104,148Zm72,0a12,12,0,1,1-12-12A12,12,0,0,1,176,148Zm72-68v24a8,8,0,0,1-16,0V80a8,8,0,0,1,16,0ZM24,80v24a8,8,0,0,1-16,0V80a8,8,0,0,1,16,0Z"/>',
   'luggage': '<path d="M200,64V208a8,8,0,0,1-8,8H64a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H192A8,8,0,0,1,200,64Z" class="d"/><path d="M104,88v96a8,8,0,0,1-16,0V88a8,8,0,0,1,16,0Zm24-8a8,8,0,0,0-8,8v96a8,8,0,0,0,16,0V88A8,8,0,0,0,128,80Zm32,0a8,8,0,0,0-8,8v96a8,8,0,0,0,16,0V88A8,8,0,0,0,160,80Zm48-16V208a16,16,0,0,1-16,16H176v16a8,8,0,0,1-16,0V224H96v16a8,8,0,0,1-16,0V224H64a16,16,0,0,1-16-16V64A16,16,0,0,1,64,48H88V24A24,24,0,0,1,112,0h32a24,24,0,0,1,24,24V48h24A16,16,0,0,1,208,64ZM104,48h48V24a8,8,0,0,0-8-8H112a8,8,0,0,0-8,8Zm88,160V64H64V208H192Z"/>',
   'baggage': '<path d="M224,152v48a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V152Z" class="d"/><path d="M216,56H176V48a24,24,0,0,0-24-24H104A24,24,0,0,0,80,48v8H40A16,16,0,0,0,24,72V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V72A16,16,0,0,0,216,56ZM96,48a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96ZM216,72v72H40V72Zm0,128H40V160H216v40Z"/>',
@@ -952,7 +967,7 @@ function renderToday() {
   }
 
   const day = days[dayIdx];
-  const items = dayItems(day);
+  const items = dayItems(day).filter((it) => !it.skip);
   const active = items.filter((it) => it.startMin <= now.min && now.min < it.endMin && !isDone(it.id));
   const current = active[active.length - 1];
   const upcoming = items.filter((it) => it.startMin > now.min);
@@ -1031,7 +1046,7 @@ function leaveCard(items, now) {
         <b>${left > 0 ? `${formatLeft(left)} 뒤 출발` : left === 0 ? '지금 출발하세요' : `출발 시간 ${formatLeft(-left)} 지남`}</b>
         <span>${esc(it.title)} · ${clock(leave)}까지 출발 · ${esc(it.start)} 시작</span>
       </div>
-      <button class="btn" data-done="${esc(it.id)}">${icon('check')}완료</button>
+      <button class="btn" data-done="${esc(it.id)}">${icon('check')}방문 완료</button>
     </div>`;
 }
 
@@ -1045,9 +1060,9 @@ function lateCard(items, now) {
     <div class="leave late ${info.hard ? 'urgent' : ''}">
       <div class="leave-main">
         <b>${info.hard ? `${formatLeft(info.over)} 지연` : '시간 지남'} · ${esc(it.title)}</b>
-        <span>끝났으면 완료를 눌러 주세요${late.length > 1 ? ` · 외 ${late.length - 1}개` : ''}</span>
+        <span>끝났으면 방문 완료를 눌러 주세요${late.length > 1 ? ` · 외 ${late.length - 1}개` : ''}</span>
       </div>
-      <button class="btn" data-done="${esc(it.id)}">${icon('check')}완료</button>
+      <button class="btn" data-done="${esc(it.id)}">${icon('check')}방문 완료</button>
     </div>`;
 }
 
@@ -1080,15 +1095,24 @@ function heroWx(it) {
 }
 const formatLeft = (m) => (m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60 ? (m % 60) + '분' : ''}`.trim() : `${m}분`);
 
+// Straight-line distance to the next stop; real travel time comes from the directions button.
+function gapLabel(it, next) {
+  const a = next && !it.skip && !next.skip && placeOfItem(it.id);
+  const b = a && placeOfItem(next.id);
+  if (!b || a === b || !a.lat || !b.lat) return '';
+  return `<div class="tl-gap">다음 장소까지 ${distLabel(kmBetween(a, b))}</div>`;
+}
+
 function timeline(items, now) {
   if (!items.length) return '';
-  return `<div class="tl">${items.map((it) => {
+  return `<div class="tl">${items.map((it, i) => {
     const isToday = now && now.date === it.date;
     const cls = [
       isDone(it.id) ? 'done' : '',
       isToday && it.endMin <= now.min ? 'past' : '',
       isToday && it.startMin <= now.min && now.min < it.endMin ? 'current' : '',
       lateness(it, now)?.hard ? 'late' : '',
+      it.skip ? 'skipped' : '',
       it.priority || '',
     ].join(' ');
     const warn = chipsFor(it, now).filter(([c]) => c === 'warn' || c === 'late');
@@ -1106,6 +1130,7 @@ function timeline(items, now) {
           </div>
           ${it.place ? `<button class="tl-nav" data-nav="${esc(it.id)}" aria-label="구글맵 길찾기">${icon('nav')}</button>` : ''}
         </div>
+        ${gapLabel(it, items[i + 1])}
       </div>`;
   }).join('')}</div>`;
 }
@@ -1129,8 +1154,35 @@ function renderDays() {
         </button>`).join('')}
     </div>
     ${wxCard(day.date, now.date === day.date ? now : null)}
+    <div class="btns day-actions">
+      <button class="btn" data-day-route>${icon('nav')}오늘 동선 지도</button>
+      <button class="btn" data-day-share>${icon('ext')}일정 공유</button>
+    </div>
     ${timeline(dayItems(day), now)}
   `;
+}
+
+function dayRoute() {
+  const stops = dayItems(state.trip.days[state.dayIndex])
+    .filter((it) => !it.skip && it.place && it.place.lang !== 'ko')
+    .map((it) => it.place.query || it.place.nameJa)
+    .filter((q, i, all) => q !== all[i - 1]);
+  if (stops.length < 2) return toast('지도로 묶을 장소가 부족해요.');
+  const between = stops.slice(1, -1);
+  const keep = between.filter((_, i) => between.length <= 9 || Math.floor((i * 9) / between.length) !== Math.floor(((i - 1) * 9) / between.length));
+  const q = new URLSearchParams({ api: '1', origin: stops[0], destination: stops[stops.length - 1], travelmode: 'walking' });
+  const via = keep.slice(0, 9).map(encodeURIComponent).join('%7C');
+  window.open(`https://www.google.com/maps/dir/?${q}${via ? `&waypoints=${via}` : ''}`, '_blank', 'noopener');
+}
+
+async function shareDay() {
+  const day = state.trip.days[state.dayIndex];
+  const text = [`도쿄 ${dayLabel(day.date)} ${stripEmoji(day.title)}`,
+    ...dayItems(day).filter((it) => !it.skip).map((it) => `${it.start} ${stripEmoji(it.title)}`)].join('\n');
+  try {
+    if (navigator.share) await navigator.share({ text });
+    else { await navigator.clipboard.writeText(text); toast('일정을 복사했어요'); }
+  } catch (e) { if (e.name !== 'AbortError') toast('공유하지 못했어요'); }
 }
 
 function boardingPass(f) {
@@ -1188,7 +1240,9 @@ function renderWallet() {
   const { flights, stay, guides, trip, links } = state.trip;
   const agoda = store.get('agoda', '');
   setHeader('도쿄 · 2026년 11월', '예약 · 여행 정보', `${dayLabel(trip.start)} ~ ${dayLabel(trip.end)} · ${trip.travelers}명`);
+  const list = checklist();
   return `
+    <button class="btn wide check-link" data-go="check">${icon('check')}체크리스트 ${list.filter((c) => isChecked(c.id)).length} / ${list.length}</button>
     ${syncCard()}
     ${expenseSection()}
     <div class="section-title"><span>항공</span></div>
@@ -1366,6 +1420,350 @@ function renderCheck() {
   `;
 }
 
+// ---------- explore ----------
+const EX_CATS = [['eat', '먹고'], ['drink', '마시고'], ['see', '보고'], ['shop', '쇼핑'], ['log', '기록']];
+const EX_AREAS = ['전체', '우에노·아키하바라', '아사쿠사·스카이트리', '긴자·쓰키지', '시부야·하라주쿠', '오다이바·도요스', '나카메구로·에비스', '도쿄역·신주쿠', '내 장소'];
+const CAT_ICON = { eat: '🍽', drink: '☕', see: '🏛', shop: '🛍' };
+const EX_KIND = { eat: 'food', drink: 'cafe', see: 'sight', shop: 'shop' };
+const isSaved = (id) => !!store.get('save:' + id, false);
+const visitOf = (id) => store.get('visit:' + id, null);
+// Trip places plus the ones added on the phones.
+const allPlaces = () => [
+  ...(state.trip.places || []),
+  ...store.get('myplaces', []).map((p) => ({ ...p, area: '내 장소', mine: true, desc: p.memo })),
+];
+const placeById = (id) => allPlaces().find((p) => p.id === id);
+function placeOfItem(itemId) {
+  const added = store.get('myitems', []).find((x) => x.id === itemId);
+  return added ? placeById(added.placeId) : allPlaces().find((p) => p.itemId === itemId);
+}
+const placeInfo = (p) => (p.itemId && findItem(p.itemId)?.info)
+  || { kind: EX_KIND[p.cat], r: p.r, n: p.n, recent: p.recent, hours: placeHours(p), best: p.best, tips: p.tips || (p.memo ? [p.memo] : []), mine: p.mine };
+const placeHours = (p) => (p.o ? (p.o === '00:00-24:00' ? '24시간' : p.o.replace(/-/g, '~').replace(/,/g, ', ').replace(/2([4-9]):/g, (m, h) => `0${h - 4}:`)) : '');
+
+// Open now, by the saved weekly hours; null when the hours are unknown. Hours past midnight run on as 25:00, 28:00.
+function openNow(p, now) {
+  if (!p.o) return null;
+  if (p.off?.includes(dowOf(now.date))) return false;
+  return p.o.split(',').some((range) => {
+    const [a, b] = range.split('-').map(toMin);
+    return (now.min >= a && now.min < b) || now.min + 1440 < b;
+  });
+}
+function kmBetween(a, b) {
+  const rad = (d) => (d * Math.PI) / 180;
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
+const distLabel = (km) => (km < 1 ? `${Math.round(km * 100) * 10}m` : `${km.toFixed(1)}km`);
+
+// Google Maps photo by link, with the category icon underneath when it can't load (offline, expired link).
+const placeThumb = (p, size) => `
+  <span class="thumb">${itemIcon(CAT_ICON[p.cat], 'lg')}${p.photo ? `<img src="${esc(p.photo)}=${size}-k-no" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span>`;
+
+const AGAIN = { yes: '또 갈래요', no: '한 번이면 충분' };
+const placeHero = (p) => (p?.photo ? `<div class="place-hero"><img src="${esc(p.photo)}=w800-h400-k-no" alt="" referrerpolicy="no-referrer" onerror="this.parentElement.remove()"></div>` : '');
+
+function placeCard(p, now) {
+  const info = placeInfo(p);
+  const open = openNow(p, now);
+  const item = p.itemId && findItem(p.itemId);
+  const v = visitOf(p.id);
+  const line = [info?.r ? `★${info.r.toFixed(1)}` : '', p.area.split('·')[0], p.desc || item?.title?.split(' · ').pop()].filter(Boolean).join(' · ');
+  const sub = [
+    open === null ? '' : open ? '영업 중' : '영업 종료',
+    item ? `${dayLabel(item.date)} ${item.start}` : '일정 없음',
+    p.lat ? (state.geo ? distLabel(kmBetween(state.geo, p)) : `호텔 ${distLabel(kmBetween(state.trip.stay, p))}`) : '',
+  ].filter(Boolean).join(' · ');
+  return `
+    <div class="place ${v ? 'visited' : ''}" data-place="${esc(p.id)}" role="button" tabindex="0">
+      ${placeThumb(p, 'w160-h160')}
+      <div class="place-main">
+        <b>${esc(p.name)}${v ? `<i>${v.again === 'yes' ? AGAIN.yes : '방문'}</i>` : ''}</b>
+        <span>${esc(line)}</span>
+        <small>${esc(sub)}</small>
+      </div>
+      <button class="place-save ${isSaved(p.id) ? 'on' : ''}" data-place-save="${esc(p.id)}" aria-label="저장">${isSaved(p.id) ? '♥' : '♡'}</button>
+    </div>`;
+}
+
+function exploreList(now) {
+  const f = state.ex;
+  let list = allPlaces().filter((p) => p.cat === f.cat);
+  if (f.area !== '전체') list = list.filter((p) => p.area === f.area);
+  if (f.open) list = list.filter((p) => openNow(p, now));
+  if (f.plan) list = list.filter((p) => p.itemId);
+  if (f.again) list = list.filter((p) => visitOf(p.id)?.again === 'yes');
+  if (f.saved) list = list.filter((p) => isSaved(p.id));
+  const dist = (p) => (p.lat ? kmBetween(state.geo, p) : Infinity);
+  if (f.near && state.geo) return [...list].sort((a, b) => dist(a) - dist(b));
+  return list;
+}
+
+// The trip journal: visits by day with notes, a photo and that day's spending.
+function exploreLog(now) {
+  const places = allPlaces();
+  const seen = places.filter((p) => visitOf(p.id)).sort((a, b) => visitOf(b.id).at - visitOf(a.id).at);
+  const saved = places.filter((p) => isSaved(p.id) && !visitOf(p.id));
+  const dayOf = (at) => new Date(at + 9 * 3600000).toISOString().slice(0, 10);
+  const dates = [...new Set(seen.map((p) => dayOf(visitOf(p.id).at)))];
+  const spent = (date) => expenses().filter((e) => e.date === date).reduce((a, e) => a + e.amount, 0);
+  return `
+    <div class="section-title"><span>여행 일지</span><em>${seen.length}</em></div>
+    ${dates.length ? dates.map((date) => `
+      <div class="log-day"><b>${esc(dayLabel(date))}</b>${spent(date) ? `<span>지출 ${yen(spent(date))}</span>` : ''}</div>
+      ${seen.filter((p) => dayOf(visitOf(p.id).at) === date).map((p) => {
+    const v = visitOf(p.id);
+    const slot = 'place-' + p.id;
+    return `
+      <div class="place visited" data-place="${esc(p.id)}" role="button" tabindex="0">
+        ${state.docSlots.has(slot) ? `<button class="log-thumb" data-doc-view="${esc(slot)}" data-thumb="${esc(slot)}" aria-label="사진 보기"></button>` : ''}
+        <div class="place-main">
+          <b>${esc(p.name)}</b>
+          <span>${esc([person(v.by), AGAIN[v.again]].filter(Boolean).join(' · '))}</span>
+          ${v.memo ? `<small>${esc(v.memo)}</small>` : ''}
+        </div>
+      </div>`;
+  }).join('')}`).join('') : '<div class="card small muted">다녀온 곳에서 방문 표시를 누르면 여기에 모여요.</div>'}
+    <div class="section-title"><span>가고 싶은 곳</span><em>${saved.length}</em></div>
+    ${saved.length ? saved.map((p) => placeCard(p, now)).join('') : '<div class="card small muted">하트를 누른 곳이 여기에 모여요.</div>'}`;
+}
+
+const thumbs = [];
+async function hydrateLog() {
+  thumbs.splice(0).forEach((u) => URL.revokeObjectURL(u));
+  for (const el of document.querySelectorAll('[data-thumb]')) {
+    try {
+      const [key] = await docs.of(el.dataset.thumb);
+      const url = URL.createObjectURL(await docs.get(key));
+      thumbs.push(url);
+      el.style.backgroundImage = `url("${url}")`;
+    } catch { /* leave the blank tile */ }
+  }
+}
+
+function renderExplore() {
+  const now = tokyoNow();
+  const f = state.ex;
+  const seen = allPlaces().filter((p) => visitOf(p.id)).length;
+  setHeader('도쿄 · 2026년 11월', '탐색', `${allPlaces().length}곳 · 방문 ${seen}곳`);
+  const toggles = [['open', '지금 영업'], ['plan', '일정 장소'], ['saved', '저장함'], ['again', '또 갈 곳'], ['near', '내 주변']];
+  const list = f.cat === 'log' ? [] : exploreList(now);
+  return `
+    <div class="ex-cats">${EX_CATS.map(([k, label]) => `<button class="seg ${f.cat === k ? 'on' : ''}" data-ex-cat="${k}">${label}</button>`).join('')}</div>
+    ${f.cat === 'log' ? exploreLog(now) : `
+      <div class="ex-row">${EX_AREAS.map((a) => `<button class="${f.area === a ? 'on' : ''}" data-ex-area="${esc(a)}">${esc(a)}</button>`).join('')}</div>
+      <button class="btn wide ex-add" data-place-new>${icon('plus')}내 장소 추가</button>
+      <div class="ex-row">${toggles.map(([k, label]) => `<button class="${f[k] ? 'on' : ''}" data-ex-toggle="${k}">${label}</button>`).join('')}</div>
+      ${list.length ? list.map((p) => placeCard(p, now)).join('') : '<div class="card small muted">조건에 맞는 곳이 없어요. 필터를 줄여 보세요.</div>'}
+      <div class="small muted ex-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 저장 정보 · 영업시간은 다시 확인</div>`}`;
+}
+
+function findNear() {
+  if (!navigator.geolocation) return toast('이 폰에서는 위치를 쓸 수 없어요.');
+  toast('현재 위치를 찾는 중이에요…');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => { state.geo = { lat: pos.coords.latitude, lng: pos.coords.longitude }; state.ex.near = true; render(); },
+    () => { state.ex.near = false; render(); toast('위치를 가져오지 못했어요. 위치 권한을 확인해 주세요.'); },
+    { timeout: 8000, maximumAge: 60000 },
+  );
+}
+
+function openPlace(id) {
+  const p = placeById(id);
+  if (!p) return;
+  const v = visitOf(id);
+  const item = p.itemId && findItem(p.itemId);
+  const q = encodeURIComponent(item?.place?.query || p.name);
+  const mapUrl = p.url || `https://www.google.com/maps/search/?api=1&query=${q}`;
+  const hasPhoto = state.docSlots.has('place-' + id);
+  $('#sheet-body').innerHTML = `
+    ${placeHero(p)}
+    <div class="eyebrow dark">${esc(p.area)}</div>
+    <div class="sheet-head"><h3>${esc(p.name)}</h3></div>
+    ${p.desc ? `<div class="muted">${esc(p.desc)}</div>` : ''}
+    ${infoCard({ info: placeInfo(p) })}
+    <div class="btns">
+      <a class="btn" href="${esc(mapUrl)}" target="_blank" rel="noopener">${icon('ext')}구글지도</a>
+      <a class="btn primary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat ? `${p.lat},${p.lng}` : q}&travelmode=transit" target="_blank" rel="noopener">${icon('nav')}길찾기</a>
+      <button class="btn" data-place-save="${esc(id)}">${isSaved(id) ? '♥ 저장됨' : '♡ 저장'}</button>
+      <button class="btn" data-place-visit="${esc(id)}">${v ? `${icon('check')}방문함` : '방문 표시'}</button>
+      ${item ? `<button class="btn wide" data-item="${esc(item.id)}">${esc(dayLabel(item.date))} ${esc(item.start)} 일정 보기</button>`
+    : `<button class="btn wide" data-place-plan="${esc(id)}">${icon('plus')}일정에 넣기</button>`}
+      ${p.mine ? `<button class="btn wide" data-place-del="${esc(id)}">내 장소 삭제</button>` : ''}
+    </div>
+    <div class="section-title"><span>내 기록</span></div>
+    ${v ? `<div class="rate-row">${rateBtns(id, v.again, 'place')}</div>` : ''}
+    <textarea class="input place-memo" data-place-memo="${esc(id)}" rows="3" maxlength="300" placeholder="맛, 분위기, 다시 가고 싶은지 남겨 보세요">${esc(v?.memo || '')}</textarea>
+    <div class="btns">
+      <button class="btn" data-doc-add="place-${esc(id)}">${icon('plus')}사진 추가</button>
+      <button class="btn" data-doc-view="place-${esc(id)}" ${hasPhoto ? '' : 'disabled'}>사진 보기</button>
+    </div>`;
+  $('#sheet').hidden = false;
+}
+
+function openPlaceNew() {
+  $('#sheet-body').innerHTML = `
+    <div class="sheet-head"><h3>내 장소 추가</h3></div>
+    <label class="field"><span>이름</span><input class="input" id="pn-name" maxlength="30" placeholder="예: 친구가 추천한 라멘집"></label>
+    <label class="field"><span>분류</span><select class="input" id="pn-cat">${EX_CATS.filter(([k]) => k !== 'log').map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+    <label class="field"><span>구글지도 링크 (선택)</span><input class="input" id="pn-url" type="url" autocomplete="off" placeholder="공유 링크 붙여넣기"></label>
+    <label class="field"><span>메모 (선택)</span><input class="input" id="pn-memo" maxlength="80" placeholder="추천 메뉴, 이유"></label>
+    <button class="btn primary wide doc-pick" data-place-create>저장</button>`;
+  $('#sheet').hidden = false;
+}
+function createPlace() {
+  const name = $('#pn-name').value.trim();
+  if (!name) return toast('이름을 입력해 주세요.');
+  const url = $('#pn-url').value.trim();
+  const hit = url.match(/!3d(-?[\d.]+)!4d(-?[\d.]+)/) || url.match(/@(-?[\d.]+),(-?[\d.]+)/);
+  const place = { id: uid('my'), name, cat: $('#pn-cat').value, memo: $('#pn-memo').value.trim(), ...(/^https?:/.test(url) ? { url } : {}), ...(hit ? { lat: Number(hit[1]), lng: Number(hit[2]) } : {}) };
+  store.set('myplaces', [...store.get('myplaces', []), place]);
+  state.ex.cat = place.cat;
+  state.ex.area = '내 장소';
+  closeSheet();
+  render();
+  toast('내 장소에 추가했어요');
+}
+function deletePlace(id) {
+  if (!confirm('이 장소를 삭제할까요?')) return;
+  forget('myplaces:' + id);
+  store.set('myplaces', store.get('myplaces', []).filter((p) => p.id !== id));
+  closeSheet();
+  render();
+}
+
+function openPlan(id) {
+  const p = placeById(id);
+  const { days } = state.trip;
+  const today = tokyoNow().date;
+  const def = days.find((d) => d.date >= today)?.date || days[0].date;
+  $('#sheet-body').innerHTML = `
+    <div class="sheet-head"><h3>일정에 넣기</h3></div>
+    <div class="muted">${esc(p.name)}</div>
+    <label class="field"><span>날짜</span><select class="input" id="pl-date">${days.map((d) => `<option value="${d.date}" ${d.date === def ? 'selected' : ''}>${esc(dayLabel(d.date))}</option>`).join('')}</select></label>
+    <label class="field"><span>시작 시간</span><input class="input" id="pl-time" type="time" value="12:00"></label>
+    <button class="btn primary wide doc-pick" data-plan-save="${esc(id)}">일정에 추가</button>`;
+  $('#sheet').hidden = false;
+}
+function savePlan(id) {
+  const p = placeById(id);
+  const date = $('#pl-date').value;
+  const start = $('#pl-time').value;
+  if (!start) return toast('시간을 입력해 주세요.');
+  store.set('myitems', [...store.get('myitems', []), { id: uid('my-it'), date, start, title: p.name, icon: CAT_ICON[p.cat], placeId: id, place: { nameJa: p.name, query: p.url ? p.name : p.name } }]);
+  state.dayIndex = state.trip.days.findIndex((d) => d.date === date);
+  closeSheet();
+  go('days');
+  toast('일정에 추가했어요');
+}
+
+function openEditItem(id) {
+  const it = findItem(id);
+  $('#sheet-body').innerHTML = `
+    <div class="sheet-head"><h3>일정 시간 변경</h3></div>
+    <div class="muted">${esc(it.title)}</div>
+    <label class="field"><span>시작</span><input class="input" id="ed-start" type="time" value="${esc(it.start)}"></label>
+    <label class="field"><span>종료</span><input class="input" id="ed-end" type="time" value="${esc(it.end || '')}"></label>
+    ${'alarm' in it ? '<div class="small muted alarm-note">캘린더 알림은 자동으로 바뀌지 않아요.</div>' : ''}
+    ${it.hard ? '<div class="small muted alarm-note">예약·탑승 시간이 정해진 일정이에요. 예약 시간도 확인하세요.</div>' : ''}
+    <div class="btns">
+      <button class="btn primary" data-edit-save="${esc(id)}">저장</button>
+      <button class="btn" data-edit-reset="${esc(id)}">원래대로</button>
+    </div>`;
+  $('#sheet').hidden = false;
+}
+function saveEdit(id) {
+  const start = $('#ed-start').value;
+  const end = $('#ed-end').value;
+  if (!start) return toast('시작 시간을 입력해 주세요.');
+  if (end && end <= start) return toast('종료는 시작보다 늦어야 해요.');
+  const old = store.get('edit:' + id, null) || {};
+  store.set('edit:' + id, { ...old, start, ...(end ? { end } : {}) });
+  closeSheet();
+  render();
+  toast('일정을 바꿨어요');
+}
+function toggleSkip(id) {
+  if (isDone(id)) completeItem(id);
+  const old = store.get('edit:' + id, null) || {};
+  store.set('edit:' + id, { ...old, skip: !old.skip });
+  closeSheet();
+  render();
+}
+function deleteItem(id) {
+  if (!confirm('추가한 일정을 삭제할까요?')) return;
+  forget('myitems:' + id);
+  store.set('myitems', store.get('myitems', []).filter((x) => x.id !== id));
+  closeSheet();
+  render();
+}
+
+function toggleSave(id) {
+  store.set('save:' + id, !isSaved(id));
+  render();
+  if (!$('#sheet').hidden) openPlace(id);
+}
+const rateBtns = (id, again, from) => Object.entries(AGAIN).map(([k, label]) => `<button type="button" class="btn ${again === k ? 'primary' : ''}" data-rate="${esc(id)}" data-again="${k}" data-from="${from}">${label}</button>`).join('');
+
+// Done is saved on the first tap, so closing the sheet midway never loses the visit.
+function completeItem(id) {
+  const p = placeOfItem(id);
+  if (findItem(id)?.skip) store.set('edit:' + id, { ...store.get('edit:' + id, null), skip: false });
+  if (isDone(id)) {
+    setDone(id, false);
+    const v = p && visitOf(p.id);
+    if (v && !v.again && !v.memo) store.set('visit:' + p.id, null);
+    closeSheet();
+    return render();
+  }
+  setDone(id, true);
+  if (p && !visitOf(p.id)) store.set('visit:' + p.id, { at: Date.now(), by: who(), memo: '', again: '' });
+  render();
+  openFinish(id);
+}
+function openFinish(id) {
+  const it = findItem(id);
+  const p = placeOfItem(id);
+  const money = it.place && it.place.lang !== 'ko';
+  if (!money && !p) return closeSheet();
+  const v = p && visitOf(p.id);
+  const spent = expenses().filter((e) => e.item === id);
+  const next = nextStop(it);
+  $('#sheet-body').innerHTML = `
+    ${placeHero(p)}
+    <div class="eyebrow dark">방문 완료</div>
+    <div class="sheet-head"><h3>${esc(p?.name || stripEmoji(it.title).split(' · ').pop())}</h3></div>
+    <form class="finish" data-exp-item="${esc(id)}">
+      ${money ? `
+        <label class="finish-label" for="finish-amount">쓴 돈${spent.length ? ` · ${yen(spent.reduce((a, e) => a + e.amount, 0))}` : ''}</label>
+        <input class="input" id="finish-amount" name="amount" inputmode="numeric" pattern="[0-9]*" placeholder="${spent.length ? '추가 금액 (엔)' : '금액 (엔)'}" autocomplete="off">
+        ${spent.map(expRow).join('')}` : ''}
+      ${p ? `
+        <div class="finish-label">또 갈래요?</div>
+        <div class="rate-row">${rateBtns(p.id, v?.again, 'finish')}</div>
+        <label class="finish-label" for="finish-memo">한 줄 메모</label>
+        <input class="input" id="finish-memo" data-place-memo="${esc(p.id)}" maxlength="300" placeholder="선택 입력" value="${esc(v?.memo || '')}" autocomplete="off">` : ''}
+      <button class="btn primary finish-go" type="submit">${next ? `저장하고 다음: ${esc(next.title.split(' · ').pop())}` : '저장'}</button>
+    </form>`;
+  $('#sheet').hidden = false;
+}
+function setAgain(id, val, from) {
+  const v = visitOf(id);
+  const again = v?.again === val ? '' : val;
+  store.set('visit:' + id, { at: v?.at || Date.now(), by: v?.by || who(), memo: v?.memo || '', again });
+  render();
+  if (from === 'place') return openPlace(id);
+  document.querySelectorAll('.finish [data-rate]').forEach((b) => b.classList.toggle('primary', b.dataset.again === again));
+}
+
+function toggleVisit(id) {
+  const v = visitOf(id);
+  store.set('visit:' + id, v ? null : { at: Date.now(), by: who(), memo: '' });
+  render();
+  openPlace(id);
+}
+
 // ---------- docs ----------
 const thumbUrls = [];
 async function hydrateDocs() {
@@ -1396,6 +1794,12 @@ const allDocs = () => [
   ...store.get('cdocs', []).map((c) => ({ id: c.id, label: c.title, icon: '📎', max: CDOC_MAX, custom: true })),
 ];
 
+// Place photos use the same store under a per-place slot, so they sync like any other photo.
+const docSlot = (id) => {
+  const place = id?.startsWith?.('place-') && placeById(id.slice(6));
+  return place ? { id, label: place.name, icon: '📎', max: 20 } : allDocs().find((s) => s.id === id);
+};
+
 // Store a picked photo: single-photo slots replace, others append up to their limit.
 const slotOf = (key) => key.split('#')[0];
 async function refreshDocSlots() {
@@ -1407,7 +1811,7 @@ async function refreshDocSlots() {
 }
 
 async function addDoc(slotId, file) {
-  const slot = allDocs().find((s) => s.id === slotId);
+  const slot = docSlot(slotId);
   const max = slot?.max || 1;
   const keys = await docs.of(slotId);
   if (max === 1) for (const k of keys) await docs.del(k);
@@ -1434,9 +1838,9 @@ function openDocNew() {
 }
 
 // Buttons that open the photos an item needs (tickets at the airport, QR at immigration, voucher at check-in).
-const docLabel = (slotId) => (allDocs().find((s) => s.id === slotId)?.label || '').replace(/ \(2인\)$/, '');
+const docLabel = (slotId) => (docSlot(slotId)?.label || '').replace(/ \(2인\)$/, '');
 const docBtns = (it, cls = 'btn') => (it.docs || []).map((slotId) => {
-  const slot = allDocs().find((s) => s.id === slotId);
+  const slot = docSlot(slotId);
   const has = state.docSlots.has(slotId);
   return `<button class="${cls} ${has ? 'has' : 'missing'}" data-doc-view="${esc(slotId)}">${itemIcon(slot?.icon, 'inline')}${esc(docLabel(slotId))}${has ? '' : ' · 추가'}</button>`;
 }).join('');
@@ -1444,7 +1848,7 @@ const docBtns = (it, cls = 'btn') => (it.docs || []).map((slotId) => {
 // Full-screen viewer for every photo in a slot; swipe sideways between them.
 const viewerUrls = [];
 async function viewDoc(id) {
-  const slot = allDocs().find((s) => s.id === id);
+  const slot = docSlot(id);
   let keys = [];
   try { keys = await docs.of(id); } catch { /* ignore */ }
   if (!keys.length) {
@@ -1470,7 +1874,7 @@ function viewerIndex() {
   return Math.round(t.scrollLeft / Math.max(1, t.clientWidth));
 }
 function updateViewerCap() {
-  const slot = allDocs().find((s) => s.id === state.viewer.slot);
+  const slot = docSlot(state.viewer.slot);
   const n = state.viewer.keys.length;
   $('#viewer-cap').textContent = `${slot?.label || ''}${n > 1 ? ` · ${viewerIndex() + 1} / ${n}` : ''} · QR은 화면 밝기를 올려 보여주세요`;
 }
@@ -1496,8 +1900,14 @@ function infoCard(it) {
       ${f.best?.length ? `<div class="info-sec"><h4>${INFO_BEST[f.kind] || '볼거리'}</h4><div class="info-tags">${f.best.map((x) => `<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
       ${f.tips?.length ? `<div class="info-sec"><h4>알아둘 점</h4><ul class="info-tips">${f.tips.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
       ${f.alt ? `<div class="info-sec"><h4>대안</h4><div class="small">${esc(f.alt)}</div></div>` : ''}
-      <div class="small muted info-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 · 방문 전 다시 확인</div>
+      ${f.mine ? '' : `<div class="small muted info-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 · 방문 전 다시 확인</div>`}
     </div>`;
+}
+
+function nextStop(it) {
+  const day = state.trip.days.find((d) => d.date === it.date);
+  const items = dayItems(day);
+  return items.slice(items.findIndex((x) => x.id === it.id) + 1).find((x) => !x.skip && x.place);
 }
 
 function openItem(id) {
@@ -1505,7 +1915,15 @@ function openItem(id) {
   if (!it) return;
   const now = tokyoNow();
   const done = isDone(it.id);
+  const place = placeOfItem(it.id);
+  const next = nextStop(it);
+  const pending = !done && !it.skip;
+  const mine = String(it.id).startsWith('my-it');
+  const spent = expenses().filter((e) => e.item === it.id).reduce((a, e) => a + e.amount, 0);
+  const v = place && visitOf(place.id);
+  const summary = [AGAIN[v?.again], spent ? yen(spent) : '', v?.memo].filter(Boolean).join(' · ');
   $('#sheet-body').innerHTML = `
+    ${placeHero(place)}
     <div class="eyebrow dark">${esc(dayLabel(it.date))} · ${esc(it.start)}${it.end ? ' — ' + esc(it.end) : ''}</div>
     <div class="sheet-head">${itemIcon(it.icon, 'lg')}<h3>${esc(it.title)}</h3></div>
     ${it.place ? `<div class="ja muted">${esc(it.place.nameJa)}</div>` : ''}
@@ -1515,25 +1933,28 @@ function openItem(id) {
     ${it.docs ? `<div class="section-title"><span>여기서 꺼낼 서류</span></div><div class="btns">${docBtns(it, 'btn wide')}</div>` : ''}
     ${it.link ? `<div class="section-title"><span>위치 안내</span></div><div class="btns"><a class="btn wide" href="${esc(it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
     <div class="btns">
-      ${it.place?.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', 'primary wide') : ''}
-      ${it.place && it.place.lang !== 'ko' ? `
-        <a class="btn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}" target="_blank" rel="noopener">${icon('ext')}구글지도</a>
-        ${navBtn(it.id, '길찾기', 'primary')}
-        <button class="btn" data-ja="${esc(it.id)}">${icon('ja')}일본어 크게</button>
-        <button class="btn" data-talk-text="${esc(it.place.nameJa)}">번역기로</button>` : ''}
-      <button class="btn wide" data-done="${esc(it.id)}">${done ? `${icon('refresh')}완료 취소` : `${icon('check')}완료 표시`}</button>
+      ${it.place?.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', pending ? 'primary wide' : 'wide') : ''}
+      ${it.place && it.place.lang !== 'ko' ? navBtn(it.id, '길찾기', pending ? 'primary wide' : 'wide') : ''}
     </div>
     ${it.place && it.place.lang !== 'ko' ? `
-      <details class="sheet-more" ${expenses().some((e) => e.item === it.id) ? 'open' : ''}>
-        <summary>여기서 쓴 돈${expenses().some((e) => e.item === it.id) ? ` · ${yen(expenses().filter((e) => e.item === it.id).reduce((a, e) => a + e.amount, 0))}` : ''}<i class="chev"></i></summary>
-        <div class="card exp">
-          ${expForm(it.id, stripEmoji(it.title).split(' · ').pop(), SCENE_CAT[sceneOf(it)] || '기타')}
-          ${expenses().filter((e) => e.item === it.id).map(expRow).join('')}
-        </div>
-      </details>` : ''}
+      <div class="sheet-tools">
+        <a class="tool" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}" target="_blank" rel="noopener">${icon('ext')}구글지도</a>
+        <button class="tool" data-ja="${esc(it.id)}">${icon('ja')}일본어 크게</button>
+        <button class="tool" data-talk-text="${esc(it.place.nameJa)}">${icon('swap')}번역기로</button>
+      </div>` : ''}
+    <div class="state-seg" role="group" aria-label="일정 상태">
+      <button class="seg ${done ? 'on' : ''}" data-done="${esc(it.id)}" aria-pressed="${done}"><i class="check-box"></i>방문 완료</button>
+      ${mine ? '' : `<button class="seg ${it.skip ? 'on' : ''}" data-item-skip="${esc(it.id)}" aria-pressed="${!!it.skip}">${icon('skip')}건너뛰기</button>`}
+      <button class="seg" data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button>
+      ${mine ? `<button class="seg" data-item-del="${esc(it.id)}">${icon('x')}일정 삭제</button>` : ''}
+    </div>
+    <div class="btns">
+      ${done && (it.place || place) ? `<button class="finish-sum" data-finish-open="${esc(it.id)}"><b>방문 기록</b><span>${esc(summary || '쓴 돈과 평가 남기기')}</span></button>` : ''}
+      ${!pending && next ? navBtn(next.id, `다음: ${next.title.split(' · ').pop()}`, 'primary wide') : ''}
+    </div>
     ${sceneOf(it) ? `
       <details class="sheet-more">
-        <summary>여기서 쓸 일본어 · ${esc(sceneOf(it))}<i class="chev"></i></summary>
+        <summary><span>${icon('ja')}여기서 쓸 일본어 · ${esc(sceneOf(it))}</span><i class="chev"></i></summary>
         <div class="card list">${phrasesFor(sceneOf(it)).slice(0, 6).map(phraseRow).join('')}</div>
       </details>` : ''}`;
   $('#sheet').hidden = false;
@@ -1583,7 +2004,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 59;
+const APP_VERSION = 69;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -1609,10 +2030,11 @@ async function updateApp() {
 
 function render() {
   if (!state.trip) return;
-  const views = { today: renderToday, days: renderDays, wallet: renderWallet, talk: renderTalk, check: renderCheck };
+  const views = { today: renderToday, days: renderDays, explore: renderExplore, wallet: renderWallet, talk: renderTalk, check: renderCheck };
   $('#view').innerHTML = views[state.tab]() + versionLine();
-  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === state.tab)));
+  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === (state.tab === 'check' ? 'wallet' : state.tab))));
   if (state.tab === 'wallet') hydrateDocs();
+  if (state.tab === 'explore' && state.ex.cat === 'log') hydrateLog();
 }
 
 function go(tab) {
@@ -1630,10 +2052,10 @@ async function copy(key) {
   catch { toast('복사하지 못했어요'); }
 }
 
-const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-item],[data-check],[data-del],[data-done],'
+const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-call],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-live],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text],[data-wx-refresh],'
-  + '[data-update],[data-alarm-sheet],[data-go-exp],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -1653,7 +2075,9 @@ document.addEventListener('click', async (e) => {
     render();
   }
   else if (d.del) { forget('custom:' + d.del); store.set('custom', store.get('custom', []).filter((c) => c.id !== d.del)); render(); }
-  else if (d.done) { setDone(d.done, !isDone(d.done)); closeSheet(); render(); }
+  else if (d.done) completeItem(d.done);
+  else if (d.rate) setAgain(d.rate, d.again, d.from);
+  else if (d.finishOpen) openFinish(d.finishOpen);
   else if ('close' in d) closeSheet();
   else if ('closeJa' in d) { $('#bigja').hidden = true; window.speechSynthesis?.cancel(); }
   else if ('closeViewer' in d) $('#viewer').hidden = true;
@@ -1663,7 +2087,7 @@ document.addEventListener('click', async (e) => {
     try { await docs.del(key); } catch { /* ignore */ }
     await refreshDocSlots();
     // An added set disappears with its last photo.
-    if (!state.docSlots.has(state.viewer.slot) && allDocs().find((s) => s.id === state.viewer.slot)?.custom) {
+    if (!state.docSlots.has(state.viewer.slot) && docSlot(state.viewer.slot)?.custom) {
       forget('cdocs:' + state.viewer.slot);
       store.set('cdocs', store.get('cdocs', []).filter((c) => c.id !== state.viewer.slot));
     }
@@ -1693,6 +2117,28 @@ document.addEventListener('click', async (e) => {
   else if (d.docAdd) pickPhotos(d.docAdd);
   else if ('update' in d) updateApp();
   else if ('alarmSheet' in d) openAlarms();
+  else if ('placeNew' in d) openPlaceNew();
+  else if ('placeCreate' in d) createPlace();
+  else if (d.placeDel) deletePlace(d.placeDel);
+  else if (d.placePlan) openPlan(d.placePlan);
+  else if (d.planSave) savePlan(d.planSave);
+  else if (d.itemEdit) openEditItem(d.itemEdit);
+  else if (d.editSave) saveEdit(d.editSave);
+  else if (d.editReset) { store.set('edit:' + d.editReset, null); closeSheet(); render(); }
+  else if (d.itemSkip) toggleSkip(d.itemSkip);
+  else if (d.itemDel) deleteItem(d.itemDel);
+  else if ('dayRoute' in d) dayRoute();
+  else if ('dayShare' in d) shareDay();
+  else if (d.placeSave) toggleSave(d.placeSave);
+  else if (d.placeVisit) toggleVisit(d.placeVisit);
+  else if (d.place) openPlace(d.place);
+  else if (d.exCat) { state.ex.cat = d.exCat; render(); }
+  else if (d.exArea) { state.ex.area = d.exArea; render(); }
+  else if (d.exToggle) {
+    const k = d.exToggle;
+    if (k === 'near' && !state.ex.near) findNear();
+    else { state.ex[k] = !state.ex[k]; render(); }
+  }
   else if ('docNew' in d) openDocNew();
   else if ('docPick' in d) {
     const title = $('#doc-title').value.trim();
@@ -1749,7 +2195,7 @@ document.addEventListener('click', async (e) => {
     if (!confirm('이 지출 기록을 삭제할까요?')) return;
     forget('exp:' + d.expDel);
     store.set('exp', expenses().filter((x) => x.id !== d.expDel));
-    if ($('#sheet').hidden) render(); else { const id = $('.exp-form')?.dataset.expItem; render(); if (id) openItem(id); }
+    if ($('#sheet').hidden) render(); else { const id = $('#sheet-body [data-exp-item]')?.dataset.expItem; render(); if (id) openFinish(id); }
   }
   else if ('budget' in d) {
     const v = prompt('예산 (엔, 쇼핑 제외)', String(store.get('budget', state.trip.budget?.yen || 0)));
@@ -1763,6 +2209,12 @@ document.addEventListener('click', async (e) => {
 
 document.addEventListener('input', (e) => {
   const t = e.target;
+  if (t.dataset.placeMemo) {
+    const id = t.dataset.placeMemo;
+    const v = visitOf(id);
+    store.set('visit:' + id, { ...v, at: v?.at || Date.now(), by: v?.by || who(), memo: t.value });
+    return;
+  }
   if (t.dataset.secret) store.set(t.dataset.secret, t.type === 'url' || t.type === 'tel' ? t.value.trim() : t.value.trim().toUpperCase());
   else if (t.id === 'fx-in') { state.fxCalc.value = t.value; updateFx(); }
   else if (t.id === 'fx-tax') { state.fxCalc.tax = t.checked; updateFx(); }
@@ -1779,7 +2231,19 @@ document.addEventListener('submit', (e) => {
     addExpense({ amount, memo: String(f.get('memo') || '').trim(), cat: f.get('cat'), item, date: item ? findItem(item)?.date : undefined });
     toast(`${yen(amount)} (${won(amount)}) 기록했어요`);
     render();
-    if (item) openItem(item);
+    return;
+  }
+  if (e.target.classList.contains('finish')) {
+    e.preventDefault();
+    const it = findItem(e.target.dataset.expItem);
+    const amount = Number(String(new FormData(e.target).get('amount') || '').replace(/[^0-9]/g, ''));
+    if (amount) {
+      addExpense({ amount, memo: stripEmoji(it.title).split(' · ').pop(), cat: SCENE_CAT[sceneOf(it)] || '기타', item: it.id, date: it.date });
+      toast(`${yen(amount)} (${won(amount)}) 기록했어요`);
+    }
+    render();
+    const next = nextStop(it);
+    if (next) openItem(next.id); else closeSheet();
     return;
   }
   if (e.target.id !== 'add-form') return;
@@ -1801,7 +2265,7 @@ $('#doc-file').addEventListener('change', async (e) => {
     store.set('cdocs', [...store.get('cdocs', []), { id: slotId, title: state.pendingTitle }]);
     closeSheet();
   }
-  if ((allDocs().find((s) => s.id === slotId)?.max || 1) === 1) files = files.slice(0, 1);
+  if ((docSlot(slotId)?.max || 1) === 1) files = files.slice(0, 1);
   let saved = 0;
   try {
     for (const file of files) {
@@ -1812,6 +2276,7 @@ $('#doc-file').addEventListener('change', async (e) => {
   } catch { toast('사진을 저장하지 못했어요. 저장 공간을 확인해 주세요.'); }
   state.pendingDoc = state.pendingTitle = null;
   render();
+  if (slotId.startsWith('place-')) openPlace(slotId.slice(6));
 });
 
 $('#sync-file').addEventListener('change', async (e) => {
