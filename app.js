@@ -1099,6 +1099,7 @@ function timeline(items, now) {
           ${itemIcon(it.icon)}
           <div class="tl-main">
             <div class="tl-title">${esc(it.title)}</div>
+            ${infoBadge(it)}
             ${it.note ? `<div class="tl-sub">${esc(it.note)}</div>` : ''}
             ${chipsHtml(warn)}
             ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
@@ -1475,6 +1476,30 @@ function updateViewerCap() {
 }
 
 // ---------- sheet & big japanese ----------
+// Saved Google Maps facts for a stop, so they still open offline.
+const INFO_BEST = { food: '추천 메뉴', cafe: '추천', sight: '볼거리', shop: '볼거리' };
+const infoBadge = (it) => {
+  const f = it.info;
+  if (!f) return '';
+  const parts = [f.r ? `★${f.r.toFixed(1)}` : '', f.wait ? `대기 ${f.wait}` : ''].filter(Boolean);
+  return parts.length ? `<div class="tl-rate">${parts.join(' · ')}</div>` : '';
+};
+function infoCard(it) {
+  const f = it.info;
+  if (!f) return it.note ? `<div class="card note">${esc(it.note)}</div>` : '';
+  const facts = [['영업', f.hours], ['휴무', f.closed], ['가격', f.price], ['대기', f.wait], ['예약', f.reserve], ['결제', f.pay]].filter(([, v]) => v);
+  return `
+    <div class="card info">
+      ${f.r ? `<div class="info-rate"><b>★ ${f.r.toFixed(1)}</b><span>리뷰 ${esc(f.n)}${f.recent ? ` · 최근 평균 ${f.recent.toFixed(1)}` : ''}</span></div>` : ''}
+      ${f.ko ? `<div class="small muted info-ko">${/^최근/.test(f.ko) ? '' : '한국어 리뷰 '}${esc(f.ko)}</div>` : ''}
+      ${facts.length ? `<dl class="info-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
+      ${f.best?.length ? `<div class="info-sec"><h4>${INFO_BEST[f.kind] || '볼거리'}</h4><div class="info-tags">${f.best.map((x) => `<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
+      ${f.tips?.length ? `<div class="info-sec"><h4>알아둘 점</h4><ul class="info-tips">${f.tips.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+      ${f.alt ? `<div class="info-sec"><h4>대안</h4><div class="small">${esc(f.alt)}</div></div>` : ''}
+      <div class="small muted info-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 · 방문 전 다시 확인</div>
+    </div>`;
+}
+
 function openItem(id) {
   const it = findItem(id);
   if (!it) return;
@@ -1485,26 +1510,32 @@ function openItem(id) {
     <div class="sheet-head">${itemIcon(it.icon, 'lg')}<h3>${esc(it.title)}</h3></div>
     ${it.place ? `<div class="ja muted">${esc(it.place.nameJa)}</div>` : ''}
     ${chipsHtml(chipsFor(it, now))}
-    ${it.note ? `<div class="card note">${esc(it.note)}</div>` : ''}
+    ${infoCard(it)}
     ${it.rainPlan ? `<div class="card note"><b class="note-h">${icon('umbrella')}비 올 때</b><div class="small">${esc(it.rainPlan)}</div></div>` : ''}
-    ${sceneOf(it) ? `
-      <div class="section-title"><span>여기서 쓸 일본어 · ${esc(sceneOf(it))}</span><em class="muted">탭하면 크게</em></div>
-      <div class="card list">${phrasesFor(sceneOf(it)).slice(0, 6).map(phraseRow).join('')}</div>` : ''}
     ${it.docs ? `<div class="section-title"><span>여기서 꺼낼 서류</span></div><div class="btns">${docBtns(it, 'btn wide')}</div>` : ''}
     ${it.link ? `<div class="section-title"><span>위치 안내</span></div><div class="btns"><a class="btn wide" href="${esc(it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
-    ${it.place && it.place.lang !== 'ko' ? `
-      <div class="section-title"><span>여기서 쓴 돈</span>${expenses().some((e) => e.item === it.id) ? `<em>${yen(expenses().filter((e) => e.item === it.id).reduce((a, e) => a + e.amount, 0))}</em>` : ''}</div>
-      <div class="card exp">
-        ${expForm(it.id, stripEmoji(it.title).split(' · ').pop(), SCENE_CAT[sceneOf(it)] || '기타')}
-        ${expenses().filter((e) => e.item === it.id).map(expRow).join('')}
-      </div>` : ''}
     <div class="btns">
       ${it.place?.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', 'primary wide') : ''}
-      ${it.place && it.place.lang !== 'ko' ? `${navBtn(it.id, '구글맵 길찾기', 'primary wide')}
+      ${it.place && it.place.lang !== 'ko' ? `
+        <a class="btn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}" target="_blank" rel="noopener">${icon('ext')}구글지도</a>
+        ${navBtn(it.id, '길찾기', 'primary')}
         <button class="btn" data-ja="${esc(it.id)}">${icon('ja')}일본어 크게</button>
         <button class="btn" data-talk-text="${esc(it.place.nameJa)}">번역기로</button>` : ''}
       <button class="btn wide" data-done="${esc(it.id)}">${done ? `${icon('refresh')}완료 취소` : `${icon('check')}완료 표시`}</button>
-    </div>`;
+    </div>
+    ${it.place && it.place.lang !== 'ko' ? `
+      <details class="sheet-more" ${expenses().some((e) => e.item === it.id) ? 'open' : ''}>
+        <summary>여기서 쓴 돈${expenses().some((e) => e.item === it.id) ? ` · ${yen(expenses().filter((e) => e.item === it.id).reduce((a, e) => a + e.amount, 0))}` : ''}<i class="chev"></i></summary>
+        <div class="card exp">
+          ${expForm(it.id, stripEmoji(it.title).split(' · ').pop(), SCENE_CAT[sceneOf(it)] || '기타')}
+          ${expenses().filter((e) => e.item === it.id).map(expRow).join('')}
+        </div>
+      </details>` : ''}
+    ${sceneOf(it) ? `
+      <details class="sheet-more">
+        <summary>여기서 쓸 일본어 · ${esc(sceneOf(it))}<i class="chev"></i></summary>
+        <div class="card list">${phrasesFor(sceneOf(it)).slice(0, 6).map(phraseRow).join('')}</div>
+      </details>` : ''}`;
   $('#sheet').hidden = false;
 }
 const closeSheet = () => { $('#sheet').hidden = true; };
@@ -1552,7 +1583,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 55;
+const APP_VERSION = 59;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
