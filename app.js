@@ -346,22 +346,34 @@ const wan = (n) => `${(Math.round(n / 1000) / 10).toLocaleString('ko-KR')}만원
 const manwon = (n) => wan(n * fxRate());
 function costCard(g) {
   const rows = g.costs.map((c) => ({ ...c, r: [].concat(c.yen, c.yen).slice(0, 2) }));
-  const total = rows.reduce(([a, b], c) => [a + c.r[0], b + c.r[1]], [0, 0]);
-  const row = (label, r, cls = '') => `
-    <div class="cost-row ${cls}"><span>${esc(label)}</span><b>${span(r, yen)}</b><small>${span(r, manwon)}</small></div>`;
-  const paid = (g.paid || []).reduce((a, c) => a + c.won, 0);
+  const local = rows.reduce(([a, b], c) => [a + c.r[0], b + c.r[1]], [0, 0]);
+  const paid = g.paid.reduce((a, c) => a + c.won, 0);
+  const all = local.map((v) => paid + v * fxRate());
+  const card = local.map((v) => Math.max(0, v - g.cash.yen));
+  const row = (label, r) => `
+    <div class="cost-row"><span>${esc(label)}</span><b>${span(r, yen)}</b><small>${span(r, manwon)}</small></div>`;
   return `
     <div class="card cost">
-      ${rows.map((c) => row(c.label, c.r)).join('')}
-      ${row('합계', total, 'sum')}
-      ${g.cash ? `${row(g.cash.label, [g.cash.yen, g.cash.yen], 'cash')}<div class="small muted cost-cash">${esc(g.cash.note)} · 카드 약 ${span(total.map((v) => Math.max(0, v - g.cash.yen)), yen)}</div>` : ''}
-      <div class="small muted cost-note">${g.costNote ? `<span class="one-line">${esc(g.costNote)}</span>` : ''}100엔 = ${(fxRate() * 100).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원 기준 · 예산 ${yen(store.get('budget', state.trip.budget?.yen || 0))}
+      <div class="cost-total">
+        <span>총 여행 경비</span>
+        <b>${span(all, wan)}</b>
+        <div class="cost-bar" aria-hidden="true"><i style="width:${Math.round((paid / all[1]) * 100)}%"></i></div>
+      </div>
+      <details class="cost-sec paid">
+        <summary><i class="dot"></i><span>출발 전 결제 완료</span><b>${wan(paid)}</b><i class="chev"></i></summary>
+        ${g.paid.map((c) => `<div class="cost-row tight"><span>${esc(c.label)}</span><b>${c.won.toLocaleString('ko-KR')}원</b></div>`).join('')}
+      </details>
+      <details class="cost-sec" open>
+        <summary><i class="dot"></i><span>현지에서 쓸 비용</span><b>${span(local, yen)}</b><i class="chev"></i></summary>
+        ${rows.map((c) => row(c.label, c.r)).join('')}
+        <div class="small muted cost-note">${esc(g.costNote)}</div>
+      </details>
+      <div class="cost-pay">
+        <div class="cash"><span>${esc(g.cash.label)}</span><b>${yen(g.cash.yen)}</b><small>${manwon(g.cash.yen)}</small></div>
+        <div><span>카드·Suica</span><b>${span(card, yen)}</b><small>${span(card, manwon)}</small></div>
+      </div>
+      <div class="small muted cost-note">100엔 = ${(fxRate() * 100).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원 기준 · 예산 ${yen(store.get('budget', state.trip.budget?.yen || 0))}
         <button class="link" data-fx>환율 계산기</button></div>
-      ${g.paid ? `<div class="cost-paid">
-        <div class="small muted">출발 전 결제 완료</div>
-        ${g.paid.map((c) => `<div class="cost-row"><span>${esc(c.label)}</span><b>${c.won.toLocaleString('ko-KR')}원</b></div>`).join('')}
-        <div class="cost-row sum"><span>총 여행 경비</span><b>${span(total.map((v) => paid + v * fxRate()), wan)}</b><small>결제 완료 + 예상 비용</small></div>
-      </div>` : ''}
     </div>`;
 }
 
@@ -1295,6 +1307,7 @@ function openItem(id) {
       <div class="section-title"><span>여기서 쓸 일본어 · ${esc(sceneOf(it))}</span><em class="muted">탭하면 크게</em></div>
       <div class="card list">${phrasesFor(sceneOf(it)).slice(0, 6).map(phraseRow).join('')}</div>` : ''}
     ${it.docs ? `<div class="section-title"><span>여기서 꺼낼 서류</span></div><div class="btns">${docBtns(it)}</div>` : ''}
+    ${it.link ? `<div class="section-title"><span>위치 안내</span></div><div class="btns"><a class="btn" href="${esc(it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
     ${it.place && it.place.lang !== 'ko' ? `
       <div class="section-title"><span>여기서 쓴 돈</span>${expenses().some((e) => e.item === it.id) ? `<em>${yen(expenses().filter((e) => e.item === it.id).reduce((a, e) => a + e.amount, 0))}</em>` : ''}</div>
       <div class="card exp">
