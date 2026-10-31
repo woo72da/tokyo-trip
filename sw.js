@@ -1,10 +1,13 @@
 // Bump VERSION whenever app files change so phones pick up the new cache, and APP_VERSION in app.js with it.
 // Install fetches bypass the HTTP cache, so a new VERSION never stores stale files.
-const VERSION = 'trip-v69';
+const VERSION = 'trip-v70';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
+  './fonts/Pretendard.subset.woff2',
+  './fonts/IBMPlexMono-500.woff2',
+  './fonts/IBMPlexMono-700.woff2',
   './app.js',
   './data/trip.json',
   './manifest.webmanifest',
