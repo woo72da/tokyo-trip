@@ -915,7 +915,7 @@ const GLYPHS = {
   '🚃': 'local move', '🚝': 'tram move', '🚉': 'station move', '🛄': 'baggage move', '🛂': 'id move',
   '🍽': 'meal eat', '🍳': 'breakfast eat', '🍣': 'sushi eat', '🍜': 'ramen eat', '☕': 'coffee eat',
   '🛍': 'shop shop', '👔': 'fashion shop', '⌚': 'watch shop', '💴': 'money shop', '🎥': 'video shop',
-  '🏨': 'bed stay', '📎': 'clip stay', '🛋': 'coffee stay', '🎫': 'ticket move',
+  '🏨': 'bed rest', '📎': 'clip rest', '🛋': 'coffee rest', '🎫': 'ticket move',
   '🎮': 'game see', '🌳': 'park see', '🏛': 'museum see', '⛩': 'torii see', '🗼': 'tower see', '🌺': 'flower see',
   '🎨': 'art see', '🌉': 'bridge see', '🏮': 'lantern see', '🌇': 'sunset see', '🌤': 'wx-partly see',
 };
@@ -2005,7 +2005,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 72;
+const APP_VERSION = 73;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

@@ -508,7 +508,7 @@ ul.plain li + li { margin-top: 4px; }
 .ii.move { --c: var(--c-move); }
 .ii.eat { --c: var(--c-eat); }
 .ii.shop { --c: var(--c-shop); }
-.ii.stay { --c: var(--c-stay); }
+.ii.rest { --c: var(--c-stay); }
 .ii.lg { width: 44px; height: 44px; border-radius: 14px; }
 .ii.lg .ico { width: 26px; height: 26px; }
 .ii.sm { width: 24px; height: 24px; border-radius: 8px; align-self: center; }
