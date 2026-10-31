@@ -671,3 +671,4 @@ ul.plain li + li { margin-top: 4px; }
 .cost-row.cash span, .cost-row.cash b { font-weight: 800; }
 .cost-row.cash b { color: var(--now); }
 .cost-cash { margin: -4px 0 8px; }
+.cost-paid { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 10px; }

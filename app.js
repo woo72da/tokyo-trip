@@ -24,7 +24,7 @@ const store = {
   },
 };
 // What the couple sync carries: checks, done marks, own checklist items, booking numbers, expenses, budget.
-const isShared = (key) => /^(ck|done):/.test(key) || ['custom', 'pnr', 'agoda', 'exp', 'budget'].includes(key);
+const isShared = (key) => /^(ck|done):/.test(key) || ['custom', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
 // Deleted list entries and photos are remembered so a sync doesn't bring them back.
 // Ids stay unique across both phones even when two records are made in the same millisecond.
 const uid = (prefix) => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -44,6 +44,8 @@ const setDone = (id, on) => store.set('done:' + id, on);
 const SECRETS = [
   { key: 'pnr', label: '항공 예약번호 (PNR)', placeholder: '예: AB12CD' },
   { key: 'agoda', label: '아고다 예약번호', placeholder: '숫자 9~10자리' },
+  { key: 'esim1', label: 'eSIM 설치 링크 · 나', placeholder: '카카오톡 링크 붙여넣기', link: true },
+  { key: 'esim2', label: 'eSIM 설치 링크 · 와이프', placeholder: '카카오톡 링크 붙여넣기', link: true },
 ];
 
 // Photos of vouchers and QR codes live in IndexedDB on this phone (too big for localStorage).
@@ -340,12 +342,14 @@ async function loadFx(force = false) {
 
 // Estimated costs from trip.json, with won at today's rate and the total added up here so they never drift apart.
 const span = ([lo, hi], f) => (lo === hi ? f(lo) : `${f(lo).replace(/[^0-9.,]+$/, '')}~${f(hi)}`);
-const manwon = (n) => `${(Math.round((n * fxRate()) / 1000) / 10).toLocaleString('ko-KR')}만원`;
+const wan = (n) => `${(Math.round(n / 1000) / 10).toLocaleString('ko-KR')}만원`;
+const manwon = (n) => wan(n * fxRate());
 function costCard(g) {
   const rows = g.costs.map((c) => ({ ...c, r: [].concat(c.yen, c.yen).slice(0, 2) }));
   const total = rows.reduce(([a, b], c) => [a + c.r[0], b + c.r[1]], [0, 0]);
   const row = (label, r, cls = '') => `
     <div class="cost-row ${cls}"><span>${esc(label)}</span><b>${span(r, yen)}</b><small>${span(r, manwon)}</small></div>`;
+  const paid = (g.paid || []).reduce((a, c) => a + c.won, 0);
   return `
     <div class="card cost">
       ${rows.map((c) => row(c.label, c.r)).join('')}
@@ -353,6 +357,11 @@ function costCard(g) {
       ${g.cash ? `${row(g.cash.label, [g.cash.yen, g.cash.yen], 'cash')}<div class="small muted cost-cash">${esc(g.cash.note)} · 카드 약 ${span(total.map((v) => Math.max(0, v - g.cash.yen)), yen)}</div>` : ''}
       <div class="small muted cost-note">${g.costNote ? `<span class="one-line">${esc(g.costNote)}</span>` : ''}100엔 = ${(fxRate() * 100).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원 기준 · 예산 ${yen(store.get('budget', state.trip.budget?.yen || 0))}
         <button class="link" data-fx>환율 계산기</button></div>
+      ${g.paid ? `<div class="cost-paid">
+        <div class="small muted">출발 전 결제 완료</div>
+        ${g.paid.map((c) => `<div class="cost-row"><span>${esc(c.label)}</span><b>${c.won.toLocaleString('ko-KR')}원</b></div>`).join('')}
+        <div class="cost-row sum"><span>총 여행 경비</span><b>${span(total.map((v) => paid + v * fxRate()), wan)}</b><small>결제 완료 + 예상 비용</small></div>
+      </div>` : ''}
     </div>`;
 }
 
@@ -1028,7 +1037,7 @@ function transferPass(t) {
 function renderWallet() {
   const { flights, stay, guides, trip, links, docs: slots } = state.trip;
   const agoda = store.get('agoda', '');
-  setHeader('도쿄 · 2026년 11월', '예약 · 문서', `${dayLabel(trip.start)} ~ ${dayLabel(trip.end)} · ${trip.travelers}명`);
+  setHeader('도쿄 · 2026년 11월', '예약 · 여행 정보', `${dayLabel(trip.start)} ~ ${dayLabel(trip.end)} · ${trip.travelers}명`);
   return `
     ${syncCard()}
     ${expenseSection()}
@@ -1074,14 +1083,15 @@ function renderWallet() {
       </details>
     </div>
 
-    <div class="section-title"><span>예약번호</span><em class="muted">이 폰에만 저장</em></div>
+    <div class="section-title"><span>예약번호 · 링크</span><em class="muted">폰에만 저장, 동기화로 공유</em></div>
     <div class="card">
       ${SECRETS.map((s) => `
         <label class="field">
           <span>${esc(s.label)}</span>
           <div class="field-row">
-            <input class="input mono" data-secret="${s.key}" autocomplete="off" autocapitalize="characters" spellcheck="false"
+            <input class="input mono" data-secret="${s.key}" ${s.link ? 'type="url"' : ''} autocomplete="off" autocapitalize="${s.link ? 'none' : 'characters'}" spellcheck="false"
               value="${esc(store.get(s.key, ''))}" placeholder="${esc(s.placeholder)}">
+            ${s.link ? `<button class="icon-btn" data-open-secret="${s.key}" aria-label="링크 열기">${icon('ext')}</button>` : ''}
             <button class="icon-btn" data-copy="${s.key}" aria-label="복사">${icon('copy')}</button>
           </div>
         </label>`).join('')}
@@ -1169,7 +1179,7 @@ function checkRow(c, today = tokyoNow().date) {
 function renderCheck() {
   const list = checklist();
   const done = list.filter((c) => isChecked(c.id)).length;
-  setHeader('도쿄 · 2026년 11월', '준비물 · 예약', `${done} / ${list.length} 완료`);
+  setHeader('도쿄 · 2026년 11월', '체크리스트', `${done} / ${list.length} 완료`);
   const groups = [...new Set(list.map((c) => c.group))];
   return `
     <div class="meter big"><i style="width:${Math.round((done / list.length) * 100)}%"></i></div>
@@ -1368,7 +1378,7 @@ async function copy(key) {
 }
 
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-item],[data-check],[data-del],[data-done],'
-  + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-doc-view],[data-doc-add],[data-viewer-del],'
+  + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-open-secret],[data-doc-view],[data-doc-add],[data-viewer-del],'
   + '[data-translate],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text],[data-wx-refresh],'
   + '[data-go-exp],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
@@ -1404,6 +1414,11 @@ document.addEventListener('click', async (e) => {
     if (state.viewer.keys.length > 1) viewDoc(state.viewer.slot);
   }
   else if (d.copy) copy(d.copy);
+  else if (d.openSecret) {
+    const url = store.get(d.openSecret, '');
+    if (/^https?:\/\//i.test(url)) window.open(url, '_blank', 'noopener');
+    else toast('https로 시작하는 링크를 붙여넣어 주세요.');
+  }
   else if (d.docView) {
     // No photo yet: open the picker right away (it has to happen inside the tap on iPhone).
     if (!state.docSlots.has(d.docView)) { state.pendingDoc = d.docView; toast(`${docLabel(d.docView)} 사진을 골라 주세요`); $('#doc-file').click(); }
@@ -1477,7 +1492,7 @@ document.addEventListener('click', async (e) => {
 
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.dataset.secret) store.set(t.dataset.secret, t.value.trim().toUpperCase());
+  if (t.dataset.secret) store.set(t.dataset.secret, t.type === 'url' ? t.value.trim() : t.value.trim().toUpperCase());
   else if (t.id === 'fx-in') { state.fxCalc.value = t.value; updateFx(); }
   else if (t.id === 'fx-tax') { state.fxCalc.tax = t.checked; updateFx(); }
   else if (t.id === 'talk-text') { store.set('talkText', t.value); $('.talk-clear').hidden = !t.value; }
