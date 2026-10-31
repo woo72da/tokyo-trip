@@ -1302,9 +1302,9 @@ function renderTalk() {
       <div class="btns">
         <button class="btn primary" data-translate="google">Google 번역 앱</button>
         <button class="btn papago" data-translate="papago">파파고 웹</button>
-        <button class="btn wide" data-live>${icon('ext')}Google 실시간 번역 열기</button>
+        <button class="btn wide" data-live>${icon('ext')}Google 번역 앱 열기 · 실시간 번역 (대화)</button>
       </div>
-      <div class="small muted talk-hint">Google 번역은 앱에 문장이 바로 들어가요. 파파고는 웹에서 열려요. 실시간 번역은 앱이 열리면 하단의 실시간 번역이나 대화 버튼을 누르세요.</div>
+      <div class="small muted talk-hint">Google 번역은 앱에 문장이 바로 들어가요. 파파고는 웹에서 열려요. 실시간 번역은 앱이 열리면 '실시간 번역'을 누른 뒤 '대화'를 고르세요.</div>
     </div>
 
     ${nowPhrases()}
@@ -1552,7 +1552,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 54;
+const APP_VERSION = 55;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
