@@ -844,6 +844,7 @@ function toast(msg, href, label) {
 // Phosphor Icons duotone (MIT, phosphoricons.com); torii, tower and lantern drawn to match.
 // The 20% layer (class "d") takes the category tint.
 const ICONS = {
+  'pen': '<path d="M221.66,90.34,192,120,136,64l29.66-29.66a8,8,0,0,1,11.31,0L221.66,79A8,8,0,0,1,221.66,90.34Z" class="d"/><path d="M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.68,147.31,64l24-24L216,84.68Z"/>',
   'skip': '<path d="M184,128,64,208V48Z" class="d"/><path d="M200,32a8,8,0,0,0-8,8v73.05L72.88,33.67A16,16,0,0,0,48,47V209a16,16,0,0,0,24.88,13.33L192,142.95V216a8,8,0,0,0,16,0V40A8,8,0,0,0,200,32ZM64,209V47l121.5,81Z"/>',
   'bus': '<path d="M48,184H88v24a8,8,0,0,1-8,8H56a8,8,0,0,1-8-8Zm120,24a8,8,0,0,0,8,8h24a8,8,0,0,0,8-8V184H168ZM48,72v40H208V72Z" class="d"/><path d="M184,32H72A32,32,0,0,0,40,64V208a16,16,0,0,0,16,16H80a16,16,0,0,0,16-16V192h64v16a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16V64A32,32,0,0,0,184,32ZM56,176V120H200v56Zm0-96H200v24H56ZM72,48H184a16,16,0,0,1,16,16H56A16,16,0,0,1,72,48Zm8,160H56V192H80Zm96,0V192h24v16Zm-72-60a12,12,0,1,1-12-12A12,12,0,0,1,104,148Zm72,0a12,12,0,1,1-12-12A12,12,0,0,1,176,148Zm72-68v24a8,8,0,0,1-16,0V80a8,8,0,0,1,16,0ZM24,80v24a8,8,0,0,1-16,0V80a8,8,0,0,1,16,0Z"/>',
   'luggage': '<path d="M200,64V208a8,8,0,0,1-8,8H64a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H192A8,8,0,0,1,200,64Z" class="d"/><path d="M104,88v96a8,8,0,0,1-16,0V88a8,8,0,0,1,16,0Zm24-8a8,8,0,0,0-8,8v96a8,8,0,0,0,16,0V88A8,8,0,0,0,128,80Zm32,0a8,8,0,0,0-8,8v96a8,8,0,0,0,16,0V88A8,8,0,0,0,160,80Zm48-16V208a16,16,0,0,1-16,16H176v16a8,8,0,0,1-16,0V224H96v16a8,8,0,0,1-16,0V224H64a16,16,0,0,1-16-16V64A16,16,0,0,1,64,48H88V24A24,24,0,0,1,112,0h32a24,24,0,0,1,24,24V48h24A16,16,0,0,1,208,64ZM104,48h48V24a8,8,0,0,0-8-8H112a8,8,0,0,0-8,8Zm88,160V64H64V208H192Z"/>',
@@ -1421,7 +1422,7 @@ function renderCheck() {
 }
 
 // ---------- explore ----------
-const EX_CATS = [['eat', '먹고'], ['drink', '마시고'], ['see', '보고'], ['shop', '쇼핑'], ['log', '기록']];
+const EX_CATS = [['eat', '먹고', 'meal'], ['drink', '마시고', 'coffee'], ['see', '보고', 'torii'], ['shop', '사고', 'shop'], ['log', '적고', 'pen']];
 const EX_AREAS = ['전체', '우에노·아키하바라', '아사쿠사·스카이트리', '긴자·쓰키지', '시부야·하라주쿠', '오다이바·도요스', '나카메구로·에비스', '도쿄역·신주쿠', '내 장소'];
 const CAT_ICON = { eat: '🍽', drink: '☕', see: '🏛', shop: '🛍' };
 const EX_KIND = { eat: 'food', drink: 'cafe', see: 'sight', shop: 'shop' };
@@ -1550,7 +1551,7 @@ function renderExplore() {
   const toggles = [['open', '지금 영업'], ['plan', '일정 장소'], ['saved', '저장함'], ['again', '또 갈 곳'], ['near', '내 주변']];
   const list = f.cat === 'log' ? [] : exploreList(now);
   return `
-    <div class="ex-cats">${EX_CATS.map(([k, label]) => `<button class="seg ${f.cat === k ? 'on' : ''}" data-ex-cat="${k}">${label}</button>`).join('')}</div>
+    <div class="ex-cats">${EX_CATS.map(([k, label, ico]) => `<button class="seg ${f.cat === k ? 'on' : ''}" data-ex-cat="${k}">${icon(ico)}${label}</button>`).join('')}</div>
     ${f.cat === 'log' ? exploreLog(now) : `
       <div class="ex-row">${EX_AREAS.map((a) => `<button class="${f.area === a ? 'on' : ''}" data-ex-area="${esc(a)}">${esc(a)}</button>`).join('')}</div>
       <button class="btn wide ex-add" data-place-new>${icon('plus')}내 장소 추가</button>
@@ -2004,7 +2005,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 70;
+const APP_VERSION = 72;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

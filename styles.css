@@ -750,7 +750,8 @@ ol.alarm-note { padding-left: 18px; }
 /* explore */
 .check-link { width: 100%; margin-bottom: 10px; }
 .ex-cats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 3px; margin-bottom: 10px; border-radius: 12px; background: var(--soft); }
-.ex-cats .seg { background: none; padding: 8px 2px; text-align: center; }
+.ex-cats .seg { display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; padding: 8px 2px 7px; font-size: 12.5px; text-align: center; }
+.ex-cats .ico { width: 20px; height: 20px; }
 .ex-cats .seg.on { background: var(--sel-bg); color: var(--sel-ink); }
 .ex-row { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px 8px; padding: 0 16px; }
 .ex-row::-webkit-scrollbar { display: none; }
