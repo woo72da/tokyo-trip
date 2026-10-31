@@ -981,14 +981,23 @@ function gcalUrl(it) {
 function openAlarms() {
   const list = alarmItems();
   const android = /Android/i.test(navigator.userAgent);
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const url = new URL('calendar.ics', location.href).href;
+  // The home-screen app shows a blank page for a calendar file, so iPhone hands it to Safari.
+  const fileHref = ios && navigator.standalone ? url.replace(/^https:/, 'x-safari-https:') : url;
   $('#sheet-body').innerHTML = `
     <div class="sheet-head"><h3>일정 알림 받기</h3></div>
     <div class="small muted alarm-note">놓치면 안 되는 일정 ${list.length}개를 폰 캘린더에 넣어요. 앱을 닫아도 캘린더가 알려 줘요.</div>
-    <a class="btn primary wide alarm-file" href="calendar.ics" target="_blank" rel="noopener" ${android ? 'download="tokyo-trip.ics"' : ''}>${icon('ext')}캘린더에 한 번에 추가</a>
+    <a class="btn primary wide alarm-file" href="${esc(fileHref)}" target="_blank" rel="noopener" ${android ? 'download="tokyo-trip.ics"' : ''}>${icon('ext')}${ios ? 'Safari에서 열어 한 번에 추가' : '캘린더에 한 번에 추가'}</a>
+    ${ios ? `
+    <div class="btns">
+      <button class="btn" data-copy-text="${esc(url)}">${icon('copy')}주소 복사</button>
+      <a class="btn" href="${esc(url.replace(/^https:/, 'webcal:'))}">${icon('refresh')}캘린더 구독</a>
+    </div>` : ''}
     <ol class="small muted alarm-note">
       ${android
     ? `<li>내려받은 파일을 눌러 Samsung 캘린더나 Google 캘린더로 가져오세요.</li>`
-    : `<li>일정 추가 화면이 나오면 전체 추가를 누르세요.</li>`}
+    : `<li>Safari의 일정 추가 화면에서 전체 추가를 누르세요. 빈 화면이면 주소를 복사해 Safari 주소창에 붙여넣으세요.</li>`}
       <li>11/2 일정을 열어 알림이 설정됐는지 확인하세요.</li>
       <li>알림이 없으면 아래에서 일정별로 추가하세요.</li>
     </ol>
@@ -1531,7 +1540,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 50;
+const APP_VERSION = 51;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -1579,7 +1588,7 @@ async function copy(key) {
 }
 
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-item],[data-check],[data-del],[data-done],'
-  + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-call],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
+  + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-call],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text],[data-wx-refresh],'
   + '[data-update],[data-alarm-sheet],[data-go-exp],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
@@ -1620,6 +1629,10 @@ document.addEventListener('click', async (e) => {
     if (state.viewer.keys.length > 1) viewDoc(state.viewer.slot);
   }
   else if (d.copy) copy(d.copy);
+  else if (d.copyText) {
+    try { await navigator.clipboard.writeText(d.copyText); toast('복사했어요 · Safari 주소창에 붙여넣으세요'); }
+    catch { toast('복사하지 못했어요'); }
+  }
   else if (d.call) {
     const tel = store.get(d.call, '').replace(/[^0-9+]/g, '');
     if (tel) location.href = `tel:${tel}`; else toast('먼저 번호를 입력해 주세요.');
