@@ -548,6 +548,9 @@ ul.plain li + li { margin-top: 4px; }
 .doc-actions { align-items: center; }
 .doc-actions button:disabled { color: var(--muted); }
 .doc-max { font-size: 11px; color: var(--muted); }
+.title-add { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; padding: 5px 11px 5px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12.5px; font-weight: 700; }
+.title-add .ico { width: 13px; height: 13px; }
+.doc-pick { width: 100%; margin-top: 12px; }
 .viewer { padding-left: 0; padding-right: 0; }
 .viewer-track { flex: 1; min-height: 0; width: 100%; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
 .viewer-track::-webkit-scrollbar { display: none; }
@@ -622,6 +625,8 @@ ul.plain li + li { margin-top: 4px; }
 .sync.open .sync-head { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
 .sync .btns { margin-top: 12px; }
 .sync-note { margin-top: 10px; line-height: 1.5; }
+ol.sync-note { padding-left: 18px; }
+.sync-size { margin-top: 6px; }
 
 /* exchange calculator */
 .section-title .fx-pill { margin-left: auto; align-self: center; }
@@ -657,7 +662,9 @@ ul.plain li + li { margin-top: 4px; }
 .fx-note { margin-top: 4px; }
 
 /* estimated costs */
-.cost { padding-top: 16px; padding-bottom: 14px; }
+.exp-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; margin-bottom: 14px; border-radius: 12px; background: var(--soft); }
+.exp-tabs .seg { background: none; text-align: center; }
+.exp-tabs .seg.on { background: var(--sel-bg); color: var(--sel-ink); }
 .cost-total span { display: block; font-size: 13px; font-weight: 600; color: var(--muted); }
 .cost-total b { display: block; margin-top: 2px; font-size: 26px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .cost-bar { height: 6px; margin-top: 10px; border-radius: 3px; overflow: hidden; background: var(--accent); }

@@ -1250,13 +1250,13 @@
     },
     {
       "id": "doc-vjw-1",
-      "label": "VJW QR · 나",
+      "label": "VJW QR · 안드레아",
       "icon": "🛂",
       "max": 1
     },
     {
       "id": "doc-vjw-2",
-      "label": "VJW QR · 와이프",
+      "label": "VJW QR · 다희",
       "icon": "🛂",
       "max": 1
     },
@@ -1283,12 +1283,6 @@
       "label": "시부야 스카이 (2인)",
       "icon": "🎫",
       "max": 2
-    },
-    {
-      "id": "doc-etc",
-      "label": "기타",
-      "icon": "📎",
-      "max": 10
     }
   ],
   "phrases": [

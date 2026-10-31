@@ -19,12 +19,15 @@ const store = {
   set(key, value, at = Date.now()) {
     try {
       localStorage.setItem(key, JSON.stringify(value));
-      if (isShared(key)) localStorage.setItem('meta', JSON.stringify({ ...this.get('meta', {}), [key]: at }));
+      if (isShared(key)) {
+        localStorage.setItem('meta', JSON.stringify({ ...this.get('meta', {}), [key]: at }));
+        state.syncFile = null;
+      }
     } catch { /* ignore */ }
   },
 };
-// What the couple sync carries: checks, done marks, own checklist items, booking numbers, expenses, budget.
-const isShared = (key) => /^(ck|done):/.test(key) || ['custom', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
+// What the sync carries: checks, done marks, own checklist items, added document sets, booking numbers, links, expenses, budget.
+const isShared = (key) => /^(ck|done):/.test(key) || ['custom', 'cdocs', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
 // Deleted list entries and photos are remembered so a sync doesn't bring them back.
 // Ids stay unique across both phones even when two records are made in the same millisecond.
 const uid = (prefix) => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -44,8 +47,8 @@ const setDone = (id, on) => store.set('done:' + id, on);
 const SECRETS = [
   { key: 'pnr', label: '항공 예약번호 (PNR)', placeholder: '예: AB12CD' },
   { key: 'agoda', label: '아고다 예약번호', placeholder: '숫자 9~10자리' },
-  { key: 'esim1', label: 'eSIM 설치 링크 · 나', placeholder: '카카오톡 링크 붙여넣기', link: true },
-  { key: 'esim2', label: 'eSIM 설치 링크 · 와이프', placeholder: '카카오톡 링크 붙여넣기', link: true },
+  { key: 'esim1', label: 'eSIM 설치 링크 · 안드레아', placeholder: '카카오톡 링크 붙여넣기', link: true },
+  { key: 'esim2', label: 'eSIM 설치 링크 · 다희', placeholder: '카카오톡 링크 붙여넣기', link: true },
 ];
 
 // Photos of vouchers and QR codes live in IndexedDB on this phone (too big for localStorage).
@@ -322,7 +325,10 @@ const SCENE_CAT = { 식당: '식당', 카페: '카페', 교통: '교통', 공항
 const expenses = () => store.get('exp', []);
 const yen = (n) => `${Math.round(n).toLocaleString('ko-KR')}엔`;
 const won = (n) => `${(Math.round((n * (state.fx?.rate || 8.5)) / 10) * 10).toLocaleString('ko-KR')}원`;
-const who = () => store.get('who', '나');
+const PEOPLE = ['안드레아', '다희'];
+// Records and files made before the names were set still say 나 / 와이프.
+const person = (name) => ({ 나: '안드레아', 와이프: '다희' })[name] || name;
+const who = () => person(store.get('who', '나'));
 
 // Live JPY→KRW rate (open.er-api.com, no key), kept for offline; 6-hour refresh, 30 minutes when forced.
 // `upd` is when the provider last moved the rate (once a day), `at` when this phone fetched it.
@@ -344,18 +350,20 @@ async function loadFx(force = false) {
 const span = ([lo, hi], f) => (lo === hi ? f(lo) : `${f(lo).replace(/[^0-9.,]+$/, '')}~${f(hi)}`);
 const wan = (n) => `${(Math.round(n / 1000) / 10).toLocaleString('ko-KR')}만원`;
 const manwon = (n) => wan(n * fxRate());
-function costCard(g) {
-  const rows = g.costs.map((c) => ({ ...c, r: [].concat(c.yen, c.yen).slice(0, 2) }));
-  const local = rows.reduce(([a, b], c) => [a + c.r[0], b + c.r[1]], [0, 0]);
+const costRows = (g) => g.costs.map((c) => ({ ...c, r: [].concat(c.yen, c.yen).slice(0, 2) }));
+const costLocal = (g) => costRows(g).reduce(([a, b], c) => [a + c.r[0], b + c.r[1]], [0, 0]);
+function costPane(g) {
+  const rows = costRows(g);
+  const local = costLocal(g);
   const paid = g.paid.reduce((a, c) => a + c.won, 0);
   const all = local.map((v) => paid + v * fxRate());
   const card = local.map((v) => Math.max(0, v - g.cash.yen));
   const row = (label, r) => `
     <div class="cost-row"><span>${esc(label)}</span><b>${span(r, yen)}</b><small>${span(r, manwon)}</small></div>`;
   return `
-    <div class="card cost">
+    <div class="cost">
       <div class="cost-total">
-        <span>총 여행 경비</span>
+        <span>총 여행 경비 · 2인, 쇼핑 제외</span>
         <b>${span(all, wan)}</b>
         <div class="cost-bar" aria-hidden="true"><i style="width:${Math.round((paid / all[1]) * 100)}%"></i></div>
       </div>
@@ -372,8 +380,7 @@ function costCard(g) {
         <div class="cash"><span>${esc(g.cash.label)}</span><b>${yen(g.cash.yen)}</b><small>${manwon(g.cash.yen)}</small></div>
         <div><span>카드·Suica</span><b>${span(card, yen)}</b><small>${span(card, manwon)}</small></div>
       </div>
-      <div class="small muted cost-note">100엔 = ${(fxRate() * 100).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원 기준 · 예산 ${yen(store.get('budget', state.trip.budget?.yen || 0))}
-        <button class="link" data-fx>환율 계산기</button></div>
+      <div class="small muted cost-note">100엔 = ${(fxRate() * 100).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}원 기준 · 예산 ${yen(store.get('budget', state.trip.budget?.yen || 0))}</div>
     </div>`;
 }
 
@@ -440,7 +447,7 @@ function expRow(e) {
   return `
     <div class="exp-row">
       <span class="exp-cat">${esc(e.cat)}</span>
-      <span class="grow"><b>${esc(e.memo || e.cat)}</b><small>${esc(shortDate(e.date))} · ${esc(e.by)}</small></span>
+      <span class="grow"><b>${esc(e.memo || e.cat)}</b><small>${esc(shortDate(e.date))} · ${esc(person(e.by))}</small></span>
       <span class="exp-amt"><b>${yen(e.amount)}</b><small>${won(e.amount)}</small></span>
       <button class="ck-del" data-exp-del="${esc(e.id)}" aria-label="삭제">${icon('x')}</button>
     </div>`;
@@ -461,16 +468,25 @@ function expenseSection() {
   const used = total - shop;
   const pct = budget ? Math.min(100, Math.round((used / budget) * 100)) : 0;
   const rate = state.fx ? `100엔 = ${Math.round(state.fx.rate * 100).toLocaleString('ko-KR')}원` : '엔 ↔ 원';
+  const guide = state.trip.guides.find((g) => g.costs);
+  // Costs matter most before leaving, the spending log once the trip starts.
+  const view = state.expView || (tokyoNow().date < state.trip.trip.start ? 'cost' : 'spent');
   return `
-    <div class="section-title" id="exp"><span>여행 경비</span><button class="fx-pill" data-fx aria-label="환율 계산기 열기"><i>¥</i><span class="fx-pill-t">${esc(rate)}</span><i class="chev"></i></button></div>
+    <div class="section-title" id="exp"><span>경비</span><button class="fx-pill" data-fx aria-label="환율 계산기 열기"><i>¥</i><span class="fx-pill-t">${esc(rate)}</span><i class="chev"></i></button></div>
     <div class="card exp">
+      <div class="exp-tabs" role="tablist">
+        <button class="seg ${view === 'spent' ? 'on' : ''}" data-exp-view="spent" role="tab" aria-selected="${view === 'spent'}">내 지출</button>
+        <button class="seg ${view === 'cost' ? 'on' : ''}" data-exp-view="cost" role="tab" aria-selected="${view === 'cost'}">여행 비용</button>
+      </div>
+      ${view === 'cost' ? costPane(guide) : `
       <div class="exp-total"><b>${yen(total)}</b><span>${won(total)}${shop ? ` · 쇼핑 ${yen(shop)}` : ''}</span></div>
       ${budget ? `
         <div class="meter"><i style="width:${pct}%"></i></div>
         <div class="small muted exp-budget">예산 ${yen(budget)} (약 ${manwon(budget)}) 중 ${pct}% 사용 (쇼핑 제외) · 남은 돈 ${yen(Math.max(0, budget - used))}
           <button class="link" data-budget>예산 바꾸기</button></div>` : ''}
+      <div class="small muted exp-budget">현지 예상 ${span(costLocal(guide), yen)} 중 ${yen(used)} 사용</div>
       ${expForm()}
-      ${list.length ? `<div class="exp-list">${list.map(expRow).join('')}</div>` : '<div class="small muted exp-empty">아직 기록이 없어요. 일정을 눌러서도 기록할 수 있어요.</div>'}
+      ${list.length ? `<div class="exp-list">${list.map(expRow).join('')}</div>` : '<div class="small muted exp-empty">아직 기록이 없어요. 일정을 눌러서도 기록할 수 있어요.</div>'}`}
     </div>`;
 }
 
@@ -528,7 +544,17 @@ async function buildSyncFile() {
   const d = new Date();
   const name = `도쿄여행-${who()}폰-${d.getMonth() + 1}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`;
   state.syncFile = new File([body], name, { type: 'application/json' });
-  return { photos: photos.length, records: Object.keys(kv).length };
+  state.syncPhotos = photos.length;
+}
+
+// The file is made ahead of time so one tap can open the share sheet (iPhone needs it straight from the tap).
+async function prepareSync() {
+  if (state.syncBuilding) return;
+  state.syncBuilding = true;
+  state.syncFailed = false;
+  try { await buildSyncFile(); } catch { state.syncFailed = true; }
+  state.syncBuilding = false;
+  render();
 }
 
 // Share must run straight from a tap on iPhone, so the file is built first and shared on a second tap.
@@ -559,7 +585,7 @@ async function importSync(file) {
   let records = 0;
   for (const [k, { v, t }] of Object.entries(data.kv || {})) {
     if (!isShared(k)) continue;
-    if (k === 'custom' || k === 'exp') {
+    if (k === 'custom' || k === 'cdocs' || k === 'exp') {
       const mine = store.get(k, []);
       const ids = new Set(mine.map((x) => x.id));
       const extra = (v || []).filter((x) => !ids.has(x.id));
@@ -567,7 +593,7 @@ async function importSync(file) {
       if (extra.length || merged.length !== mine.length) { store.set(k, merged, Math.max(t, meta[k] || 0)); records += extra.length; }
     } else if (t > (meta[k] || 0)) { store.set(k, v, t); records += 1; }
   }
-  for (const k of ['custom', 'exp']) {
+  for (const k of ['custom', 'cdocs', 'exp']) {
     const list = store.get(k, []);
     const kept = list.filter((x) => !tomb[`${k}:${x.id}`]);
     if (kept.length !== list.length) store.set(k, kept);
@@ -581,14 +607,14 @@ async function importSync(file) {
     photos += 1;
   }
   // Single-photo slots keep only the newest picture.
-  for (const slot of state.trip.docs.filter((x) => (x.max || 1) === 1)) {
+  for (const slot of allDocs().filter((x) => (x.max || 1) === 1)) {
     const keys = await docs.of(slot.id);
     for (const k of keys.slice(0, -1)) await docs.del(k);
   }
   await refreshDocSlots();
-  store.set('syncGot', { at: Date.now(), from: data.from });
+  store.set('syncGot', { at: Date.now(), from: person(data.from) });
   render();
-  toast(records || photos ? `${data.from}폰에서 기록 ${records}건 · 사진 ${photos}장을 합쳤어요` : '이미 같은 내용이에요');
+  toast(records || photos ? `${person(data.from)}폰에서 기록 ${records}건 · 사진 ${photos}장을 합쳤어요` : '이미 같은 내용이에요');
 }
 
 function syncCard() {
@@ -596,25 +622,33 @@ function syncCard() {
   const sent = store.get('syncSent', 0);
   const f = state.syncFile;
   const last = Math.max(sent, got?.at || 0);
+  if (state.syncOpen && !f && !state.syncBuilding && !state.syncFailed) setTimeout(prepareSync);
   const head = `
       <button class="sync-head" data-sync-toggle aria-expanded="${!!state.syncOpen}">
         <span class="ii">${icon('refresh')}</span>
-        <span class="sync-title"><b>부부 폰 동기화</b>
-          <small class="muted">${last ? `${who()} 폰 · 마지막 ${new Date(last).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '체크·예약번호·지출·사진 주고받기'}</small></span>
+        <span class="sync-title"><b>예약정보 동기화</b>
+          <small class="muted">${last ? `${who()} 폰 · 마지막 ${new Date(last).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '예약번호·링크·문서 사진·체크·지출 전체'}</small></span>
         <i class="chev"></i>
       </button>`;
   if (!state.syncOpen) return `<div class="card sync">${head}</div>`;
   return `
     <div class="card sync open">
       ${head}
-      <div class="sync-who"><span>이 폰은</span>${['나', '와이프'].map((w) => `<button class="seg ${who() === w ? 'on' : ''}" data-who="${w}">${w} 폰</button>`).join('')}</div>
+      <div class="sync-who"><span>이 폰은</span>${PEOPLE.map((w) => `<button class="seg ${who() === w ? 'on' : ''}" data-who="${w}">${w}폰</button>`).join('')}</div>
       <div class="btns">
-        ${f ? `<button class="btn primary" data-sync-share>${icon('ext')}파일 보내기 · ${f.size < 1048576 ? Math.max(1, Math.round(f.size / 1024)) + 'KB' : (f.size / 1048576).toFixed(1) + 'MB'}</button>`
-            : `<button class="btn primary" data-sync-build>${icon('refresh')}보낼 파일 만들기</button>`}
+        ${state.syncFailed ? `<button class="btn primary" data-sync-build>${icon('refresh')}다시 준비하기</button>`
+            : f ? `<button class="btn primary" data-sync-share>${icon('ext')}보내기</button>`
+            : `<button class="btn primary" disabled>준비 중…</button>`}
         <button class="btn" data-sync-pick>${icon('clip')}받은 파일 합치기</button>
       </div>
+      ${f ? `<div class="small muted sync-size">사진 ${state.syncPhotos}장 포함 · ${f.size < 1048576 ? Math.max(1, Math.round(f.size / 1024)) + 'KB' : (f.size / 1048576).toFixed(1) + 'MB'}</div>` : ''}
+      <ol class="small muted sync-note">
+        <li>보내기를 누르고 공유 창에서 카카오톡이나 AirDrop을 고르세요.</li>
+        <li>받은 폰에서 파일을 열어 '파일에 저장'하세요.</li>
+        <li>받은 폰의 앱에서 '받은 파일 합치기'를 누르면 끝이에요.</li>
+      </ol>
       <div class="small muted sync-note">
-        보낸 파일을 상대 폰에서 열어 '파일에 저장'한 뒤, 상대 폰 앱에서 '받은 파일 합치기'를 누르세요. 서로 한 번씩 주고받으면 두 폰이 같아져요.
+        서로 한 번씩 주고받으면 두 폰이 같아져요. 예약번호와 사진이 들어 있으니 보낸 뒤 대화방의 파일은 지워 주세요.
         ${sent ? `<br>보낸 시각 ${new Date(sent).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
         ${got ? `<br>${esc(got.from)}폰에서 받은 시각 ${new Date(got.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
       </div>
@@ -1047,7 +1081,7 @@ function transferPass(t) {
 }
 
 function renderWallet() {
-  const { flights, stay, guides, trip, links, docs: slots } = state.trip;
+  const { flights, stay, guides, trip, links } = state.trip;
   const agoda = store.get('agoda', '');
   setHeader('도쿄 · 2026년 11월', '예약 · 여행 정보', `${dayLabel(trip.start)} ~ ${dayLabel(trip.end)} · ${trip.travelers}명`);
   return `
@@ -1109,22 +1143,22 @@ function renderWallet() {
         </label>`).join('')}
     </div>
 
-    <div class="section-title"><span>문서 사진</span><em class="muted">폰에 저장돼 오프라인에서도 열려요</em></div>
+    <div class="section-title"><span>문서 사진</span><button class="title-add" data-doc-new>${icon('plus')}추가</button></div>
     <div class="docs">
-      ${slots.map((s) => `
+      ${allDocs().map((s) => `
         <div class="doc" data-doc="${esc(s.id)}">
           <button class="doc-thumb" data-doc-view="${esc(s.id)}">${itemIcon(s.icon, 'lg')}<i class="doc-count" hidden></i></button>
           <div class="doc-label">${esc(s.label)}</div>
           <div class="doc-actions">
             <button data-doc-add="${esc(s.id)}">추가</button>
-            <span class="doc-max">최대 ${s.max || 1}장</span>
+            <span class="doc-max">${s.custom ? '' : `최대 ${s.max || 1}장`}</span>
           </div>
         </div>`).join('')}
     </div>
 
-    ${guides.map((g) => `
+    ${guides.filter((g) => !g.costs).map((g) => `
       <div class="section-title">${itemIcon(g.icon, 'sm')}<span>${esc(g.title)}</span></div>
-      ${g.costs ? costCard(g) : `<div class="card"><ul class="plain">${g.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>`}`).join('')}
+      <div class="card"><ul class="plain">${g.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>`).join('')}
   `;
 }
 
@@ -1213,7 +1247,7 @@ function renderCheck() {
 const thumbUrls = [];
 async function hydrateDocs() {
   thumbUrls.splice(0).forEach((u) => URL.revokeObjectURL(u));
-  for (const slot of state.trip.docs) {
+  for (const slot of allDocs()) {
     const el = document.querySelector(`[data-doc="${CSS.escape(slot.id)}"]`);
     let keys = [];
     try { keys = await docs.of(slot.id); } catch { return; }
@@ -1228,30 +1262,58 @@ async function hydrateDocs() {
     count.textContent = keys.length;
     el.querySelector('[data-doc-add]').textContent = max === 1 ? '교체' : keys.length >= max ? '가득 참' : '추가';
     el.querySelector('[data-doc-add]').disabled = max > 1 && keys.length >= max;
-    el.querySelector('.doc-max').textContent = max === 1 ? '1장' : `${keys.length} / ${max}장`;
+    el.querySelector('.doc-max').textContent = slot.custom ? `${keys.length}장` : max === 1 ? '1장' : `${keys.length} / ${max}장`;
   }
 }
+
+// Fixed slots from trip.json plus the titled sets added on the phones.
+const CDOC_MAX = 30;
+const allDocs = () => [
+  ...state.trip.docs,
+  ...store.get('cdocs', []).map((c) => ({ id: c.id, label: c.title, icon: '📎', max: CDOC_MAX, custom: true })),
+];
 
 // Store a picked photo: single-photo slots replace, others append up to their limit.
 const slotOf = (key) => key.split('#')[0];
 async function refreshDocSlots() {
   try { state.docSlots = new Set((await docs.keys()).map(slotOf)); } catch { /* ignore */ }
+  state.syncFile = null;
+  // Photos from the old 기타 slot become an added set under the same id.
+  const cdocs = store.get('cdocs', []);
+  if (state.docSlots?.has('doc-etc') && !cdocs.some((c) => c.id === 'doc-etc')) store.set('cdocs', [...cdocs, { id: 'doc-etc', title: '기타' }]);
 }
 
 async function addDoc(slotId, file) {
-  const slot = state.trip.docs.find((s) => s.id === slotId);
+  const slot = allDocs().find((s) => s.id === slotId);
   const max = slot?.max || 1;
   const keys = await docs.of(slotId);
   if (max === 1) for (const k of keys) await docs.del(k);
-  else if (keys.length >= max) return toast(`${slot.label}은 ${max}장까지 넣을 수 있어요.`);
+  else if (keys.length >= max) { toast(`${slot.label}은 ${max}장까지 넣을 수 있어요.`); return false; }
   await docs.put(`${slotId}#${uid('')}`, await shrink(file));
   await refreshDocSlots();
+  return true;
+}
+
+// Open the photo picker for a slot, or for a new set when a title is given.
+function pickPhotos(slotId, title = null) {
+  state.pendingDoc = slotId;
+  state.pendingTitle = title;
+  $('#doc-file').click();
+}
+
+function openDocNew() {
+  $('#sheet-body').innerHTML = `
+    <div class="sheet-head">${itemIcon('📎', 'lg')}<h3>문서 추가</h3></div>
+    <label class="field"><span>제목</span>
+      <input class="input" id="doc-title" maxlength="20" placeholder="예: 여행자보험 증권" autocomplete="off"></label>
+    <button class="btn primary doc-pick" data-doc-pick>${icon('plus')}사진 선택 (여러 장 가능)</button>`;
+  $('#sheet').hidden = false;
 }
 
 // Buttons that open the photos an item needs (tickets at the airport, QR at immigration, voucher at check-in).
-const docLabel = (slotId) => (state.trip.docs.find((s) => s.id === slotId)?.label || '').replace(/ \(2인\)$/, '');
+const docLabel = (slotId) => (allDocs().find((s) => s.id === slotId)?.label || '').replace(/ \(2인\)$/, '');
 const docBtns = (it, cls = 'btn') => (it.docs || []).map((slotId) => {
-  const slot = state.trip.docs.find((s) => s.id === slotId);
+  const slot = allDocs().find((s) => s.id === slotId);
   const has = state.docSlots.has(slotId);
   return `<button class="${cls} ${has ? 'has' : 'missing'}" data-doc-view="${esc(slotId)}">${itemIcon(slot?.icon, 'inline')}${esc(docLabel(slotId))}${has ? '' : ' · 추가'}</button>`;
 }).join('');
@@ -1259,7 +1321,7 @@ const docBtns = (it, cls = 'btn') => (it.docs || []).map((slotId) => {
 // Full-screen viewer for every photo in a slot; swipe sideways between them.
 const viewerUrls = [];
 async function viewDoc(id) {
-  const slot = state.trip.docs.find((s) => s.id === id);
+  const slot = allDocs().find((s) => s.id === id);
   let keys = [];
   try { keys = await docs.of(id); } catch { /* ignore */ }
   if (!keys.length) {
@@ -1285,7 +1347,7 @@ function viewerIndex() {
   return Math.round(t.scrollLeft / Math.max(1, t.clientWidth));
 }
 function updateViewerCap() {
-  const slot = state.trip.docs.find((s) => s.id === state.viewer.slot);
+  const slot = allDocs().find((s) => s.id === state.viewer.slot);
   const n = state.viewer.keys.length;
   $('#viewer-cap').textContent = `${slot?.label || ''}${n > 1 ? ` · ${viewerIndex() + 1} / ${n}` : ''} · QR은 화면 밝기를 올려 보여주세요`;
 }
@@ -1391,9 +1453,9 @@ async function copy(key) {
 }
 
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-item],[data-check],[data-del],[data-done],'
-  + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-open-secret],[data-doc-view],[data-doc-add],[data-viewer-del],'
+  + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text],[data-wx-refresh],'
-  + '[data-go-exp],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-go-exp],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -1422,6 +1484,11 @@ document.addEventListener('click', async (e) => {
     const key = state.viewer.keys[viewerIndex()];
     try { await docs.del(key); } catch { /* ignore */ }
     await refreshDocSlots();
+    // An added set disappears with its last photo.
+    if (!state.docSlots.has(state.viewer.slot) && allDocs().find((s) => s.id === state.viewer.slot)?.custom) {
+      forget('cdocs:' + state.viewer.slot);
+      store.set('cdocs', store.get('cdocs', []).filter((c) => c.id !== state.viewer.slot));
+    }
     $('#viewer').hidden = true;
     render();
     if (state.viewer.keys.length > 1) viewDoc(state.viewer.slot);
@@ -1434,10 +1501,16 @@ document.addEventListener('click', async (e) => {
   }
   else if (d.docView) {
     // No photo yet: open the picker right away (it has to happen inside the tap on iPhone).
-    if (!state.docSlots.has(d.docView)) { state.pendingDoc = d.docView; toast(`${docLabel(d.docView)} 사진을 골라 주세요`); $('#doc-file').click(); }
+    if (!state.docSlots.has(d.docView)) { toast(`${docLabel(d.docView)} 사진을 골라 주세요`); pickPhotos(d.docView); }
     else viewDoc(d.docView);
   }
-  else if (d.docAdd) { state.pendingDoc = d.docAdd; $('#doc-file').click(); }
+  else if (d.docAdd) pickPhotos(d.docAdd);
+  else if ('docNew' in d) openDocNew();
+  else if ('docPick' in d) {
+    const title = $('#doc-title').value.trim();
+    if (!title) return toast('제목을 먼저 입력해 주세요.');
+    pickPhotos(null, title);
+  }
   else if (d.translate) {
     const text = $('#talk-text').value.trim();
     if (!text) return toast('번역할 말을 입력해 주세요.');
@@ -1468,7 +1541,7 @@ document.addEventListener('click', async (e) => {
     const f = state.fxCalc; const { base, out } = fxCalc();
     const amount = Math.round(f.dir === 'yen' ? base : out);
     if (!amount) return toast('금액을 먼저 넣어 주세요.');
-    closeSheet(); go('wallet');
+    closeSheet(); state.expView = 'spent'; go('wallet');
     const box = $('.exp-form [name=amount]');
     box.value = amount; $('#exp')?.scrollIntoView({ block: 'start' }); scrollBy(0, -100);
     $('.exp-form [name=memo]').focus();
@@ -1481,7 +1554,8 @@ document.addEventListener('click', async (e) => {
   else if (d.speakText) speak(d.speakText);
   else if ('wxRefresh' in d) loadWeather(true);
   else if (d.talkText) { store.set('talkText', d.talkText); state.talkDir = 'ja-ko'; go('talk'); }
-  else if ('goExp' in d) { go('wallet'); $('#exp')?.scrollIntoView({ block: 'start' }); scrollBy(0, -100); }
+  else if (d.expView) { state.expView = d.expView; render(); }
+  else if ('goExp' in d) { state.expView = 'spent'; go('wallet'); $('#exp')?.scrollIntoView({ block: 'start' }); scrollBy(0, -100); }
   else if (d.expDel) {
     if (!confirm('이 지출 기록을 삭제할까요?')) return;
     forget('exp:' + d.expDel);
@@ -1493,12 +1567,7 @@ document.addEventListener('click', async (e) => {
     if (v !== null && Number(v.replace(/[^0-9]/g, '')) >= 0) { store.set('budget', Number(v.replace(/[^0-9]/g, ''))); render(); }
   }
   else if (d.who) { store.set('who', d.who); state.syncFile = null; render(); }
-  else if ('syncBuild' in d) {
-    toast('파일을 만드는 중이에요…');
-    const { photos, records } = await buildSyncFile();
-    render();
-    toast(`기록 ${records}건 · 사진 ${photos}장을 담았어요. '파일 보내기'를 누르세요.`);
-  }
+  else if ('syncBuild' in d) { state.syncFailed = false; render(); }
   else if ('syncShare' in d) shareSyncFile();
   else if ('syncPick' in d) $('#sync-file').click();
 });
@@ -1534,13 +1603,25 @@ document.addEventListener('submit', (e) => {
 });
 
 $('#doc-file').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
+  let files = [...e.target.files];
   e.target.value = '';
-  if (!file || !state.pendingDoc) return;
+  if (!files.length || !(state.pendingDoc || state.pendingTitle)) return;
+  let slotId = state.pendingDoc;
+  if (state.pendingTitle) {
+    slotId = uid('cdoc-');
+    store.set('cdocs', [...store.get('cdocs', []), { id: slotId, title: state.pendingTitle }]);
+    closeSheet();
+  }
+  if ((allDocs().find((s) => s.id === slotId)?.max || 1) === 1) files = files.slice(0, 1);
+  let saved = 0;
   try {
-    await addDoc(state.pendingDoc, file);
-    toast('저장했어요 · 와이프 폰과는 동기화로 맞출 수 있어요');
+    for (const file of files) {
+      if (!(await addDoc(slotId, file))) break;
+      saved += 1;
+    }
+    if (saved) toast(`${saved}장 저장했어요 · 다른 폰과는 예약정보 동기화로 맞출 수 있어요`);
   } catch { toast('사진을 저장하지 못했어요. 저장 공간을 확인해 주세요.'); }
+  state.pendingDoc = state.pendingTitle = null;
   render();
 });
 
