@@ -872,6 +872,7 @@ function toast(msg, href, label) {
 // Phosphor Icons duotone (MIT, phosphoricons.com); torii, tower and lantern drawn to match.
 // The 20% layer (class "d") takes the category tint.
 const ICONS = {
+  'heart': '<path d="M178,32c-20.65,0-38.73,8.88-50,23.89C116.73,40.88,98.65,32,78,32A62.07,62.07,0,0,0,16,94c0,70,103.79,126.66,108.21,129a8,8,0,0,0,7.58,0C136.21,220.66,240,164,240,94A62.07,62.07,0,0,0,178,32ZM128,206.8C109.74,196.16,32,147.69,32,94A46.06,46.06,0,0,1,78,48c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46C224,147.61,146.24,196.15,128,206.8Z"/>',
   'camera': '<path d="M208,64H176L160,40H96L80,64H48A16,16,0,0,0,32,80V192a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V80A16,16,0,0,0,208,64Z" class="d"/><path d="M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.71,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.43l13.63,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z"/>',
   'mic': '<path d="M168,64v64a40,40,0,0,1-80,0V64a40,40,0,0,1,80,0Z" class="d"/><path d="M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0Zm40,143.6V232a8,8,0,0,1-16,0V207.6A80.11,80.11,0,0,1,48,128a8,8,0,0,1,16,0,64,64,0,0,0,128,0,8,8,0,0,1,16,0A80.11,80.11,0,0,1,136,207.6Z"/>',
   'talk': '<path d="M148,32h60a24,24,0,0,1,24,24v36a24,24,0,0,1-24,24H184l-28,22V116h-8a24,24,0,0,1-24-24V56A24,24,0,0,1,148,32Z" class="d"/><path d="M148,32h60a24,24,0,0,1,24,24v36a24,24,0,0,1-24,24H184l-28,22V116h-8a24,24,0,0,1-24-24V56A24,24,0,0,1,148,32Z" fill="none" stroke="currentColor" stroke-width="16" stroke-linejoin="round"/><circle cx="76" cy="132" r="32" fill="none" stroke="currentColor" stroke-width="16"/><path d="M16,224c6-30,31-48,60-48s54,18,60,48" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round"/>',
@@ -1594,13 +1595,13 @@ function renderExplore() {
   const f = state.ex;
   const seen = allPlaces().filter((p) => visitOf(p.id)).length;
   setHeader('도쿄 · 2026년 11월', '탐색', `${allPlaces().length}곳 · 방문 ${seen}곳`);
-  const toggles = [['open', '지금 영업'], ['plan', '일정 장소'], ['saved', '저장함'], ['again', '또 갈 곳'], ['near', '내 주변']];
+  const toggles = [['open', '지금 영업', 'clock'], ['plan', '일정 장소', 'calendar'], ['saved', '저장함', 'heart'], ['again', '또 갈 곳', 'refresh'], ['near', '내 주변', 'nav']];
   const list = f.cat === 'log' ? [] : exploreList(now);
   return `
     <div class="ex-cats">${EX_CATS.map(([k, label, ico]) => `<button class="seg ${f.cat === k ? 'on' : ''}" data-ex-cat="${k}">${icon(ico)}${label}</button>`).join('')}</div>
     ${f.cat === 'log' ? exploreLog(now) : `
-      <div class="ex-row">${EX_AREAS.map((a) => `<button class="${f.area === a ? 'on' : ''}" data-ex-area="${esc(a)}">${esc(a)}</button>`).join('')}</div>
-      <div class="ex-row">${toggles.map(([k, label]) => `<button class="${f[k] ? 'on' : ''}" data-ex-toggle="${k}">${label}</button>`).join('')}</div>
+      <div class="ex-line"><b>지역</b><div class="ex-row">${EX_AREAS.map((a) => `<button class="${f.area === a ? 'on' : ''}" data-ex-area="${esc(a)}">${esc(a)}</button>`).join('')}</div></div>
+      <div class="ex-line"><b>조건</b><div class="ex-row ex-opts">${toggles.map(([k, label, ico]) => `<button class="${f[k] ? 'on' : ''}" data-ex-toggle="${k}" aria-pressed="${!!f[k]}">${icon(ico)}${label}</button>`).join('')}</div></div>
       ${list.length ? list.map((p) => placeCard(p, now)).join('') : '<div class="card small muted">조건에 맞는 곳이 없어요. 필터를 줄여 보세요.</div>'}
       <div class="small muted ex-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 저장 정보 · 영업시간은 다시 확인</div>`}`;
 }
@@ -2092,7 +2093,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 80;
+const APP_VERSION = 82;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2124,6 +2125,11 @@ function render() {
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === (state.tab === 'check' ? 'wallet' : state.tab))));
   if (state.tab === 'wallet') hydrateDocs();
   if (state.tab === 'explore' && state.ex.cat === 'log') hydrateLog();
+  // Rendering resets the chip rows, so bring each row's selected chip back into view.
+  document.querySelectorAll('.ex-row').forEach((row) => {
+    const on = row.querySelector('.on');
+    if (on) row.scrollLeft = on.offsetLeft - row.offsetLeft - (row.clientWidth - on.offsetWidth) / 2;
+  });
 }
 
 function go(tab) {
