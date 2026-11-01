@@ -771,7 +771,6 @@ ol.alarm-note { padding-left: 18px; }
 .tl-item.skipped .tl-card { opacity: .45; }
 .tl-item.skipped .tl-title { text-decoration: line-through; }
 .day-actions { margin: 10px 0 2px; }
-.ex-add { width: 100%; margin-bottom: 8px; }
 .log-day { display: flex; justify-content: space-between; margin: 14px 4px 2px; font-size: 13.5px; }
 .log-day span { color: var(--muted); }
 .log-thumb { flex: none; width: 54px; height: 54px; border-radius: 12px; background: var(--soft) center / cover no-repeat; }
@@ -828,3 +827,7 @@ ol.alarm-note { padding-left: 18px; }
 .talk-more { margin: 10px 0 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; font-weight: 700; color: var(--muted); }
 .talk-card .sheet-tools { margin: 0 0 12px; }
 .talk-card .tool { min-height: 58px; }
+.top-add { position: absolute; right: 20px; bottom: 14px; min-height: 40px; padding: 0 14px; border-radius: 12px; background: var(--soft); color: var(--ink); font-size: 14px; font-weight: 700; }
+.pn-found { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 13px; font-weight: 700; color: var(--now); }
+.pn-found .ico { width: 16px; height: 16px; }
+#pn-paste { height: auto; padding-top: 12px; padding-bottom: 12px; resize: none; }

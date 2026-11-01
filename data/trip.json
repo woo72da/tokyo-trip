@@ -143,10 +143,13 @@
             "query": "마티나 라운지 인천공항 제1여객터미널",
             "lang": "ko"
           },
-          "note": "워커힐 마티나 · 출국심사 뒤 에스컬레이터로 4층 · 탑승권의 게이트 보고 가까운 곳으로 (동편 11번·서편 43번 게이트 근처) · 입구에서 이용권 QR·바우처 보여주기 · 07:50엔 게이트로 출발, 탑승 마감 08:15",
-          "docs": [
-            "doc-lounge"
-          ]
+          "note": "워커힐 마티나 · 출국심사 뒤 에스컬레이터로 4층 · 탑승권의 게이트 보고 가까운 곳으로 (동편 11번·서편 43번 게이트 근처) · 입구에서 라운지 앱 이용권 QR을 각자 폰으로 보여주기 (발급 후 24시간 이내 사용) · 07:50엔 게이트로 출발, 탑승 마감 08:15",
+          "link": {
+            "title": "이용권 QR",
+            "label": "더라운지 앱 열기",
+            "url": "https://apps.apple.com/kr/app/id1202136480",
+            "android": "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.appg.ebridge;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.appg.ebridge;end"
+          }
         },
         {
           "id": "d1-flight",
@@ -1573,12 +1576,9 @@
     {
       "id": "c-lounge",
       "group": "예약",
-      "text": "인천공항 T1 마티나 라운지 카드 무료 바우처 2인 준비 · QR/바우처 사진 저장",
+      "text": "마티나 라운지 이용권 QR 라운지 앱에서 2인 각각 발급 (발급 후 24시간 이내 사용)",
       "linkItem": "d1-lounge",
-      "due": "2026-11-01",
-      "docs": [
-        "doc-lounge"
-      ]
+      "due": "2026-11-01"
     },
     {
       "id": "c-sky",
@@ -1887,12 +1887,6 @@
       "id": "doc-eticket",
       "label": "항공 e-티켓 (2인)",
       "icon": "✈️",
-      "max": 2
-    },
-    {
-      "id": "doc-lounge",
-      "label": "마티나 이용권 (2인)",
-      "icon": "🎫",
       "max": 2
     },
     {

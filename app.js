@@ -1600,7 +1600,6 @@ function renderExplore() {
     <div class="ex-cats">${EX_CATS.map(([k, label, ico]) => `<button class="seg ${f.cat === k ? 'on' : ''}" data-ex-cat="${k}">${icon(ico)}${label}</button>`).join('')}</div>
     ${f.cat === 'log' ? exploreLog(now) : `
       <div class="ex-row">${EX_AREAS.map((a) => `<button class="${f.area === a ? 'on' : ''}" data-ex-area="${esc(a)}">${esc(a)}</button>`).join('')}</div>
-      <button class="btn wide ex-add" data-place-new>${icon('plus')}내 장소 추가</button>
       <div class="ex-row">${toggles.map(([k, label]) => `<button class="${f[k] ? 'on' : ''}" data-ex-toggle="${k}">${label}</button>`).join('')}</div>
       ${list.length ? list.map((p) => placeCard(p, now)).join('') : '<div class="card small muted">조건에 맞는 곳이 없어요. 필터를 줄여 보세요.</div>'}
       <div class="small muted ex-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 저장 정보 · 영업시간은 다시 확인</div>`}`;
@@ -1621,7 +1620,7 @@ function openPlace(id) {
   if (!p) return;
   const v = visitOf(id);
   const item = p.itemId && findItem(p.itemId);
-  const q = encodeURIComponent(item?.place?.query || p.name);
+  const q = encodeURIComponent(item?.place?.query || [p.name, p.addr].filter(Boolean).join(' '));
   const mapUrl = p.url || `https://www.google.com/maps/search/?api=1&query=${q}`;
   const hasPhoto = state.docSlots.has('place-' + id);
   $('#sheet-body').innerHTML = `
@@ -1629,6 +1628,7 @@ function openPlace(id) {
     <div class="eyebrow dark">${esc(p.area)}</div>
     <div class="sheet-head"><h3>${esc(p.name)}</h3></div>
     ${p.desc ? `<div class="muted">${esc(p.desc)}</div>` : ''}
+    ${p.addr ? `<div class="small muted">${esc(p.addr)}</div>` : ''}
     ${infoCard({ info: placeInfo(p) })}
     <div class="btns">
       <a class="btn" href="${esc(mapUrl)}" target="_blank" rel="noopener">${icon('ext')}구글지도</a>
@@ -1649,12 +1649,43 @@ function openPlace(id) {
   $('#sheet').hidden = false;
 }
 
+// Google Maps' Share > Copy gives the name, address and link as text. The app can't read the link
+// itself (no server, and Google blocks cross-site reads), so everything comes from the pasted text.
+function parseShare(text) {
+  const url = text.match(/https?:\/\/\S+/)?.[0] || '';
+  const lines = text.replace(url, '').split('\n').map((l) => l.trim()).filter(Boolean);
+  let [name = '', addr = ''] = lines;
+  if (!addr && name.includes(', ')) [name, addr] = [name.slice(0, name.indexOf(', ')), name.slice(name.indexOf(', ') + 2)];
+  if (!name) {
+    const fromUrl = url.match(/\/maps\/place\/([^/@?]+)/)?.[1];
+    if (fromUrl) name = decodeURIComponent(fromUrl).replace(/\+/g, ' ');
+  }
+  return { url, name, addr };
+}
+const CAT_WORDS = [
+  ['drink', /커피|카페|coffee|cafe|café|カフェ|珈琲|コーヒー|喫茶|bar\b|바\b/i],
+  ['eat', /라멘|라면|스시|초밥|우동|소바|돈카츠|식당|이자카야|ラーメン|寿司|鮨|うどん|そば|とんかつ|食堂|居酒屋|焼|定食|restaurant/i],
+  ['see', /신사|사원|절|미술관|박물관|공원|타워|전망대|神社|寺|美術館|博物館|公園|タワー|展望/],
+  ['shop', /백화점|마트|쇼핑|스토어|百貨店|ドン|マート|ストア|store|shop/i],
+];
+function fillShare(text) {
+  const { url, name, addr } = parseShare(text);
+  if (name) $('#pn-name').value = name;
+  $('#pn-addr').value = addr;
+  $('#pn-url').value = url;
+  const cat = CAT_WORDS.find(([, re]) => re.test(name))?.[0];
+  if (cat) $('#pn-cat').value = cat;
+  $('#pn-found').hidden = !url;
+}
 function openPlaceNew() {
   $('#sheet-body').innerHTML = `
     <div class="sheet-head"><h3>내 장소 추가</h3></div>
-    <label class="field"><span>이름</span><input class="input" id="pn-name" maxlength="30" placeholder="예: 친구가 추천한 라멘집"></label>
+    <label class="field"><span>구글지도 공유 내용</span><textarea class="input" id="pn-paste" rows="3" autocomplete="off" placeholder="구글지도에서 공유 → 복사한 내용을 붙여넣으세요"></textarea></label>
+    <div class="pn-found" id="pn-found" hidden>${icon('check')}지도 연결됨</div>
+    <input type="hidden" id="pn-url">
+    <label class="field"><span>이름</span><input class="input" id="pn-name" maxlength="60" placeholder="예: 친구가 추천한 라멘집"></label>
+    <label class="field"><span>주소 (선택)</span><input class="input" id="pn-addr" maxlength="120" autocomplete="off"></label>
     <label class="field"><span>분류</span><select class="input" id="pn-cat">${EX_CATS.filter(([k]) => k !== 'log').map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
-    <label class="field"><span>구글지도 링크 (선택)</span><input class="input" id="pn-url" type="url" autocomplete="off" placeholder="공유 링크 붙여넣기"></label>
     <label class="field"><span>메모 (선택)</span><input class="input" id="pn-memo" maxlength="80" placeholder="추천 메뉴, 이유"></label>
     <button class="btn primary wide doc-pick" data-place-create>저장</button>`;
   $('#sheet').hidden = false;
@@ -1664,7 +1695,8 @@ function createPlace() {
   if (!name) return toast('이름을 입력해 주세요.');
   const url = $('#pn-url').value.trim();
   const hit = url.match(/!3d(-?[\d.]+)!4d(-?[\d.]+)/) || url.match(/@(-?[\d.]+),(-?[\d.]+)/);
-  const place = { id: uid('my'), name, cat: $('#pn-cat').value, memo: $('#pn-memo').value.trim(), ...(/^https?:/.test(url) ? { url } : {}), ...(hit ? { lat: Number(hit[1]), lng: Number(hit[2]) } : {}) };
+  const addr = $('#pn-addr').value.trim();
+  const place = { id: uid('my'), name, cat: $('#pn-cat').value, memo: $('#pn-memo').value.trim(), ...(addr ? { addr } : {}), ...(/^https?:/.test(url) ? { url } : {}), ...(hit ? { lat: Number(hit[1]), lng: Number(hit[2]) } : {}) };
   store.set('myplaces', [...store.get('myplaces', []), place]);
   state.ex.cat = place.cat;
   state.ex.area = '내 장소';
@@ -1977,7 +2009,7 @@ function openItem(id) {
     ${it.place ? `<div class="ja muted">${esc(it.place.nameJa)}</div>` : ''}
     ${chipsHtml(chipsFor(it, now))}
     ${it.docs ? `<div class="section-title"><span>여기서 꺼낼 서류</span></div><div class="btns">${docBtns(it, 'btn wide')}</div>` : ''}
-    ${it.link ? `<div class="section-title"><span>위치 안내</span></div><div class="btns"><a class="btn wide" href="${esc(it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
+    ${it.link ? `<div class="section-title"><span>${esc(it.link.title || '위치 안내')}</span></div><div class="btns"><a class="btn wide" href="${esc(/Android/i.test(navigator.userAgent) && it.link.android || it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
     <div class="btns">
       ${it.place?.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', pending ? 'primary wide' : 'wide') : ''}
       ${it.place && it.place.lang !== 'ko' ? navBtn(it.id, '길찾기', pending ? 'primary wide' : 'wide') : ''}
@@ -2060,7 +2092,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 76;
+const APP_VERSION = 80;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2088,6 +2120,7 @@ function render() {
   if (!state.trip) return;
   const views = { today: renderToday, days: renderDays, explore: renderExplore, wallet: renderWallet, talk: renderTalk, check: renderCheck };
   $('#view').innerHTML = views[state.tab]() + versionLine();
+  $('#top-add').hidden = state.tab !== 'explore';
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === (state.tab === 'check' ? 'wallet' : state.tab))));
   if (state.tab === 'wallet') hydrateDocs();
   if (state.tab === 'explore' && state.ex.cat === 'log') hydrateLog();
@@ -2290,8 +2323,35 @@ document.addEventListener('input', (e) => {
   if (t.dataset.secret) store.set(t.dataset.secret, t.type === 'url' || t.type === 'tel' ? t.value.trim() : t.value.trim().toUpperCase());
   else if (t.id === 'fx-in') { state.fxCalc.value = t.value; updateFx(); }
   else if (t.id === 'fx-tax') { state.fxCalc.tax = t.checked; updateFx(); }
+  else if (t.id === 'pn-paste') fillShare(t.value);
   else if (t.id === 'talk-text') { store.set('talkText', t.value); $('.talk-clear').hidden = !t.value; }
 });
+
+// Swiping the explore list moves between its categories. Edge starts stay the system's back gesture;
+// the chip rows scroll sideways on their own.
+let swipe = null;
+document.addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  const open = !$('#sheet').hidden || !$('#bigja').hidden;
+  const edge = t.clientX < 24 || t.clientX > innerWidth - 24;
+  const off = state.tab !== 'explore' || open || edge || e.touches.length > 1
+    || !e.target.closest('main') || e.target.closest('.ex-row, .ex-cats, input, textarea, select');
+  swipe = off ? null : { x: t.clientX, y: t.clientY, at: Date.now() };
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  if (!swipe) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - swipe.x;
+  const dy = t.clientY - swipe.y;
+  const quick = Date.now() - swipe.at < 800;
+  swipe = null;
+  if (!quick || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
+  const next = EX_CATS[EX_CATS.findIndex(([k]) => k === state.ex.cat) + (dx < 0 ? 1 : -1)];
+  if (!next) return;
+  state.ex.cat = next[0];
+  render();
+  window.scrollTo(0, 0);
+}, { passive: true });
 
 document.addEventListener('submit', (e) => {
   if (e.target.classList.contains('exp-form')) {
