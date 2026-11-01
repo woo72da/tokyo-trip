@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="night" x2="0" y2="1"><stop stop-color="#1b2a4a"/><stop offset="1" stop-color="#0d1220"/></linearGradient>
+    <linearGradient id="sun" x2="0" y2="1"><stop stop-color="#f7402a"/><stop offset="1" stop-color="#c51d18"/></linearGradient>
+    <linearGradient id="trail" x1="45" y1="354" x2="335" y2="246" gradientUnits="userSpaceOnUse"><stop stop-color="#fff" stop-opacity="0"/><stop offset=".42" stop-color="#fff" stop-opacity=".6"/><stop offset="1" stop-color="#fff"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#night)"/>
+  <circle cx="256" cy="246" r="176" fill="url(#sun)"/>
+  <path d="M42 355C155 351 254 306 332 237L336 242C260 318 158 363 42 360Z" fill="url(#trail)"/>
+  <path fill="#fff" transform="translate(353 211) rotate(43)" d="M0-57C5-57 8-51 8-43V-14L43 13Q45 15 45 18V25L8 10V36L19 46V52L0 46-19 52V46L-8 36V10L-45 25V18Q-45 15-43 13L-8-14V-43C-8-51-5-57 0-57Z"/>
+</svg>

@@ -660,7 +660,7 @@ function syncCard() {
       <button class="sync-head" data-sync-toggle aria-expanded="${!!state.syncOpen}">
         <span class="ii">${icon('refresh')}</span>
         <span class="sync-title"><b>예약정보 동기화</b>
-          <small class="muted">${last ? `${who()} 폰 · 마지막 ${new Date(last).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '예약번호·링크·문서 사진·체크·지출 전체'}</small></span>
+          <small class="muted">${last ? `${who()} 폰 · 마지막 ${new Date(last).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '예약번호·링크·바우처·자료·체크·지출 전체'}</small></span>
         <i class="chev"></i>
       </button>`;
   if (!state.syncOpen) return `<div class="card sync">${head}</div>`;
@@ -968,7 +968,7 @@ function renderToday() {
     const list = checklist();
     const todo = list.filter((c) => !isChecked(c.id));
     const f = flights[0];
-    setHeader('도쿄 · 2026년 11월', trip.title, `${dayLabel(trip.start)} 출발 · ${trip.travelers}명`);
+    setHeader('', trip.title, `${dayLabel(trip.start)} 출발 · ${trip.travelers}명`);
     return `
       <div class="hero countdown">
         <div class="hero-sun"></div>
@@ -995,7 +995,7 @@ function renderToday() {
     `;
   }
   if (dayIdx === -1) {
-    setHeader('도쿄 · 2026년 11월', trip.title, '여행이 끝났어요');
+    setHeader('', trip.title, '여행이 끝났어요');
     return `<div class="empty">おつかれさまでした<br>즐거운 여행이었기를!</div>`;
   }
 
@@ -1233,12 +1233,12 @@ function boardingPass(f) {
       </div>
       <div class="pass-cut"></div>
       <div class="pass-grid">
-        <div><small>DATE</small><b>${esc(dayLabel(f.date))}</b></div>
-        <div><small>DEPART</small><b>${esc(f.depart)}</b></div>
-        <div><small>ARRIVE</small><b>${esc(f.arrive)}</b></div>
-        <div><small>CLASS</small><b>${esc(f.cabin)}</b></div>
-        <div><small>BAG</small><b>${esc(f.baggage)}</b></div>
-        <div><small>PNR</small><b class="mono">${esc(pnr || '—')}</b></div>
+        <div><small>날짜</small><b>${esc(dayLabel(f.date))}</b></div>
+        <div><small>출발</small><b>${esc(f.depart)}</b></div>
+        <div><small>도착</small><b>${esc(f.arrive)}</b></div>
+        <div><small>좌석</small><b>${esc(f.cabin)}</b></div>
+        <div><small>수하물</small><b>${esc(f.baggage)}</b></div>
+        <div><small>예약번호</small><b class="mono">${esc(pnr || '—')}</b></div>
       </div>
     </div>`;
 }
@@ -1269,13 +1269,21 @@ function transferPass(t) {
     </div>`;
 }
 
+const walletTabs = (on) => {
+  const list = checklist();
+  return `
+    <div class="exp-tabs wallet-tabs">
+      <button class="seg ${on === 'wallet' ? 'on' : ''}" data-go="wallet">${icon('ticket')}예약·여행정보</button>
+      <button class="seg ${on === 'check' ? 'on' : ''}" data-go="check">${icon('checklist')}체크리스트 ${list.filter((c) => isChecked(c.id)).length}/${list.length}</button>
+    </div>`;
+};
+
 function renderWallet() {
   const { flights, stay, guides, trip, links } = state.trip;
   const agoda = store.get('agoda', '');
-  setHeader('도쿄 · 2026년 11월', '예약 · 여행 정보', `${dayLabel(trip.start)} ~ ${dayLabel(trip.end)} · ${trip.travelers}명`);
-  const list = checklist();
+  setHeader('', '예약·여행정보', `${dayLabel(trip.start)} ~ ${dayLabel(trip.end)} · ${trip.travelers}명`);
   return `
-    <button class="btn wide check-link" data-go="check">${icon('check')}체크리스트 ${list.filter((c) => isChecked(c.id)).length} / ${list.length}</button>
+    ${walletTabs('wallet')}
     ${syncCard()}
     ${expenseSection()}
     <div class="section-title"><span>항공</span></div>
@@ -1334,7 +1342,7 @@ function renderWallet() {
         </label>`).join('')}
     </div>
 
-    <div class="section-title"><span>문서 사진</span><button class="title-add" data-doc-new>${icon('plus')}추가</button></div>
+    <div class="section-title"><span>바우처·자료</span><button class="title-add" data-doc-new>${icon('plus')}추가</button></div>
     <div class="docs">
       ${allDocs().map((s) => `
         <div class="doc" data-doc="${esc(s.id)}">
@@ -1404,7 +1412,7 @@ function openTalkSheet(id) {
 
 function renderTalk() {
   const { phrases } = state.trip;
-  setHeader('도쿄 · 2026년 11월', '번역 · 회화', 'Google 번역 앱 · 파파고 웹');
+  setHeader('', '번역 · 회화', 'Google 번역 앱 · 파파고 웹');
   const groups = [...new Set(phrases.map((p) => p.group))];
   return `
     <div class="sheet-tools two talk-top">${transTools('카메라 번역')}</div>
@@ -1450,9 +1458,10 @@ function checkRow(c, today = tokyoNow().date) {
 function renderCheck() {
   const list = checklist();
   const done = list.filter((c) => isChecked(c.id)).length;
-  setHeader('도쿄 · 2026년 11월', '체크리스트', `${done} / ${list.length} 완료`);
+  setHeader('', '체크리스트', `${done} / ${list.length} 완료`);
   const groups = [...new Set(list.map((c) => c.group))];
   return `
+    ${walletTabs('check')}
     <div class="meter big"><i style="width:${Math.round((done / list.length) * 100)}%"></i></div>
     ${groups.map((g) => {
       const items = list.filter((c) => c.group === g);
@@ -1594,7 +1603,7 @@ function renderExplore() {
   const now = tokyoNow();
   const f = state.ex;
   const seen = allPlaces().filter((p) => visitOf(p.id)).length;
-  setHeader('도쿄 · 2026년 11월', '탐색', `${allPlaces().length}곳 · 방문 ${seen}곳`);
+  setHeader('', '탐색', `${allPlaces().length}곳 · 방문 ${seen}곳`);
   const toggles = [['open', '지금 영업', 'clock'], ['plan', '일정 장소', 'calendar'], ['saved', '저장함', 'heart'], ['again', '또 갈 곳', 'refresh'], ['near', '내 주변', 'nav']];
   const list = f.cat === 'log' ? [] : exploreList(now);
   return `
@@ -1910,7 +1919,7 @@ function pickPhotos(slotId, title = null) {
 
 function openDocNew() {
   $('#sheet-body').innerHTML = `
-    <div class="sheet-head">${itemIcon('📎', 'lg')}<h3>문서 추가</h3></div>
+    <div class="sheet-head">${itemIcon('📎', 'lg')}<h3>바우처·자료 추가</h3></div>
     <label class="field"><span>제목</span>
       <input class="input" id="doc-title" maxlength="20" placeholder="예: 여행자보험 증권" autocomplete="off"></label>
     <button class="btn primary doc-pick" data-doc-pick>${icon('plus')}사진 선택 (여러 장 가능)</button>`;
@@ -1932,7 +1941,7 @@ async function viewDoc(id) {
   let keys = [];
   try { keys = await docs.of(id); } catch { /* ignore */ }
   if (!keys.length) {
-    toast(`${slot?.label || '문서'} 사진이 아직 없어요. 예약 탭의 문서 사진에서 추가하세요.`);
+    toast(`${slot?.label || '자료'} 사진이 아직 없어요. 예약 탭의 바우처·자료에서 추가하세요.`);
     if (state.tab === 'wallet') document.querySelector(`[data-doc="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
@@ -2009,7 +2018,7 @@ function openItem(id) {
     <div class="sheet-head">${itemIcon(it.icon, 'lg')}<h3>${esc(it.title)}</h3></div>
     ${it.place ? `<div class="ja muted">${esc(it.place.nameJa)}</div>` : ''}
     ${chipsHtml(chipsFor(it, now))}
-    ${it.docs ? `<div class="section-title"><span>여기서 꺼낼 서류</span></div><div class="btns">${docBtns(it, 'btn wide')}</div>` : ''}
+    ${it.docs ? `<div class="section-title"><span>여기서 쓸 바우처</span></div><div class="btns">${docBtns(it, 'btn wide')}</div>` : ''}
     ${it.link ? `<div class="section-title"><span>${esc(it.link.title || '위치 안내')}</span></div><div class="btns"><a class="btn wide" href="${esc(/Android/i.test(navigator.userAgent) && it.link.android || it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
     <div class="btns">
       ${it.place?.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', pending ? 'primary wide' : 'wide') : ''}
@@ -2077,6 +2086,7 @@ function openJa(id) {
 // ---------- shell ----------
 function setHeader(eyebrow, title, sub) {
   $('#top-eyebrow').textContent = eyebrow;
+  $('#top-eyebrow').hidden = !eyebrow;
   const el = $('#top-title');
   el.textContent = title;
   el.title = title;
@@ -2093,7 +2103,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 82;
+const APP_VERSION = 87;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2133,11 +2143,14 @@ function render() {
 }
 
 function go(tab) {
+  const from = state.tab;
+  if (from === 'wallet') state.walletY = window.scrollY;
   state.tab = TABS.includes(tab) ? tab : 'today';
   store.set('tab', state.tab);
   closeSheet();
   render();
-  window.scrollTo(0, 0);
+  // Back from the checklist lands where the bookings page was left.
+  window.scrollTo(0, from === 'check' && state.tab === 'wallet' ? state.walletY || 0 : 0);
 }
 
 async function copy(key) {
@@ -2435,10 +2448,21 @@ document.addEventListener('visibilitychange', () => {
   if (!['wallet', 'talk', 'check'].includes(state.tab)) render();
 });
 
+function introLine() {
+  const line = $('#intro-line');
+  if (!line) return;
+  const { trip, days } = state.trip;
+  const { date } = tokyoNow();
+  if (date < trip.start) line.textContent = `D-${daysBetween(date, trip.start)}`;
+  else if (date > trip.end) line.textContent = '다녀왔어요';
+  else line.textContent = `${days.findIndex((d) => d.date === date) + 1}일차`;
+}
+
 async function init() {
   try {
     const res = await fetch('data/trip.json', { cache: 'no-cache' });
     state.trip = await res.json();
+    introLine();
   } catch {
     $('#view').innerHTML = '<div class="empty">일정 데이터를 불러오지 못했어요.<br>인터넷에 연결된 상태로 한 번 열어 주세요.</div>';
     return;

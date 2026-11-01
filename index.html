@@ -18,8 +18,45 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div id="intro" class="intro" hidden>
+    <svg viewBox="0 0 390 844" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="in-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2a4a"/><stop offset="1" stop-color="#0d1220"/></linearGradient>
+        <linearGradient id="in-sun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7402a"/><stop offset=".7" stop-color="#d11f14"/><stop offset="1" stop-color="#f08a3c"/></linearGradient>
+        <linearGradient id="in-trail" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".35" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff"/></linearGradient>
+      </defs>
+      <rect width="390" height="844" fill="url(#in-sky)"/>
+      <circle class="in-sun" cx="195" cy="340" r="150" fill="url(#in-sun)"/>
+      <g class="in-plane">
+        <path d="M13 433C109 429 193 391 260 332L263 337C198 401 111 440 13 437Z" fill="url(#in-trail)"/>
+        <path transform="translate(278 310) rotate(43) scale(.85)" fill="#fff" d="M0-57C5-57 8-51 8-43V-14L43 13Q45 15 45 18V25L8 10V36L19 46V52L0 46-19 52V46L-8 36V10L-45 25V18Q-45 15-43 13L-8-14V-43C-8-51-5-57 0-57Z"/>
+      </g>
+      <g class="in-land">
+        <path d="M0 590L60 560 150 470 176 452 204 450 232 472 330 566 390 596V844H0Z" fill="#26344f"/>
+        <path d="M150 470l26-18 28-2 28 22-14 8-12-8-10 16-12-14-12 12-8-14Z" fill="#eef0f5"/>
+        <path fill="#0d1220" d="M270 590V556h-16l16-10v-10h-12l18-12v-14l4-8 4 8v14l18 12h-12v10l16 10h-16v34ZM338 590l6-96h-6v-8l8-6 2-42 2-34 2 34 2 42 8 6v8h-6l6 96Z"/>
+        <path d="M0 640Q120 590 210 620T390 600V844H0Z" fill="#0d1220"/>
+      </g>
+    </svg>
+    <div class="intro-text"><b>도쿄 여행</b><span id="intro-line"></span></div>
+    <script>
+      (function () {
+        var el = document.getElementById('intro');
+        var close = function () { if (el.parentNode) el.remove(); };
+        try {
+          var today = new Date().toDateString();
+          if (matchMedia('(prefers-reduced-motion: reduce)').matches || localStorage.getItem('introDay') === today) return close();
+          localStorage.setItem('introDay', today);
+        } catch (e) { return close(); }
+        el.hidden = false;
+        el.addEventListener('click', close);
+        setTimeout(close, 1900);
+      })();
+    </script>
+  </div>
+
   <header class="top">
-    <div class="top-eyebrow" id="top-eyebrow">TOKYO · 2026</div>
+    <div class="top-eyebrow" id="top-eyebrow" hidden></div>
     <div class="top-title" id="top-title">도쿄 여행</div>
     <div class="top-sub" id="top-sub"></div>
     <button class="top-add" id="top-add" data-place-new hidden>+ 장소</button>
