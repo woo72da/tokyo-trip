@@ -800,10 +800,31 @@ ol.alarm-note { padding-left: 18px; }
 .state-seg .seg:active { transform: scale(.97); }
 .state-seg .ico { width: 22px; height: 22px; }
 .state-seg .seg.on { background: var(--sel-bg); color: var(--sel-ink); }
-.sheet-more summary > span { display: flex; align-items: center; gap: 8px; }
-.sheet-more summary .ico { width: 20px; height: 20px; }
 .check-box { position: relative; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--muted); }
 .seg.on .check-box { border-color: var(--now); background: var(--now); }
 .seg.on .check-box::after { content: ''; position: absolute; left: 5.5px; top: 1.5px; width: 7px; height: 12px; border: solid var(--on-now); border-width: 0 2.5px 2.5px 0; transform: rotate(42deg); }
 .tl-item.done::before { left: 49px; top: 21px; width: 18px; height: 18px; background: var(--now); border-color: var(--now); box-shadow: none; }
 .tl-item.done::after { content: ""; position: absolute; left: 55.5px; top: 24px; width: 5px; height: 9px; border: solid var(--on-now); border-width: 0 2px 2px 0; transform: rotate(42deg); z-index: 2; }
+.talk-card { margin-top: 14px; padding: 12px 14px 4px; border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow); }
+.talk-card-head { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.talk-card-head .ico { width: 24px; height: 24px; color: var(--accent); }
+.talk-card-head span { margin-left: auto; font-size: 12px; color: var(--muted); }
+.talk-steps { display: flex; gap: 6px; margin-top: 10px; }
+.talk-steps button { flex: 1; min-height: 36px; padding: 0 4px; border-radius: 10px; background: var(--soft); color: var(--muted); font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.talk-steps button.on { background: var(--sel-bg); color: var(--sel-ink); }
+.talk-card .phrase-ja { font-size: 16.5px; }
+.talk-card .phrase-ko { color: var(--ink); font-size: 13.5px; font-weight: 600; }
+.sheet-back { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; font-size: 13.5px; font-weight: 700; color: var(--muted); }
+.sheet-back .ico { width: 16px; height: 16px; }
+#sheet-body .talk { margin-top: 12px; }
+.ja-asks { display: flex; gap: 6px; margin-bottom: 28px; }
+.ja-asks button { flex: 1; min-height: 42px; border-radius: 12px; background: #eee; color: #444; font-size: 14px; font-weight: 700; }
+.ja-asks button.on { background: #000; color: #fff; }
+.bigja .ja-say { font-size: 26px; font-weight: 700; margin-top: 24px; }
+.bigja .ja-say + .ja-read { margin-top: 8px; font-size: 16px; }
+.bigja .ja-read + .ja-ko { margin-top: 4px; }
+.sheet-tools.two { grid-template-columns: 1fr 1fr; }
+.talk-top { margin: 0 0 10px; }
+.talk-more { margin: 10px 0 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.talk-card .sheet-tools { margin: 0 0 12px; }
+.talk-card .tool { min-height: 58px; }

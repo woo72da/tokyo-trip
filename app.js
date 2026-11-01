@@ -705,6 +705,31 @@ function sceneOf(it) {
 }
 const phrasesFor = (scene) => state.trip.phrases.map((p, i) => ({ ...p, i })).filter((p) => p.group === scene);
 
+// A stop's phrases in the order the visit goes: walking in, ordering, paying.
+const phraseStep = {};
+const CAM_LABEL = { 식당: '메뉴판 번역', 카페: '메뉴판 번역', 쇼핑: '라벨 번역', 교통: '표지판 번역', 공항: '표지판 번역', 호텔: '안내문 번역', 관광: '안내문 번역' };
+const transTools = (label) => `
+  <button class="tool" data-trans-app="camera">${icon('camera')}${label}</button>
+  <button class="tool" data-trans-app="live">${icon('mic')}대화 번역</button>`;
+function talkCard(scene, id) {
+  const steps = state.trip.phraseSteps?.[scene];
+  const on = phraseStep[scene] || 0;
+  const all = phrasesFor(scene);
+  const everyPhrase = state.trip.phrases.map((p, i) => ({ ...p, i }));
+  const rows = steps ? steps[on][1].map((ja) => everyPhrase.find((p) => p.ja === ja)) : all;
+  return `
+    <div class="talk-card" data-scene="${esc(scene)}" data-id="${esc(id)}">
+      <div class="talk-card-head">${icon('talk')}<b>여기서 쓸 일본어</b><span>탭하면 크게</span></div>
+      ${steps ? `<div class="talk-steps">${steps.map(([label], i) => `<button class="${i === on ? 'on' : ''}" data-phrase-step="${i}">${esc(label)}</button>`).join('')}</div>` : ''}
+      ${rows.map(phraseRow).join('')}
+      <div class="talk-more">여기 없는 말은?</div>
+      <div class="sheet-tools">
+        ${transTools(CAM_LABEL[scene])}
+        <button class="tool" data-talk-sheet="${esc(id)}">${icon('pen')}입력</button>
+      </div>
+    </div>`;
+}
+
 function phraseRow(p) {
   return `
     <div class="phrase">
@@ -801,15 +826,18 @@ const jaVoice = () => {
 };
 window.speechSynthesis?.getVoices();
 
+// Lines of text play one after another, so a place name and a stock sentence share their clips.
 function speak(text) {
-  const clip = clips.get(text);
-  if (clip) {
-    window.speechSynthesis?.cancel();
-    player.src = clip;
-    player.play().catch(() => speakEngine(text));
-    return;
-  }
-  speakEngine(text);
+  const parts = text.split('\n');
+  if (!parts.every((p) => clips.has(p))) return speakEngine(parts.join('、'));
+  window.speechSynthesis?.cancel();
+  let i = 0;
+  const next = () => {
+    player.src = clips.get(parts[i++]);
+    player.onended = i < parts.length ? next : null;
+    player.play().catch(() => speakEngine(parts.join('、')));
+  };
+  next();
 }
 function speakEngine(text) {
   const synth = window.speechSynthesis;
@@ -844,6 +872,9 @@ function toast(msg, href, label) {
 // Phosphor Icons duotone (MIT, phosphoricons.com); torii, tower and lantern drawn to match.
 // The 20% layer (class "d") takes the category tint.
 const ICONS = {
+  'camera': '<path d="M208,64H176L160,40H96L80,64H48A16,16,0,0,0,32,80V192a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V80A16,16,0,0,0,208,64Z" class="d"/><path d="M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.71,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.43l13.63,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z"/>',
+  'mic': '<path d="M168,64v64a40,40,0,0,1-80,0V64a40,40,0,0,1,80,0Z" class="d"/><path d="M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0Zm40,143.6V232a8,8,0,0,1-16,0V207.6A80.11,80.11,0,0,1,48,128a8,8,0,0,1,16,0,64,64,0,0,0,128,0,8,8,0,0,1,16,0A80.11,80.11,0,0,1,136,207.6Z"/>',
+  'talk': '<path d="M148,32h60a24,24,0,0,1,24,24v36a24,24,0,0,1-24,24H184l-28,22V116h-8a24,24,0,0,1-24-24V56A24,24,0,0,1,148,32Z" class="d"/><path d="M148,32h60a24,24,0,0,1,24,24v36a24,24,0,0,1-24,24H184l-28,22V116h-8a24,24,0,0,1-24-24V56A24,24,0,0,1,148,32Z" fill="none" stroke="currentColor" stroke-width="16" stroke-linejoin="round"/><circle cx="76" cy="132" r="32" fill="none" stroke="currentColor" stroke-width="16"/><path d="M16,224c6-30,31-48,60-48s54,18,60,48" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round"/>',
   'pen': '<path d="M221.66,90.34,192,120,136,64l29.66-29.66a8,8,0,0,1,11.31,0L221.66,79A8,8,0,0,1,221.66,90.34Z" class="d"/><path d="M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.68,147.31,64l24-24L216,84.68Z"/>',
   'skip': '<path d="M184,128,64,208V48Z" class="d"/><path d="M200,32a8,8,0,0,0-8,8v73.05L72.88,33.67A16,16,0,0,0,48,47V209a16,16,0,0,0,24.88,13.33L192,142.95V216a8,8,0,0,0,16,0V40A8,8,0,0,0,200,32ZM64,209V47l121.5,81Z"/>',
   'bus': '<path d="M48,184H88v24a8,8,0,0,1-8,8H56a8,8,0,0,1-8-8Zm120,24a8,8,0,0,0,8,8h24a8,8,0,0,0,8-8V184H168ZM48,72v40H208V72Z" class="d"/><path d="M184,32H72A32,32,0,0,0,40,64V208a16,16,0,0,0,16,16H80a16,16,0,0,0,16-16V192h64v16a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16V64A32,32,0,0,0,184,32ZM56,176V120H200v56Zm0-96H200v24H56ZM72,48H184a16,16,0,0,1,16,16H56A16,16,0,0,1,72,48Zm8,160H56V192H80Zm96,0V192h24v16Zm-72-60a12,12,0,1,1-12-12A12,12,0,0,1,104,148Zm72,0a12,12,0,1,1-12-12A12,12,0,0,1,176,148Zm72-68v24a8,8,0,0,1-16,0V80a8,8,0,0,1,16,0ZM24,80v24a8,8,0,0,1-16,0V80a8,8,0,0,1,16,0Z"/>',
@@ -1339,11 +1370,8 @@ function renderWallet() {
   `;
 }
 
-function renderTalk() {
-  const { phrases } = state.trip;
+function talkBox() {
   const [from, to] = state.talkDir === 'ko-ja' ? ['한국어', '日本語'] : ['日本語', '한국어'];
-  setHeader('도쿄 · 2026년 11월', '번역 · 회화', 'Google 번역 앱 · 파파고 웹');
-  const groups = [...new Set(phrases.map((p) => p.group))];
   return `
     <div class="talk">
       <div class="talk-dir">
@@ -1358,10 +1386,28 @@ function renderTalk() {
       <div class="btns">
         <button class="btn primary" data-translate="google">Google 번역 앱</button>
         <button class="btn papago" data-translate="papago">파파고 웹</button>
-        <button class="btn wide" data-live>${icon('ext')}Google 번역 앱 열기 · 실시간 번역 (대화)</button>
       </div>
-      <div class="small muted talk-hint">Google 번역은 앱에 문장이 바로 들어가요. 파파고는 웹에서 열려요. 실시간 번역은 앱이 열리면 '실시간 번역'을 누른 뒤 '대화'를 고르세요.</div>
-    </div>
+      <div class="small muted talk-hint">Google 번역은 앱에 문장이 바로 들어가요. 파파고는 웹에서 열려요.</div>
+    </div>`;
+}
+
+// The translator on top of a stop, so closing it lands back on that stop.
+function openTalkSheet(id) {
+  state.talkBack = id;
+  $('#sheet-body').innerHTML = `
+    <button class="sheet-back" data-item="${esc(id)}">‹ 일정으로 돌아가기</button>
+    <div class="sheet-head"><h3>번역</h3></div>
+    ${talkBox()}`;
+  $('#sheet').hidden = false;
+}
+
+function renderTalk() {
+  const { phrases } = state.trip;
+  setHeader('도쿄 · 2026년 11월', '번역 · 회화', 'Google 번역 앱 · 파파고 웹');
+  const groups = [...new Set(phrases.map((p) => p.group))];
+  return `
+    <div class="sheet-tools two talk-top">${transTools('카메라 번역')}</div>
+    ${talkBox()}
 
     ${nowPhrases()}
     <div class="section-title"><span>상황별 일본어</span><em class="muted">탭하면 크게 · 스피커로 발음</em></div>
@@ -1914,6 +1960,7 @@ function nextStop(it) {
 function openItem(id) {
   const it = findItem(id);
   if (!it) return;
+  state.talkBack = null;
   const now = tokyoNow();
   const done = isDone(it.id);
   const place = placeOfItem(it.id);
@@ -1929,8 +1976,6 @@ function openItem(id) {
     <div class="sheet-head">${itemIcon(it.icon, 'lg')}<h3>${esc(it.title)}</h3></div>
     ${it.place ? `<div class="ja muted">${esc(it.place.nameJa)}</div>` : ''}
     ${chipsHtml(chipsFor(it, now))}
-    ${infoCard(it)}
-    ${it.rainPlan ? `<div class="card note"><b class="note-h">${icon('umbrella')}비 올 때</b><div class="small">${esc(it.rainPlan)}</div></div>` : ''}
     ${it.docs ? `<div class="section-title"><span>여기서 꺼낼 서류</span></div><div class="btns">${docBtns(it, 'btn wide')}</div>` : ''}
     ${it.link ? `<div class="section-title"><span>위치 안내</span></div><div class="btns"><a class="btn wide" href="${esc(it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
     <div class="btns">
@@ -1938,11 +1983,11 @@ function openItem(id) {
       ${it.place && it.place.lang !== 'ko' ? navBtn(it.id, '길찾기', pending ? 'primary wide' : 'wide') : ''}
     </div>
     ${it.place && it.place.lang !== 'ko' ? `
-      <div class="sheet-tools">
+      <div class="sheet-tools two">
         <a class="tool" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}" target="_blank" rel="noopener">${icon('ext')}구글지도</a>
-        <button class="tool" data-ja="${esc(it.id)}">${icon('ja')}일본어 크게</button>
-        <button class="tool" data-talk-text="${esc(it.place.nameJa)}">${icon('swap')}번역기로</button>
+        <button class="tool" data-ja="${esc(it.id)}">${icon('ja')}보여주기</button>
       </div>` : ''}
+    ${sceneOf(it) ? talkCard(sceneOf(it), it.id) : ''}
     <div class="state-seg" role="group" aria-label="일정 상태">
       <button class="seg ${done ? 'on' : ''}" data-done="${esc(it.id)}" aria-pressed="${done}"><i class="check-box"></i>방문 완료</button>
       ${mine ? '' : `<button class="seg ${it.skip ? 'on' : ''}" data-item-skip="${esc(it.id)}" aria-pressed="${!!it.skip}">${icon('skip')}건너뛰기</button>`}
@@ -1953,37 +1998,47 @@ function openItem(id) {
       ${done && (it.place || place) ? `<button class="finish-sum" data-finish-open="${esc(it.id)}"><b>방문 기록</b><span>${esc(summary || '쓴 돈과 평가 남기기')}</span></button>` : ''}
       ${!pending && next ? navBtn(next.id, `다음: ${next.title.split(' · ').pop()}`, 'primary wide') : ''}
     </div>
-    ${sceneOf(it) ? `
-      <details class="sheet-more">
-        <summary><span>${icon('ja')}여기서 쓸 일본어 · ${esc(sceneOf(it))}</span><i class="chev"></i></summary>
-        <div class="card list">${phrasesFor(sceneOf(it)).slice(0, 6).map(phraseRow).join('')}</div>
-      </details>` : ''}`;
+    ${infoCard(it)}
+    ${it.rainPlan ? `<div class="card note"><b class="note-h">${icon('umbrella')}비 올 때</b><div class="small">${esc(it.rainPlan)}</div></div>` : ''}`;
   $('#sheet').hidden = false;
 }
 const closeSheet = () => { $('#sheet').hidden = true; };
 
-function showJa({ ja, sub, ko, read }) {
+function showJa({ ja, ko, read }) {
   $('#bigja-body').innerHTML = `
     <div class="ja ja-name">${esc(ja)}</div>
     ${read ? `<div class="ja-read">${esc(read)}</div>` : ''}
-    ${sub ? `<div class="ja ja-addr">${esc(sub)}</div>` : ''}
     ${ko ? `<div class="ja-ko">${esc(ko)}</div>` : ''}
     <button class="btn primary ja-speak" data-speak-text="${esc(ja)}">${icon('sound')}발음 듣기</button>`;
+  $('#bigja').hidden = false;
+}
+
+// A card to hold up to staff or a driver: the place, plus what you want from them.
+const JA_ASKS = [
+  { label: '길 물을 때', ja: 'ここへ行きたいです。', read: '코코에 이키타이데스', ko: '여기에 가고 싶어요' },
+  { label: '택시 탈 때', ja: 'ここまでお願いします。', read: '코코마데 오네가이시마스', ko: '여기까지 가 주세요' },
+];
+function showPlaceJa(name, sub, on) {
+  const ask = JA_ASKS[on];
+  state.jaPlace = { name, sub };
+  $('#bigja-body').innerHTML = `
+    <div class="ja-asks">${JA_ASKS.map((a, i) => `<button class="${i === on ? 'on' : ''}" data-ja-ask="${i}">${a.label}</button>`).join('')}</div>
+    <div class="ja ja-name">${esc(name)}</div>
+    ${sub ? `<div class="ja ja-addr">${esc(sub)}</div>` : ''}
+    <div class="ja ja-say">${esc(ask.ja)}</div>
+    <div class="ja-read">${esc(ask.read)}</div>
+    <div class="ja-ko">${esc(ask.ko)}</div>
+    <button class="btn primary ja-speak" data-speak-text="${esc(`${name}\n${ask.ja}`)}">${icon('sound')}발음 듣기</button>`;
   $('#bigja').hidden = false;
 }
 
 function openJa(id) {
   if (id === '__stay') {
     const { stay } = state.trip;
-    return showJa({ ja: stay.nameJa, sub: `${stay.address}\nここへ行ってください。`, ko: '이 호텔로 가 주세요' });
+    return showPlaceJa(stay.nameJa, `${stay.address}\n${stay.phone.replace('+81-', '0')}`, 1);
   }
   const place = findItem(id)?.place;
-  if (!place) return;
-  showJa({
-    ja: place.nameJa,
-    sub: `${place.query && place.query !== place.nameJa ? place.query + '\n' : ''}ここへ行きたいです。`,
-    ko: '여기에 가고 싶어요',
-  });
+  if (place) showPlaceJa(place.nameJa, place.query !== place.nameJa ? place.query : '', 0);
 }
 
 // ---------- shell ----------
@@ -2005,7 +2060,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 73;
+const APP_VERSION = 76;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2053,9 +2108,9 @@ async function copy(key) {
   catch { toast('복사하지 못했어요'); }
 }
 
-const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
+const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-call],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
-  + '[data-translate],[data-live],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-text],[data-wx-refresh],'
+  + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
   + '[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
@@ -2068,6 +2123,7 @@ document.addEventListener('click', async (e) => {
   else if (d.day) { state.dayIndex = Number(d.day); store.set('day', state.dayIndex); render(); }
   else if (d.nav) navigate(d.nav);
   else if (d.ja) openJa(d.ja);
+  else if (d.jaAsk) showPlaceJa(state.jaPlace.name, state.jaPlace.sub, Number(d.jaAsk));
   else if (d.item) openItem(d.item);
   else if (d.check) {
     const c = checklist().find((x) => x.id === d.check);
@@ -2080,7 +2136,7 @@ document.addEventListener('click', async (e) => {
   else if (d.rate) setAgain(d.rate, d.again, d.from);
   else if (d.finishOpen) openFinish(d.finishOpen);
   else if ('close' in d) closeSheet();
-  else if ('closeJa' in d) { $('#bigja').hidden = true; window.speechSynthesis?.cancel(); }
+  else if ('closeJa' in d) { $('#bigja').hidden = true; window.speechSynthesis?.cancel(); player.onended = null; player.pause(); }
   else if ('closeViewer' in d) $('#viewer').hidden = true;
   else if ('viewerDel' in d) {
     if (!confirm('지금 보고 있는 사진을 삭제할까요?')) return;
@@ -2183,13 +2239,28 @@ document.addEventListener('click', async (e) => {
     toast(`${yen(amount)} · 메모와 분류를 고르고 '기록'을 누르세요`);
   }
   else if ('syncToggle' in d) { state.syncOpen = !state.syncOpen; render(); }
-  else if ('live' in d) openLive();
-  else if ('swap' in d) { state.talkDir = state.talkDir === 'ko-ja' ? 'ja-ko' : 'ko-ja'; render(); }
+  else if (d.transApp) {
+    const dir = state.talkDir;
+    state.talkDir = d.transApp === 'camera' ? 'ja-ko' : 'ko-ja';
+    openLive();
+    state.talkDir = dir;
+    toast(d.transApp === 'camera' ? '앱이 열리면 카메라를 누르세요' : "앱이 열리면 '실시간 번역'에서 '대화'를 누르세요");
+  }
+  else if ('swap' in d) {
+    state.talkDir = state.talkDir === 'ko-ja' ? 'ja-ko' : 'ko-ja';
+    render();
+    if (!$('#sheet').hidden && state.talkBack) openTalkSheet(state.talkBack);
+  }
   else if (d.phrase) { const p = state.trip.phrases[d.phrase]; showJa({ ja: p.ja, read: p.read, ko: p.ko }); }
   else if (d.speak) speak(state.trip.phrases[d.speak].ja);
   else if (d.speakText) speak(d.speakText);
   else if ('wxRefresh' in d) loadWeather(true);
-  else if (d.talkText) { store.set('talkText', d.talkText); state.talkDir = 'ja-ko'; go('talk'); }
+  else if (d.talkSheet) openTalkSheet(d.talkSheet);
+  else if ('phraseStep' in d) {
+    const card = el.closest('.talk-card');
+    phraseStep[card.dataset.scene] = Number(d.phraseStep);
+    card.outerHTML = talkCard(card.dataset.scene, card.dataset.id);
+  }
   else if (d.expView) { state.expView = d.expView; render(); }
   else if ('goExp' in d) { state.expView = 'spent'; go('wallet'); $('#exp')?.scrollIntoView({ block: 'start' }); scrollBy(0, -100); }
   else if (d.expDel) {

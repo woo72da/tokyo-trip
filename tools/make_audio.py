@@ -21,6 +21,7 @@ RATE = '165'  # words per minute, a little slower than default for listening
 
 def texts(trip):
     out = [p['ja'] for p in trip['phrases']]
+    out += ['ここへ行きたいです。', 'ここまでお願いします。']
     out.append(trip['stay']['nameJa'])
     for day in trip['days']:
         for it in day['items']:
