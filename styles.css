@@ -878,3 +878,5 @@ ol.alarm-note { padding-left: 18px; }
 .alt-row b { display: block; font-size: 15px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .alt-row small { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
 .alt-row .chev { transform: rotate(-45deg); }
+.info-tags.plain span { background: var(--soft); color: var(--ink); }
+.info-sec .info-facts { margin: 0; }

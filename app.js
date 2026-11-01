@@ -2092,7 +2092,10 @@ function infoCard(it) {
       ${f.ko ? `<div class="small muted info-ko">${/^최근/.test(f.ko) ? '' : '한국어 리뷰 '}${esc(f.ko)}</div>` : ''}
       ${facts.length ? `<dl class="info-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
       ${f.best?.length ? `<div class="info-sec"><h4>${INFO_BEST[f.kind] || '볼거리'}</h4><div class="info-tags">${f.best.map((x) => `<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
-      ${f.tips?.length ? `<div class="info-sec"><h4>알아둘 점</h4><ul class="info-tips">${f.tips.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+      ${f.maps?.length ? `<div class="info-sec"><h4>구글지도 정보</h4><dl class="info-facts">${f.maps.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></div>` : ''}
+      ${f.keywords?.length ? `<div class="info-sec"><h4>리뷰에 자주 나온 말</h4><div class="info-tags plain">${f.keywords.map((x) => `<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
+      ${f.tips?.length ? `<div class="info-sec"><h4>${f.tipsOf === 'review' ? '리뷰 요약' : '알아둘 점'}</h4><ul class="info-tips">${f.tips.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+      ${f.memo?.length ? `<div class="info-sec"><h4>일정 메모</h4><ul class="info-tips">${f.memo.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
       ${f.alt ? `<div class="info-sec"><h4>대안</h4><div class="small">${esc(f.alt)}</div></div>` : ''}
       ${f.mine ? '' : `<div class="small muted info-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 · 방문 전 다시 확인</div>`}
     </div>`;
@@ -2212,7 +2215,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 97;
+const APP_VERSION = 99;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

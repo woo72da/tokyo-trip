@@ -255,7 +255,24 @@
               "서서 먹는 초밥집, 주문하면 바로 쥐어 줌",
               "저녁엔 대뱃살 품절 사례"
             ],
-            "alt": "돈카츠 야마베 ★4.3 · 현금만, 줄 있음"
+            "alt": "돈카츠 야마베 ★4.3 · 현금만, 줄 있음",
+            "maps": [
+              [
+                "결제",
+                "카드, PayPay, Rakuten Pay"
+              ],
+              [
+                "이용",
+                "1인 식사 많음"
+              ]
+            ],
+            "keywords": [
+              "서서 먹다",
+              "참치 뱃살",
+              "다시마 조임"
+            ],
+            "memo": [],
+            "tipsOf": "review"
           }
         },
         {
@@ -353,10 +370,31 @@
               "명란"
             ],
             "tips": [
-              "웨이팅이 시작되면 금방 늘어남",
+              "웨이팅이 시작되면 금방 늘어남"
+            ],
+            "alt": "마루고 돈카츠 ★4.5 · 줄 많음",
+            "maps": [
+              [
+                "결제",
+                "카드, IC 교통카드, PayPay 등"
+              ],
+              [
+                "대기",
+                "일반적으로 대기 있음"
+              ],
+              [
+                "이용",
+                "1인 식사 많음"
+              ]
+            ],
+            "keywords": [
+              "토로로",
+              "명란"
+            ],
+            "memo": [
               "캐치테이블 글로벌 등록 가능한지 확인"
             ],
-            "alt": "마루고 돈카츠 ★4.5 · 줄 많음"
+            "tipsOf": "review"
           }
         },
         {
@@ -469,10 +507,28 @@
               "다다미 좌석"
             ],
             "tips": [
-              "공휴일이라 오픈 전 도착",
               "토요일 30분 대기 사례"
             ],
-            "alt": "미즈구치 식당 ★4.1 · 현지 밥집"
+            "alt": "미즈구치 식당 ★4.1 · 현지 밥집",
+            "maps": [
+              [
+                "결제",
+                "카드, PayPay"
+              ],
+              [
+                "예약",
+                "점심·저녁 예약 권장"
+              ]
+            ],
+            "keywords": [
+              "대기",
+              "기모노",
+              "다다미"
+            ],
+            "memo": [
+              "공휴일이라 오픈 전 도착"
+            ],
+            "tipsOf": "review"
           }
         },
         {
@@ -599,7 +655,28 @@
               "양이 많다는 리뷰",
               "최근 한국어 평가는 낮은 편"
             ],
-            "alt": "토리톤 회전초밥 ★4.2 · 대기 매우 많음, 대기표 먼저"
+            "alt": "토리톤 회전초밥 ★4.2 · 대기 매우 많음, 대기표 먼저",
+            "maps": [
+              [
+                "결제",
+                "카드, IC 교통카드, PayPay 등"
+              ],
+              [
+                "대기",
+                "일반적으로 대기 있음"
+              ],
+              [
+                "이용",
+                "1인 식사 많음"
+              ]
+            ],
+            "keywords": [
+              "시치미토가라시",
+              "딥소스",
+              "어분"
+            ],
+            "memo": [],
+            "tipsOf": "review"
           }
         },
         {
@@ -742,10 +819,28 @@
               "참깨 소스"
             ],
             "tips": [
-              "메뉴를 먼저 정한 사람부터 주문",
+              "메뉴를 먼저 정한 사람부터 주문"
+            ],
+            "alt": "카가리 긴자본점 ★4.2 · 토리파이탄 라멘",
+            "maps": [
+              [
+                "결제",
+                "카드, IC 교통카드, PayPay 등"
+              ],
+              [
+                "이용",
+                "1인 식사 많음"
+              ]
+            ],
+            "keywords": [
+              "히모카와 우동",
+              "참깨 소스",
+              "딥소스"
+            ],
+            "memo": [
               "대기 등록을 먼저"
             ],
-            "alt": "카가리 긴자본점 ★4.2 · 토리파이탄 라멘"
+            "tipsOf": "review"
           }
         },
         {
@@ -779,7 +874,25 @@
               "말차 원액을 세 번 나눠 덮어 주는 방식",
               "단맛이 적고 말차 맛이 진하다는 평"
             ],
-            "alt": "카페 드 랑브르 ★4.3 · 현금, 커피 젤리"
+            "alt": "카페 드 랑브르 ★4.3 · 현금, 커피 젤리",
+            "maps": [
+              [
+                "결제",
+                "카드, PayPay, Rakuten Pay"
+              ],
+              [
+                "예약",
+                "예약 가능 표기"
+              ]
+            ],
+            "keywords": [
+              "카키고오리",
+              "미타라시 만두",
+              "피낭시에",
+              "말차 라떼"
+            ],
+            "memo": [],
+            "tipsOf": "review"
           }
         },
         {
@@ -936,7 +1049,19 @@
               "팀랩에서 걸어왔다는 최근 리뷰",
               "마감 시간 근처면 재료 소진 가능"
             ],
-            "alt": "쓰키시마 고보레야 몬자야키 ★4.8"
+            "alt": "쓰키시마 고보레야 몬자야키 ★4.8",
+            "maps": [
+              [
+                "결제",
+                "IC 교통카드, PayPay 등 (카드 표기 없음)"
+              ]
+            ],
+            "keywords": [
+              "츠케멘",
+              "스다치"
+            ],
+            "memo": [],
+            "tipsOf": "review"
           }
         },
         {
@@ -1024,10 +1149,15 @@
             ],
             "tips": [
               "일대일 판매라 대기 가능",
-              "입구 찾기 어려움",
+              "입구 찾기 어려움"
+            ],
+            "alt": "랄프스 커피 ★4.0",
+            "maps": [],
+            "keywords": [],
+            "memo": [
               "앉아서 쉬려면 랄프스 커피"
             ],
-            "alt": "랄프스 커피 ★4.0"
+            "tipsOf": "review"
           }
         },
         {
@@ -1092,7 +1222,22 @@
               "최근 맛이 덜해졌다는 평 있음",
               "응대 불만 리뷰 있음"
             ],
-            "alt": "아후리 하라주쿠 ★4.5 · 유자시오 라멘"
+            "alt": "아후리 하라주쿠 ★4.5 · 유자시오 라멘",
+            "maps": [
+              [
+                "결제",
+                "카드, PayPay, Rakuten Pay"
+              ],
+              [
+                "대기",
+                "일반적으로 대기 있음"
+              ]
+            ],
+            "keywords": [
+              "흑돼지"
+            ],
+            "memo": [],
+            "tipsOf": "review"
           }
         },
         {
@@ -1249,10 +1394,27 @@
               "먹물 몬자",
               "떡 몬자"
             ],
-            "tips": [
+            "tips": [],
+            "alt": "야키니쿠 호루이치 ★4.4 · 예약",
+            "maps": [
+              [
+                "결제",
+                "카드, PayPay, Rakuten Pay"
+              ],
+              [
+                "대기",
+                "일반적으로 대기 있음"
+              ]
+            ],
+            "keywords": [
+              "먹물",
+              "떡",
+              "안코로떡"
+            ],
+            "memo": [
               "호세키히로바에서 도보 이동"
             ],
-            "alt": "야키니쿠 호루이치 ★4.4 · 예약"
+            "tipsOf": "review"
           }
         },
         {
@@ -1295,7 +1457,26 @@
             "tips": [
               "QR 대기 후 주변에서 기다린 사례",
               "자리부터 잡기"
-            ]
+            ],
+            "maps": [
+              [
+                "결제",
+                "카드, IC 교통카드, PayPay 등"
+              ],
+              [
+                "예약",
+                "구글지도에 예약 필수로 표기"
+              ],
+              [
+                "대기",
+                "일반적으로 대기 있음"
+              ]
+            ],
+            "keywords": [
+              "위스키"
+            ],
+            "memo": [],
+            "tipsOf": "review"
           }
         },
         {
@@ -1422,10 +1603,24 @@
               "대합 라멘",
               "올리브유 풍미"
             ],
-            "tips": [
+            "tips": [],
+            "alt": "긴자 라이온 비어홀 ★4.4",
+            "maps": [
+              [
+                "결제",
+                "PayPay, Rakuten Pay (카드 표기 없음)"
+              ]
+            ],
+            "keywords": [
+              "대합",
+              "올리브유",
+              "파드득나물",
+              "조개 육수"
+            ],
+            "memo": [
               "45분 일정이라 줄이 길면 대안으로"
             ],
-            "alt": "긴자 라이온 비어홀 ★4.4"
+            "tipsOf": "review"
           }
         },
         {
@@ -3645,11 +3840,22 @@
       "loc": "신바시역 근처",
       "desc": "작성자는 진한 새우 향과 크리미한 된장 베이스 국물을 호평.",
       "items": "새우포타 츠케멘",
-      "caution": "정확한 상호·지점과 현재 결제수단 확인 필요.",
+      "caution": "현재 결제수단 확인 필요.",
       "src": [
         "S1"
       ],
-      "status": "identity_unconfirmed"
+      "status": "named",
+      "addr": "〒105-0004 東京都港区新橋2-15-12 1F",
+      "lat": 35.6663778,
+      "lng": 139.7563234,
+      "url": "https://www.google.com/maps/search/?api=1&query=Ebipota%20SHRIMP%20NOODLE%20%E6%B5%B7%E8%80%81%E3%83%9D%E3%82%BF",
+      "verified": {
+        "name": "Ebipota SHRIMP NOODLE 海老ポタ",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=Ebipota%20SHRIMP%20NOODLE%20%E6%B5%B7%E8%80%81%E3%83%9D%E3%82%BF",
+        "at": "2026-11-01"
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9RXPDhIdQK9pbJL2yOKpprs-rK7Gv6JOXWjFdi4KVk3SXhUXVii_Rx1UKRTkt-xrqd0p5tqY4nYedd0JLVYJa5uAzRgTGPfqOy_vsufhwZWDphuoR0hpyBOfd0YpDruJQEpyy_2R13VdC9-"
     },
     {
       "id": "sasa",
@@ -3673,7 +3879,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E7%AF%89%E5%9C%B0%E7%8E%89%E5%AF%BF%E5%8F%B8%20%E3%81%95%E3%81%95%E3%81%97%E3%81%90%E3%82%8C%20%E8%A1%A8%E5%8F%82%E9%81%93%E3%83%92%E3%83%AB%E3%82%BA%E5%BA%97",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9SuEK8bucAoSYADnW6joAIcNB8_2VY2slAA_qTpiNZvQGl-IVlP99DCZbvmtAQkT6aDn6AC4jhqKOakW6pi3mwoMrKGTl5ramOrgTZsnHLy3EKTzoumcQVA7UToVVocyZflre2LkQHwpXpc"
     },
     {
       "id": "kyoya",
@@ -3697,7 +3904,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=Kyoya%20Cucina%20Italiana",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9Q9B1SddUfWnZIovmgny0r7wkUL21Akws2vx6wRJGQ9etPgUrhMJcT07_JnJtjmguCyNqXaIi_bucqtCkGSrCsA_hm3vESlSyT-mEH1K8FbCOpiQ7_31rmDQAZXg0xEIvPrVMP6Rk26QkVg"
     },
     {
       "id": "antico",
@@ -3721,7 +3929,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E3%82%A2%E3%83%B3%E3%83%86%E3%82%A3%E3%82%B3%E3%82%AB%E3%83%95%E3%82%A7%E3%83%BB%E3%82%A2%E3%83%AB%E3%82%A2%E3%83%93%E3%82%B9%20%E6%81%B5%E6%AF%94%E5%AF%BF%E5%BA%97",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9SGHchOKQqZ9juq-fL5Lxylvm1fXPY3ZJ7vtuTwLwJ1gKe0CcqY6m4Sl31flJJ-Vh3EYuMvrVc3Is-kcyCQyhwdn3GygtXBzNR8g4TRUbp0h0ozoU3bNvGHfRl0ZrTUSKP6olt2JpBkdK_w"
     },
     {
       "id": "tsukiuma",
@@ -3759,7 +3968,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E8%9D%8B%E7%87%AD%E5%B1%8B%20%E8%A1%A8%E5%8F%82%E9%81%93%E3%83%92%E3%83%AB%E3%82%BA%E5%BA%97",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9T8z9pH6zfjUH7_6LWgA-XJ_aLn7U59OXzgPwyIIUXRuyA6xBoZ575dPpKFfK2uK7X1LJZTINniQ6gssjlUZwlG-cA6N2Iylti6Vc3RZgzKSyZLMBTBgK9AxK6WrasB3rLMBaW6x9EpS7h6"
     },
     {
       "id": "habs",
@@ -3787,7 +3997,18 @@
       "src": [
         "S2"
       ],
-      "status": "branch_unconfirmed"
+      "status": "named",
+      "addr": "〒104-0061 東京都中央区銀座6-10-1 GINZA SIX B2F",
+      "lat": 35.6697551,
+      "lng": 139.7643593,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E3%83%96%E3%83%AB%E3%83%BC%E3%83%9C%E3%83%88%E3%83%AB%E3%82%B3%E3%83%BC%E3%83%92%E3%83%BC%E9%8A%80%E5%BA%A7%E3%82%AB%E3%83%95%E3%82%A7",
+      "verified": {
+        "name": "ブルーボトルコーヒー銀座カフェ",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E3%83%96%E3%83%AB%E3%83%BC%E3%83%9C%E3%83%88%E3%83%AB%E3%82%B3%E3%83%BC%E3%83%92%E3%83%BC%E9%8A%80%E5%BA%A7%E3%82%AB%E3%83%95%E3%82%A7",
+        "at": "2026-11-01"
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9TVNwycgB18FHvkUZljbSxLw24-kGDLofABIzc57T16_8JaR3ZluWZPjg12tQPbCXeaK43L3_Xe-lywP6JcRVJ20vio_PKO-sh_J_2C3yQU8dYkGLm0xRcNqkedQpgNtcgkyJbg"
     },
     {
       "id": "oreno",
@@ -3811,7 +4032,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E4%BF%BA%E3%81%AE%E3%83%8F%E3%83%B3%E3%83%90%E3%83%BC%E3%82%B0%20%E6%B8%A1%E3%81%AA%E3%81%B9",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9QrXpqwCaDgxoU6ZZhawvdcU5P_IF_Cdu12mFgIqDL0R9QKIGCtc_AejIvb0_WinUKApraWIsbBphD2YRoslOox0Xt0HJO18Ey_wVsslZJ4J2_uaTuTzl5LHjasSpKrdcUDlR0VpNq89Jw"
     },
     {
       "id": "marion",
@@ -3849,7 +4071,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E5%85%83%E7%A5%96%E3%82%81%E3%82%93%E3%81%9F%E3%81%84%E7%85%AE%E3%81%93%E3%81%BF%E3%81%A4%E3%81%91%E9%BA%BA",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9Sz2G8AaQROjcwjKZHvAPsV6LvPDJjf7_KRKmEuA4Tt8iRLsPsRUauYmlo52WIkcAoB8brPfzb7IaVA6OMAKWRi3X-CWJDBWGOjeE7jRy0rjgL6peYxboPdFmXjeKA8nuelSDhq9-CI_3PW"
     },
     {
       "id": "allseasons",
@@ -3873,7 +4096,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E3%82%AA%E3%83%BC%E3%83%AB%E3%82%B7%E3%83%BC%E3%82%BA%E3%83%B3%E3%82%BA%E3%82%B3%E3%83%BC%E3%83%92%E3%83%BC",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9SC94coErtnRqVg5Z1JqbMdQq1Hoam4bgauWIjdor3Sp3Q-0hx0Hfh5I3oD3AuFkKYjfVrl_Gzhp0GqHiIRP-ilgnZ2rb1ghfHI-t-vHOTYC6RkjFs_PhoVZpln_aOU74f1-VitMiGFXlGr"
     },
     {
       "id": "oiwake",
@@ -3897,7 +4121,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E6%96%B0%E5%AE%BF%20%E8%BF%BD%E5%88%86%E3%81%A0%E3%82%93%E3%81%94%E6%9C%AC%E8%88%97",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9SktAkiPpZTm78W4OXuejtUw_EwcIMft15pXwcmaqi9dfH0a-3t8Q5jZ7vWYxPMwp9S203Gn1U3Dt9V_QDcRa_FkP5bI46MrSRMeCUFowjNZi_8KoABPRgiWXd0SRB0QZic0Fa5GDAbdaw"
     },
     {
       "id": "gintako",
@@ -3935,7 +4160,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E3%81%9D%E3%82%89%E3%81%AE%E3%81%84%E3%82%8DNIPPON",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9QFcYXDx76U0BZvrtjy4J9tYw__ew98v_po-RmjOm0FX7N-KxUvCJTVm6btblRdP6_g3jR1YlGvvnccrwTb-k7lCvI3gKjUsrM5LPmiDCIfOZkuv5nzAa_21XQODV0fk2_zhc8Ebg"
     },
     {
       "id": "kushitanaka",
@@ -3987,7 +4213,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E3%83%AD%E3%82%AF%E3%82%B7%E3%82%BF%E3%83%B3%E3%82%AB%E3%83%95%E3%82%A7%20SHIBUYA%20TOKYO",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9Qf_H57_kKdqudDZ0B31O1k5D1Puc5nzjh00_Ky2h0Gdc533VZK1LTygbN16eiXC8lwUVRDKe5k_ebe6w8XrjNs3qQ2hSzrY7iNUlw4kWFItKbgDX9Eo_kZykDwBXHkCfjZj-Dxje4MVO-D"
     },
     {
       "id": "okoge",
@@ -4011,7 +4238,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E6%9C%88%E5%B3%B6%E3%82%82%E3%82%93%E3%81%98%E3%82%83%20%E3%81%8A%E3%81%93%E3%81%92%20%E6%B8%8B%E8%B0%B7",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9Q2IqL2FJzpkMGdc0P8LcvnsBmNj4--2EQLAZcbU9hE5XuWAEA1j1a0IwzIr2PXOa4KwKGJsEJZXoKnhiBETf6UbFV0yMtqCQKarn7Y22Sm-zYjW4YRXAyUHAThSVux7TxlUjy3WQ"
     },
     {
       "id": "himokawa",
@@ -4035,7 +4263,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E3%81%B2%E3%82%82%E3%81%8B%E3%82%8F%E6%A1%90%E7%94%9F%20%E6%B1%A0%E8%A2%8B%E5%BA%97",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9QaE5YHh6blycl-wmyrK009UwviUbP7av6c2qrMO2nAzej1mLYa2B4eZQyZCrdLMtfjJF1lun0UkEsSYPZntOqNG6y3n4P5PghOZX8V2N_quWS3wdzge9cNSGVr7YTBcuQ475e7YDbk5nyD"
     },
     {
       "id": "chateraise",
@@ -4045,11 +4274,22 @@
       "loc": "이케부쿠로",
       "desc": "진한 밤맛의 몽블랑을 강하게 호평.",
       "items": "몽블랑",
-      "caution": "에그타르트는 겉이 마르고 무난했다는 평가. 지점 확인 필요.",
+      "caution": "에그타르트는 겉이 마르고 무난했다는 평가.",
       "src": [
         "S5"
       ],
-      "status": "branch_unconfirmed"
+      "status": "named",
+      "addr": "〒171-0022 東京都豊島区南池袋2-24-1 八大ビル 1F",
+      "lat": 35.7270688,
+      "lng": 139.7132054,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E3%82%B7%E3%83%A3%E3%83%88%E3%83%AC%E3%83%BC%E3%82%BC%20%E5%8D%97%E6%B1%A0%E8%A2%8B%E5%BA%97",
+      "verified": {
+        "name": "シャトレーゼ 南池袋店",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E3%82%B7%E3%83%A3%E3%83%88%E3%83%AC%E3%83%BC%E3%82%BC%20%E5%8D%97%E6%B1%A0%E8%A2%8B%E5%BA%97",
+        "at": "2026-11-01"
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9SJSkL5OKlXhq1WGXOVsghDfHHYNMy-8MoMbtFPRZOGDZt0DiI8IoigeQNnrKEztf_Gp5hg9VNNK90PAKkkhd8ab-4loHe7QAIrsHfDnq32g97VYommqO4kR9hQ4b-Teekqgu0Xkfak8C4k"
     },
     {
       "id": "biotop",
@@ -4104,7 +4344,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E4%BC%8A%E5%8B%A2%E4%B8%B9%20%E6%96%B0%E5%AE%BF%E5%BA%97",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9RS-XpQ-RNKnnUqRqHXKTuF-FJGQNsViOwe32mk8Z1bu-qTvDqjsUZILw9OpsaRoSk9g6ow9k_v8UaXfwi2_Tb6miMBdiXGVhzt0GsAcput2RQr0ndiRR110Q-UcaQlufrY7w_1IVbBZ1E"
     },
     {
       "id": "pilgrim",
@@ -4144,7 +4385,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E6%B8%8B%E8%B0%B7PARCO",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9QCGaudfi8COzYymkfS8NO26TwtgjyTMOdgtl29C3In1C_c_aHm3oS6vuRpnXrfnnM-OSDegZkzRze8ekSEFLplQJa7-fOMi6wusm44-9XeCV2dXj-Zjh6oSowdbWNqZnuaaFCjgcHgBEDt"
     },
     {
       "id": "hellyhansen",
@@ -4214,7 +4456,7 @@
       "loc": "시부야",
       "desc": "숙소에서 마실 와인을 구매하는 바틀샵으로 소개.",
       "items": "내추럴와인",
-      "caution": "정확한 상호 철자·주소 확인 필요.",
+      "caution": "정확한 상호 철자·주소 확인 필요. 구글지도 후보 no.501(진구마에)과 같은 곳인지 미확정.",
       "src": [
         "S2"
       ],
@@ -4225,8 +4467,8 @@
       "id": "flow",
       "name": "Wineshop flow",
       "cat": "shop",
-      "area": "기타",
-      "loc": "미기재",
+      "area": "시부야·하라주쿠",
+      "loc": "니시하라",
       "desc": "바틀 구매와 매장 음용이 가능한 곳으로 소개. 작성자는 글라스 이용.",
       "items": "바틀와인, 글라스와인",
       "caution": "매장 음용 추가금의 현재 금액·조건 미확인.",
@@ -4237,7 +4479,18 @@
       "sub": "와인",
       "tags": [
         "매장 음용"
-      ]
+      ],
+      "addr": "〒151-0066 東京都渋谷区西原2-28-3 クローバービル B1",
+      "lat": 35.675384,
+      "lng": 139.678182,
+      "url": "https://www.google.com/maps/search/?api=1&query=wineshop%20flow",
+      "verified": {
+        "name": "wineshop flow",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=wineshop%20flow",
+        "at": "2026-11-01"
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9QSfwaplM-xwnfvEnt9TXcvYBVKaxTPlSBAVW1rRkDY-0bEkuIiVlltGNj8Qk1Oa-6ogWwiy6mVIJM-YB8W3drASN891CjuYNMde1_uKdawgH5n6KQiJE8a_bzDgVOoi9yDjJg"
     },
     {
       "id": "donikebukuro",
@@ -4322,7 +4575,8 @@
         "by": "구글지도",
         "url": "https://www.google.com/maps/search/?api=1&query=%E3%82%AA%E3%83%BC%E3%82%B1%E3%83%BC%20%E9%8A%80%E5%BA%A7%E5%BA%97",
         "at": "2026-11-01"
-      }
+      },
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9RD3h8YO_dtqrVg_4UseBg35ZrKClFn0IhQlCiYeMEhJ6aJ7IAqlErqjsgpS6KhU_UxigyvnCce681q6bbRV2yG1lh6gdyQSet8F0BT3kn45A_c-paksBGB0eunJ5rJmRZhDGqVWHHHX9_9"
     },
     {
       "id": "muji",
