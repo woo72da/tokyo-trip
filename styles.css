@@ -863,3 +863,18 @@ ol.alarm-note { padding-left: 18px; }
 .hero.route-hero { padding-top: 16px; padding-bottom: 14px; margin-bottom: 12px; }
 .route-hero .route { margin-top: 0; font-size: 20px; }
 .route-hero .hero-meta { margin-top: 8px; }
+.src-card { margin-top: 12px; display: grid; gap: 8px; font-size: 14px; }
+.src-check { font-size: 13px; font-weight: 700; color: var(--warn); }
+.src-check.ok { color: var(--now); }
+.src-row { display: grid; grid-template-columns: 36px 1fr; gap: 8px; }
+.src-row b { font-size: 13px; color: var(--muted); }
+.src-row a { display: block; color: var(--accent); overflow-wrap: anywhere; }
+.src-row small { display: block; margin-top: 2px; color: var(--muted); }
+.alt-card { margin-top: 12px; }
+.alt-card .finish-label { margin-top: 0; }
+.alt-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px 8px 8px; margin-bottom: 8px; border-radius: 14px; background: var(--paper); box-shadow: var(--shadow); text-align: left; }
+.alt-row .thumb { width: 56px; height: 56px; border-radius: 10px; }
+.alt-row > span:not(.thumb) { flex: 1; min-width: 0; }
+.alt-row b { display: block; font-size: 15px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.alt-row small { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
+.alt-row .chev { transform: rotate(-45deg); }

@@ -278,7 +278,6 @@
               "시장 구경"
             ],
             "tips": [
-              "별점은 표시되지 않아 확인 못 함",
               "현금 준비"
             ]
           }
@@ -428,8 +427,7 @@
               "일본 역사 전시"
             ],
             "tips": [
-              "특별전은 유료",
-              "관람 시간 1시간 30분 일정"
+              "특별전은 유료"
             ]
           }
         },
@@ -660,8 +658,7 @@
             "tips": [
               "호카이반야 수요일 08:30 오픈, 가격 높음",
               "수요일 휴무 점포 많음",
-              "비싼 메뉴는 가격 확인",
-              "야마초는 최근 평가가 낮아 제외"
+              "비싼 메뉴는 가격 확인"
             ]
           }
         },
@@ -998,10 +995,7 @@
               "숲길",
               "본전"
             ],
-            "tips": [
-              "오전 방문 일정",
-              "1시간으로 짧게 구성"
-            ]
+            "tips": []
           }
         },
         {
@@ -1365,9 +1359,7 @@
               "역사 사진",
               "그란스타 기념품"
             ],
-            "tips": [
-              "별점은 마루노우치 광장 기준"
-            ]
+            "tips": []
           }
         },
         {
@@ -1490,7 +1482,6 @@
               "면세 쇼핑"
             ],
             "tips": [
-              "별점 기준 미달, 호텔과 가까워 선택",
               "계산할 때 영수증 확인",
               "의약품 코너는 11시 오픈 리뷰"
             ],
@@ -2922,7 +2913,11 @@
       "tips": [
         "줄 언급 많음"
       ],
-      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9SOPuzsh5xH_8XRHNsoBFOIWMADd5ctxAfbc5KV9dXnLpyRoDKghaVMuiY2fJxAGNDiNYrZqGj8_jshVZmfCCR2nvCmyfqFxpEysmyWSEG-gPB8ratlo42Pglg5ro1E4FITY6Uv2Q"
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9SOPuzsh5xH_8XRHNsoBFOIWMADd5ctxAfbc5KV9dXnLpyRoDKghaVMuiY2fJxAGNDiNYrZqGj8_jshVZmfCCR2nvCmyfqFxpEysmyWSEG-gPB8ratlo42Pglg5ro1E4FITY6Uv2Q",
+      "src": [
+        "S2"
+      ],
+      "review": "아침 겸 점심으로 방문한 사례. 주문 메뉴·상세 평가는 원문에 없음."
     },
     {
       "id": "mugi",
@@ -3533,7 +3528,13 @@
       "lng": 139.7641762,
       "o": "10:30-20:30",
       "itemId": "d3-ginza",
-      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9R9RltKpRVkNiMUQnYMdVpY2Gcrpxjg4dC18vZo07n5UGecU9JELVIaSkD8WEOlgzNaYQN9powKRCokKAZXXni3gxdu9ZlnuaA6mei0foQfOO5-aTjbUzMAe7c2-vERkVsIyoc3"
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9R9RltKpRVkNiMUQnYMdVpY2Gcrpxjg4dC18vZo07n5UGecU9JELVIaSkD8WEOlgzNaYQN9powKRCokKAZXXni3gxdu9ZlnuaA6mei0foQfOO5-aTjbUzMAe7c2-vERkVsIyoc3",
+      "src": [
+        "S2"
+      ],
+      "items": "푸에기아 향수",
+      "review": "향수 구매와 앱 포인트 적립·당일 사용 사례.",
+      "caution": "현재 포인트·면세 정책은 별도 확인."
     },
     {
       "id": "firekids",
@@ -3613,7 +3614,13 @@
         "평일 오전이 편함",
         "호세키히로바 바로 옆"
       ],
-      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9Q4zCUKoF-6LmjtWS4hqSZd2-tF_yXvAlgy9AdNPzm4WWMl1xYB38CXiBxwT3ZLSRquv8Amm1E-MKq4cGexOdAxk6ljdf5HyzzwGK7JJ4IYqQQ8CbiXh-5caskFzQhUJPqL_BMjOmHnl4mu"
+      "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9Q4zCUKoF-6LmjtWS4hqSZd2-tF_yXvAlgy9AdNPzm4WWMl1xYB38CXiBxwT3ZLSRquv8Amm1E-MKq4cGexOdAxk6ljdf5HyzzwGK7JJ4IYqQQ8CbiXh-5caskFzQhUJPqL_BMjOmHnl4mu",
+      "src": [
+        "S5"
+      ],
+      "items": "간식, 생활·뷰티용품",
+      "review": "작성자가 출장 후 쇼핑.",
+      "caution": "구체적 품목별 최저가 근거 없음."
     },
     {
       "id": "pfs",
@@ -3629,6 +3636,753 @@
       ],
       "itemId": "d4-pfs",
       "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9STghImNO02CFbUTSvRtiR21YaPdjyWdvHoe0irGrpqyCH81INk872GkqePSJ6O_C7GvlnX8EGz5s4nY6svz2ATmgOKM8VGYXODqzJsFqOn537lF6TW1EbQmJNUHZO3i4RJlcjh-eI_8su9"
+    },
+    {
+      "id": "ebipota",
+      "name": "에비포타",
+      "cat": "eat",
+      "area": "긴자·쓰키지",
+      "loc": "신바시역 근처",
+      "desc": "작성자는 진한 새우 향과 크리미한 된장 베이스 국물을 호평.",
+      "items": "새우포타 츠케멘",
+      "caution": "정확한 상호·지점과 현재 결제수단 확인 필요.",
+      "src": [
+        "S1"
+      ],
+      "status": "identity_unconfirmed"
+    },
+    {
+      "id": "sasa",
+      "name": "사사시구레",
+      "cat": "eat",
+      "area": "시부야·하라주쿠",
+      "loc": "오모테산도 힐즈",
+      "desc": "작성자가 맛을 호평.",
+      "items": "초밥",
+      "caution": "대기 등록이 필요했던 사례가 있음. 현재 대기 상황은 다를 수 있음.",
+      "src": [
+        "S2"
+      ],
+      "status": "named",
+      "addr": "〒150-0001 東京都渋谷区神宮前4-12-10 表参道ヒルズ本館 3階",
+      "lat": 35.6672416,
+      "lng": 139.708816,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E7%AF%89%E5%9C%B0%E7%8E%89%E5%AF%BF%E5%8F%B8%20%E3%81%95%E3%81%95%E3%81%97%E3%81%90%E3%82%8C%20%E8%A1%A8%E5%8F%82%E9%81%93%E3%83%92%E3%83%AB%E3%82%BA%E5%BA%97",
+      "verified": {
+        "name": "築地玉寿司 ささしぐれ 表参道ヒルズ店",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E7%AF%89%E5%9C%B0%E7%8E%89%E5%AF%BF%E5%8F%B8%20%E3%81%95%E3%81%95%E3%81%97%E3%81%90%E3%82%8C%20%E8%A1%A8%E5%8F%82%E9%81%93%E3%83%92%E3%83%AB%E3%82%BA%E5%BA%97",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "kyoya",
+      "name": "kyoya.cucina",
+      "cat": "eat",
+      "area": "시부야·하라주쿠",
+      "loc": "요요기 근처",
+      "desc": "작성자는 코스와 오렌지와인을 즐김.",
+      "items": "이탈리안 코스, 와인",
+      "caution": "상호는 작성자 댓글로 식별. 예약 방식 재확인 필요.",
+      "src": [
+        "S2"
+      ],
+      "status": "comment_identified",
+      "addr": "〒151-0064 東京都渋谷区上原1-13-7 高嶋ビル 1F",
+      "lat": 35.6681858,
+      "lng": 139.6832486,
+      "url": "https://www.google.com/maps/search/?api=1&query=Kyoya%20Cucina%20Italiana",
+      "verified": {
+        "name": "Kyoya Cucina Italiana",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=Kyoya%20Cucina%20Italiana",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "antico",
+      "name": "안티코 카페",
+      "cat": "drink",
+      "area": "나카메구로·에비스",
+      "loc": "에비스역",
+      "desc": "아침 식사로 이용한 카페.",
+      "items": "시금치 샌드위치, 프렌치토스트",
+      "caution": "원문에 정확한 지점 미기재.",
+      "src": [
+        "S2"
+      ],
+      "status": "branch_unconfirmed",
+      "addr": "〒150-0022 東京都渋谷区恵比寿南1-5-5 アトレ恵比寿 1階",
+      "lat": 35.6473412,
+      "lng": 139.7098712,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E3%82%A2%E3%83%B3%E3%83%86%E3%82%A3%E3%82%B3%E3%82%AB%E3%83%95%E3%82%A7%E3%83%BB%E3%82%A2%E3%83%AB%E3%82%A2%E3%83%93%E3%82%B9%20%E6%81%B5%E6%AF%94%E5%AF%BF%E5%BA%97",
+      "verified": {
+        "name": "アンティコカフェ・アルアビス 恵比寿店",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E3%82%A2%E3%83%B3%E3%83%86%E3%82%A3%E3%82%B3%E3%82%AB%E3%83%95%E3%82%A7%E3%83%BB%E3%82%A2%E3%83%AB%E3%82%A2%E3%83%93%E3%82%B9%20%E6%81%B5%E6%AF%94%E5%AF%BF%E5%BA%97",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "tsukiuma",
+      "name": "돈카츠 츠키우마",
+      "cat": "eat",
+      "area": "기타",
+      "loc": "미기재",
+      "desc": "작성자가 일본에서 먹은 돈카츠 중 가장 좋았다고 평가한 개인 후기.",
+      "items": "돈카츠",
+      "caution": "지점 미기재. 앞선 에비스 동선만으로 지점을 확정할 수 없음.",
+      "src": [
+        "S2"
+      ],
+      "status": "branch_unconfirmed"
+    },
+    {
+      "id": "rosoku",
+      "name": "로소쿠야",
+      "cat": "eat",
+      "area": "시부야·하라주쿠",
+      "loc": "오모테산도 힐즈",
+      "desc": "작성자가 맛있게 먹었다고 평가.",
+      "items": "마라 요리",
+      "caution": "상호는 댓글 대화로 연결됨.",
+      "src": [
+        "S2"
+      ],
+      "status": "comment_identified",
+      "addr": "〒150-0001 東京都渋谷区神宮前4-12-10 本館 3F",
+      "lat": 35.6672698,
+      "lng": 139.7090285,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E8%9D%8B%E7%87%AD%E5%B1%8B%20%E8%A1%A8%E5%8F%82%E9%81%93%E3%83%92%E3%83%AB%E3%82%BA%E5%BA%97",
+      "verified": {
+        "name": "蝋燭屋 表参道ヒルズ店",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E8%9D%8B%E7%87%AD%E5%B1%8B%20%E8%A1%A8%E5%8F%82%E9%81%93%E3%83%92%E3%83%AB%E3%82%BA%E5%BA%97",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "habs",
+      "name": "하브스",
+      "cat": "drink",
+      "area": "기타",
+      "loc": "미기재",
+      "desc": "디저트로 이용.",
+      "items": "디저트",
+      "caution": "지점·주문 메뉴 미기재.",
+      "src": [
+        "S2"
+      ],
+      "status": "branch_unconfirmed"
+    },
+    {
+      "id": "bluebottle",
+      "name": "블루보틀 (긴자식스)",
+      "cat": "drink",
+      "area": "긴자·쓰키지",
+      "loc": "긴자식스",
+      "desc": "긴자식스 포인트를 사용한 사례.",
+      "items": "커피",
+      "caution": "현재 포인트 사용조건 확인 필요.",
+      "src": [
+        "S2"
+      ],
+      "status": "branch_unconfirmed"
+    },
+    {
+      "id": "oreno",
+      "name": "오레노 함바그 와타나베",
+      "cat": "eat",
+      "area": "시부야·하라주쿠",
+      "loc": "시부야",
+      "desc": "소박한 분위기와 담백한 고기. 작성자는 무난하나 큰 감동은 없었다고 평가.",
+      "items": "오레노 함바그, 기본 함바그, 아보카도 치즈 함바그",
+      "caution": "한국어 메뉴 언급 있음. 주문 메뉴는 작성자도 기억을 확정하지 않음.",
+      "src": [
+        "S3"
+      ],
+      "status": "named",
+      "addr": "〒150-0002 東京都渋谷区渋谷3-18-5 Wada Building 1F",
+      "lat": 35.6573303,
+      "lng": 139.7036947,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E4%BF%BA%E3%81%AE%E3%83%8F%E3%83%B3%E3%83%90%E3%83%BC%E3%82%B0%20%E6%B8%A1%E3%81%AA%E3%81%B9",
+      "verified": {
+        "name": "俺のハンバーグ 渡なべ",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E4%BF%BA%E3%81%AE%E3%83%8F%E3%83%B3%E3%83%90%E3%83%BC%E3%82%B0%20%E6%B8%A1%E3%81%AA%E3%81%B9",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "marion",
+      "name": "마리온 크레페",
+      "cat": "drink",
+      "area": "시부야·하라주쿠",
+      "loc": "시부야 동선",
+      "desc": "디저트를 호평.",
+      "items": "과일·크림·초콜릿 크레페",
+      "caution": "상호는 작성자 댓글로 식별. 실제 지점·주문 조합 미확인.",
+      "src": [
+        "S4"
+      ],
+      "status": "comment_identified"
+    },
+    {
+      "id": "menta",
+      "name": "간소 멘타이 니코미 츠케멘",
+      "cat": "eat",
+      "area": "이케부쿠로",
+      "loc": "이케부쿠로",
+      "desc": "쫄깃한 면과 감칠맛을 호평.",
+      "items": "명란 츠케멘, 반숙계란 추가",
+      "caution": "짠맛이 강하다는 후기가 있어 육수를 추가해 먹음.",
+      "src": [
+        "S5"
+      ],
+      "status": "named",
+      "addr": "〒171-0022 東京都豊島区南池袋1-21-5 第7野萩ビル 2階",
+      "lat": 35.7283328,
+      "lng": 139.7123793,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E5%85%83%E7%A5%96%E3%82%81%E3%82%93%E3%81%9F%E3%81%84%E7%85%AE%E3%81%93%E3%81%BF%E3%81%A4%E3%81%91%E9%BA%BA",
+      "verified": {
+        "name": "元祖めんたい煮こみつけ麺",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E5%85%83%E7%A5%96%E3%82%81%E3%82%93%E3%81%9F%E3%81%84%E7%85%AE%E3%81%93%E3%81%BF%E3%81%A4%E3%81%91%E9%BA%BA",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "allseasons",
+      "name": "올 시즌즈 커피",
+      "cat": "drink",
+      "area": "도쿄역·신주쿠",
+      "loc": "신주쿠",
+      "desc": "단단하고 쫀쫀한 푸딩과 씁쓸한 캐러멜을 호평.",
+      "items": "수제 푸딩",
+      "caution": "좌석이 협소해 1~2인 추천. 커피 산미는 동행인 취향에 맞지 않았음.",
+      "src": [
+        "S5"
+      ],
+      "status": "named",
+      "addr": "〒160-0022 東京都新宿区新宿2-7-7 1F",
+      "lat": 35.6897966,
+      "lng": 139.7079209,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E3%82%AA%E3%83%BC%E3%83%AB%E3%82%B7%E3%83%BC%E3%82%BA%E3%83%B3%E3%82%BA%E3%82%B3%E3%83%BC%E3%83%92%E3%83%BC",
+      "verified": {
+        "name": "オールシーズンズコーヒー",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E3%82%AA%E3%83%BC%E3%83%AB%E3%82%B7%E3%83%BC%E3%82%BA%E3%83%B3%E3%82%BA%E3%82%B3%E3%83%BC%E3%83%92%E3%83%BC",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "oiwake",
+      "name": "오이와케 당고 혼포 신주쿠 본점",
+      "cat": "drink",
+      "area": "도쿄역·신주쿠",
+      "loc": "신주쿠",
+      "desc": "쫀득하지만 단짠 균형은 취향에 안 맞았다는 후기.",
+      "items": "당고",
+      "caution": "후기의 가격은 방문 당시 기준이며 현재 가격이 아님.",
+      "src": [
+        "S5"
+      ],
+      "status": "named",
+      "addr": "〒160-0022 東京都新宿区新宿3-1-22",
+      "lat": 35.6904895,
+      "lng": 139.7053554,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E6%96%B0%E5%AE%BF%20%E8%BF%BD%E5%88%86%E3%81%A0%E3%82%93%E3%81%94%E6%9C%AC%E8%88%97",
+      "verified": {
+        "name": "新宿 追分だんご本舗",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E6%96%B0%E5%AE%BF%20%E8%BF%BD%E5%88%86%E3%81%A0%E3%82%93%E3%81%94%E6%9C%AC%E8%88%97",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "gintako",
+      "name": "긴타코",
+      "cat": "eat",
+      "area": "이케부쿠로",
+      "loc": "이케부쿠로역",
+      "desc": "포장보다 즉시 취식 권장.",
+      "items": "다코야키",
+      "caution": "포장 후 눅눅해졌다는 후기. 대파 메뉴의 현재 지점 판매는 미확인.",
+      "src": [
+        "S5"
+      ],
+      "status": "branch_unconfirmed"
+    },
+    {
+      "id": "soranoiro",
+      "name": "소라노이로 닛폰",
+      "cat": "eat",
+      "area": "도쿄역·신주쿠",
+      "loc": "도쿄역 라멘스트리트",
+      "desc": "깔끔한 맛과 반숙계란, 부드러운 고기를 호평.",
+      "items": "간장라멘, 머쉬룸라멘",
+      "caution": "작성자는 특별한 맛까지는 아니었다고 평가. 비건 인증 여부는 확인되지 않음.",
+      "src": [
+        "S5"
+      ],
+      "status": "named",
+      "addr": "〒100-0005 東京都千代田区丸の内1-9-1 東京駅一番街地下ラーメンストリート",
+      "lat": 35.6802234,
+      "lng": 139.7680284,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E3%81%9D%E3%82%89%E3%81%AE%E3%81%84%E3%82%8DNIPPON",
+      "verified": {
+        "name": "そらのいろNIPPON",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E3%81%9D%E3%82%89%E3%81%AE%E3%81%84%E3%82%8DNIPPON",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "kushitanaka",
+      "name": "꼬치카츠 다나카 요코초점",
+      "cat": "eat",
+      "area": "기타",
+      "loc": "미기재",
+      "desc": "호르몬 튀김의 단짠 양념을 특히 호평.",
+      "items": "호르몬 튀김, 쿠시카츠, 우동",
+      "caution": "연예인 단골로 언급된 곳은 다른 지점. 정확한 지점명 확인 필요.",
+      "src": [
+        "S5"
+      ],
+      "status": "branch_unconfirmed"
+    },
+    {
+      "id": "hanamaru",
+      "name": "하나마루 우동 시부야니구치점",
+      "cat": "eat",
+      "area": "시부야·하라주쿠",
+      "loc": "시부야",
+      "desc": "가성비와 셀프서비스 편의성, 깔끔한 국물 언급.",
+      "items": "유부우동, 어묵탕, 튀김",
+      "caution": "면의 탄력과 튀김 상태는 아쉽다는 평가. 지점 표기는 원문 그대로이며 정식 명칭 확인 필요.",
+      "src": [
+        "S5"
+      ],
+      "status": "branch_unconfirmed"
+    },
+    {
+      "id": "loccitane",
+      "name": "록시땅 카페 시부야",
+      "cat": "drink",
+      "area": "시부야·하라주쿠",
+      "loc": "시부야 교차로",
+      "desc": "디저트와 교차로 전망을 호평.",
+      "items": "디저트",
+      "caution": "창가 좌석일 때 전망 가능. 2~3층 카페, 1층 뷰티매장으로 소개.",
+      "src": [
+        "S5"
+      ],
+      "status": "named",
+      "addr": "〒150-0043 東京都渋谷区道玄坂2-3-1 Shibuya Ekimae Bldg. 2-3階",
+      "lat": 35.659311,
+      "lng": 139.69989,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E3%83%AD%E3%82%AF%E3%82%B7%E3%82%BF%E3%83%B3%E3%82%AB%E3%83%95%E3%82%A7%20SHIBUYA%20TOKYO",
+      "verified": {
+        "name": "ロクシタンカフェ SHIBUYA TOKYO",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E3%83%AD%E3%82%AF%E3%82%B7%E3%82%BF%E3%83%B3%E3%82%AB%E3%83%95%E3%82%A7%20SHIBUYA%20TOKYO",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "okoge",
+      "name": "츠키시마몬자 오코게 시부야점",
+      "cat": "eat",
+      "area": "시부야·하라주쿠",
+      "loc": "시부야",
+      "desc": "명란모찌치즈의 짭짤한 맛과 실한 재료를 호평.",
+      "items": "명란모찌치즈 몬자야끼, 오코노미야끼",
+      "caution": "",
+      "src": [
+        "S5"
+      ],
+      "status": "named",
+      "addr": "〒150-0042 東京都渋谷区宇田川町24-8 Gintei Bldg. 1F・2F・3F",
+      "lat": 35.6604493,
+      "lng": 139.699402,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E6%9C%88%E5%B3%B6%E3%82%82%E3%82%93%E3%81%98%E3%82%83%20%E3%81%8A%E3%81%93%E3%81%92%20%E6%B8%8B%E8%B0%B7",
+      "verified": {
+        "name": "月島もんじゃ おこげ 渋谷",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E6%9C%88%E5%B3%B6%E3%82%82%E3%82%93%E3%81%98%E3%82%83%20%E3%81%8A%E3%81%93%E3%81%92%20%E6%B8%8B%E8%B0%B7",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "himokawa",
+      "name": "히모카와 키류 이케부쿠로점",
+      "cat": "eat",
+      "area": "이케부쿠로",
+      "loc": "이케부쿠로",
+      "desc": "작성자 개인의 여행 중 최상위 선호. 쫀득한 면과 갓 튀긴 가라아게 호평.",
+      "items": "넓적우동, 가라아게",
+      "caution": "개인 후기의 순위이며 객관적 평점이 아님.",
+      "src": [
+        "S5"
+      ],
+      "status": "named",
+      "addr": "〒171-0022 東京都豊島区南池袋3-18-35",
+      "lat": 35.7247367,
+      "lng": 139.7147588,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E3%81%B2%E3%82%82%E3%81%8B%E3%82%8F%E6%A1%90%E7%94%9F%20%E6%B1%A0%E8%A2%8B%E5%BA%97",
+      "verified": {
+        "name": "ひもかわ桐生 池袋店",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E3%81%B2%E3%82%82%E3%81%8B%E3%82%8F%E6%A1%90%E7%94%9F%20%E6%B1%A0%E8%A2%8B%E5%BA%97",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "chateraise",
+      "name": "샤토레제 야쓰가타케노타마고",
+      "cat": "drink",
+      "area": "이케부쿠로",
+      "loc": "이케부쿠로",
+      "desc": "진한 밤맛의 몽블랑을 강하게 호평.",
+      "items": "몽블랑",
+      "caution": "에그타르트는 겉이 마르고 무난했다는 평가. 지점 확인 필요.",
+      "src": [
+        "S5"
+      ],
+      "status": "branch_unconfirmed"
+    },
+    {
+      "id": "biotop",
+      "name": "비오탑",
+      "cat": "shop",
+      "area": "기타",
+      "loc": "미기재",
+      "desc": "오라리 로퍼 구매, 아프레쎄 재킷 착용 사례.",
+      "items": "코모리, 아프레쎄, 오라리 로퍼",
+      "caution": "방문 당시 재고 후기이며 현재 재고·정확한 지점 확인 필요.",
+      "src": [
+        "S2"
+      ],
+      "status": "branch_unconfirmed",
+      "sub": "의류"
+    },
+    {
+      "id": "comoli",
+      "name": "코모리 매장",
+      "cat": "shop",
+      "area": "시부야·하라주쿠",
+      "loc": "아오야마 동선",
+      "desc": "아오야마를 둘러보며 방문.",
+      "items": "의류",
+      "caution": "정확한 매장·구매 내역 미기재.",
+      "src": [
+        "S2"
+      ],
+      "status": "branch_unconfirmed",
+      "sub": "의류"
+    },
+    {
+      "id": "isetan",
+      "name": "이세탄 신주쿠",
+      "cat": "shop",
+      "area": "도쿄역·신주쿠",
+      "loc": "신주쿠",
+      "desc": "면세·게스트쿠폰을 이용한 구매 사례.",
+      "items": "꼼데가르송 옴므, 르메르 가방",
+      "caution": "할인 경험은 현재 보장이 아님. 쿠폰·대상품목·면세조건 확인 필요.",
+      "src": [
+        "S2"
+      ],
+      "status": "named",
+      "sub": "의류",
+      "addr": "〒160-0022 東京都新宿区新宿3-14-1",
+      "lat": 35.691574,
+      "lng": 139.7046466,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E4%BC%8A%E5%8B%A2%E4%B8%B9%20%E6%96%B0%E5%AE%BF%E5%BA%97",
+      "verified": {
+        "name": "伊勢丹 新宿店",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E4%BC%8A%E5%8B%A2%E4%B8%B9%20%E6%96%B0%E5%AE%BF%E5%BA%97",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "pilgrim",
+      "name": "빔즈 필그림",
+      "cat": "shop",
+      "area": "시부야·하라주쿠",
+      "loc": "시부야 동선",
+      "desc": "동행인이 의류·잡화 구매.",
+      "items": "린넨 후드, 바토너 핸드워머",
+      "caution": "쇼핑백 제공이 없었다는 후기가 있어 에코백 지참 참고. 지점 확인 필요.",
+      "src": [
+        "S2"
+      ],
+      "status": "branch_unconfirmed",
+      "sub": "의류"
+    },
+    {
+      "id": "parco",
+      "name": "파르코 시부야",
+      "cat": "shop",
+      "area": "시부야·하라주쿠",
+      "loc": "시부야 동선",
+      "desc": "먼슬리 반바지 구매 사례.",
+      "items": "옴므플리세",
+      "caution": "시즌 상품이며 현재 재고·입점 확인 필요.",
+      "src": [
+        "S2"
+      ],
+      "status": "named",
+      "sub": "의류",
+      "addr": "〒150-8377 東京都渋谷区宇田川町15-1 渋谷パルコ・ヒューリックビル B1-10階",
+      "lat": 35.6620484,
+      "lng": 139.6987767,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E6%B8%8B%E8%B0%B7PARCO",
+      "verified": {
+        "name": "渋谷PARCO",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E6%B8%8B%E8%B0%B7PARCO",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "hellyhansen",
+      "name": "헬리한센",
+      "cat": "shop",
+      "area": "기타",
+      "loc": "미기재",
+      "desc": "지인 부탁 물품 구매.",
+      "items": "의류",
+      "caution": "정확한 지점·상품 미기재.",
+      "src": [
+        "S2"
+      ],
+      "status": "branch_unconfirmed",
+      "sub": "의류"
+    },
+    {
+      "id": "capsha",
+      "name": "캡샤",
+      "cat": "shop",
+      "area": "기타",
+      "loc": "미기재",
+      "desc": "작성자가 코모리 트랙재킷과 비교 후 구매.",
+      "items": "silk poly 재킷",
+      "caution": "원문 약칭. 정식 브랜드명·매장 특정 필요.",
+      "src": [
+        "S2"
+      ],
+      "status": "identity_unconfirmed",
+      "sub": "의류"
+    },
+    {
+      "id": "lemaire",
+      "name": "르메르 플래그십",
+      "cat": "shop",
+      "area": "기타",
+      "loc": "미기재",
+      "desc": "플래그십에서 착용 후 이세탄 신주쿠에서 구매.",
+      "items": "가방",
+      "caution": "플래그십의 정확한 지점 미기재.",
+      "src": [
+        "S2"
+      ],
+      "status": "branch_unconfirmed",
+      "sub": "의류"
+    },
+    {
+      "id": "graphpaper",
+      "name": "그라프페이퍼",
+      "cat": "shop",
+      "area": "기타",
+      "loc": "미기재",
+      "desc": "마지막 날 구매.",
+      "items": "의류",
+      "caution": "지점·정확한 상품 미기재.",
+      "src": [
+        "S2"
+      ],
+      "status": "branch_unconfirmed",
+      "sub": "의류"
+    },
+    {
+      "id": "n501",
+      "name": "N501",
+      "cat": "shop",
+      "area": "시부야·하라주쿠",
+      "loc": "시부야",
+      "desc": "숙소에서 마실 와인을 구매하는 바틀샵으로 소개.",
+      "items": "내추럴와인",
+      "caution": "정확한 상호 철자·주소 확인 필요.",
+      "src": [
+        "S2"
+      ],
+      "status": "identity_unconfirmed",
+      "sub": "와인"
+    },
+    {
+      "id": "flow",
+      "name": "Wineshop flow",
+      "cat": "shop",
+      "area": "기타",
+      "loc": "미기재",
+      "desc": "바틀 구매와 매장 음용이 가능한 곳으로 소개. 작성자는 글라스 이용.",
+      "items": "바틀와인, 글라스와인",
+      "caution": "매장 음용 추가금의 현재 금액·조건 미확인.",
+      "src": [
+        "S2"
+      ],
+      "status": "named",
+      "sub": "와인",
+      "tags": [
+        "매장 음용"
+      ]
+    },
+    {
+      "id": "donikebukuro",
+      "name": "돈키호테 이케부쿠로",
+      "cat": "shop",
+      "area": "이케부쿠로",
+      "loc": "이케부쿠로",
+      "desc": "선물과 개인용 물품 구매.",
+      "items": "아누아 마스크팩, 립트리트먼트, 선물",
+      "caution": "정확한 지점과 립트리트먼트 제품명 미기재.",
+      "src": [
+        "S5"
+      ],
+      "status": "branch_unconfirmed",
+      "sub": "뷰티"
+    },
+    {
+      "id": "sunshine",
+      "name": "썬샤인시티",
+      "cat": "shop",
+      "area": "이케부쿠로",
+      "loc": "이케부쿠로",
+      "desc": "식사와 쇼핑을 묶기 좋은 복합시설로 소개.",
+      "items": "식품, 칼디, 가챠 등",
+      "caution": "원문 세이야 표기는 정식 매장명 미확인.",
+      "src": [
+        "S5"
+      ],
+      "status": "named",
+      "sub": "식품"
+    },
+    {
+      "id": "kaldi",
+      "name": "칼디",
+      "cat": "shop",
+      "area": "이케부쿠로",
+      "loc": "썬샤인시티 동선",
+      "desc": "호텔 아래 쇼핑몰에서 발견한 식품 쇼핑처.",
+      "items": "식품",
+      "caution": "정확한 층·입점 위치 확인 필요.",
+      "src": [
+        "S5"
+      ],
+      "status": "branch_unconfirmed",
+      "sub": "식품"
+    },
+    {
+      "id": "seiyu",
+      "name": "세이유",
+      "cat": "shop",
+      "area": "이케부쿠로",
+      "loc": "썬샤인시티 프린스 호텔 앞 동선",
+      "desc": "숙소 식사와 간식 구매처.",
+      "items": "도시락, 야키토리, 요거트, 연두부",
+      "caution": "후기의 가격은 방문 당시 기준. 지점 미확인.",
+      "src": [
+        "S5"
+      ],
+      "status": "branch_unconfirmed",
+      "sub": "식품"
+    },
+    {
+      "id": "okginza",
+      "name": "OK 긴자스토어",
+      "cat": "shop",
+      "area": "긴자·쓰키지",
+      "loc": "긴자",
+      "desc": "먹거리가 많은 마트로 소개.",
+      "items": "초밥, 식품",
+      "caution": "본문에 매장 내부 촬영 불가 언급. 현재 정책 확인.",
+      "src": [
+        "S5"
+      ],
+      "status": "named",
+      "sub": "식품",
+      "addr": "〒104-0061 東京都中央区銀座3-2-1 マロニエゲート銀座2 B1F・B2F",
+      "lat": 35.6737637,
+      "lng": 139.7651281,
+      "url": "https://www.google.com/maps/search/?api=1&query=%E3%82%AA%E3%83%BC%E3%82%B1%E3%83%BC%20%E9%8A%80%E5%BA%A7%E5%BA%97",
+      "verified": {
+        "name": "オーケー 銀座店",
+        "by": "구글지도",
+        "url": "https://www.google.com/maps/search/?api=1&query=%E3%82%AA%E3%83%BC%E3%82%B1%E3%83%BC%20%E9%8A%80%E5%BA%A7%E5%BA%97",
+        "at": "2026-11-01"
+      }
+    },
+    {
+      "id": "muji",
+      "name": "무인양품",
+      "cat": "shop",
+      "area": "도쿄역·신주쿠",
+      "loc": "신주쿠 동선",
+      "desc": "아이쇼핑 방문.",
+      "items": "생활용품",
+      "caution": "작성자는 가격대가 있다고 느낌. 정확한 지점 미기재.",
+      "src": [
+        "S5"
+      ],
+      "status": "branch_unconfirmed",
+      "sub": "생활"
+    },
+    {
+      "id": "familymart",
+      "name": "패밀리마트",
+      "cat": "shop",
+      "area": "기타",
+      "loc": "숙소·이케부쿠로 동선",
+      "desc": "간식·간단한 아침 구매처.",
+      "items": "에그샌드, 낫또김밥, 당고, 알포트 몽블랑맛, 말차 킷캣",
+      "caution": "체인이라 특정 지점이 없음.",
+      "src": [
+        "S5"
+      ],
+      "status": "branch_unconfirmed",
+      "sub": "식품"
+    },
+    {
+      "id": "seveneleven",
+      "name": "세븐일레븐",
+      "cat": "shop",
+      "area": "기타",
+      "loc": "미기재",
+      "desc": "간식·야식 구매처.",
+      "items": "몽고탄멘 컵라면, 돼지조림, 쟈가리코 군고구마맛, 말차 랑그드샤",
+      "caution": "군고구마맛은 작성자가 가을 한정으로 소개. 현재 판매·재고 확인 필요.",
+      "src": [
+        "S5"
+      ],
+      "status": "branch_unconfirmed",
+      "sub": "식품"
+    },
+    {
+      "id": "naritashop",
+      "name": "나리타공항 판매점",
+      "cat": "shop",
+      "area": "기타",
+      "loc": "나리타공항",
+      "desc": "로이스 초콜릿과 백도맛 킷캣 호평.",
+      "items": "로이스 밤맛, 백도맛 킷캣",
+      "caution": "로이스 밤맛은 은은했다는 평가. 매장명·터미널·현재 재고 미확인.",
+      "src": [
+        "S5"
+      ],
+      "status": "branch_unconfirmed",
+      "sub": "식품"
     }
   ],
   "phraseSteps": {
@@ -3839,5 +4593,47 @@
         ]
       ]
     ]
-  }
+  },
+  "sources": {
+    "S1": {
+      "title": "일본 도쿄 츠케멘 성시경 맛집!",
+      "url": "https://cafe.naver.com/ysm5828/9611501",
+      "date": "2026-09-01"
+    },
+    "S2": {
+      "title": "새벽에올리는 9월말 도쿄여행기 스압주의",
+      "url": "https://cafe.naver.com/casuallydressed/882660",
+      "date": "2026-10-14"
+    },
+    "S3": {
+      "title": "일본 도쿄 여행 맛집 도쿄 시부야 오레노 함바그",
+      "url": "https://blog.naver.com/jeju8253/224451376032",
+      "date": "2026-10-23"
+    },
+    "S4": {
+      "title": "도쿄여행 3탄: 신주쿠·시부야 미식 투어",
+      "url": "https://cafe.naver.com/zzop/4295536",
+      "date": "2026-10-17"
+    },
+    "S5": {
+      "title": "일본 도쿄 3박4일 자유여행 코스 경비·맛집모음집",
+      "url": "https://blog.naver.com/parkyunsubin/224444722377",
+      "date": "2026-10-17",
+      "note": "출장·광고 촬영 맥락이 있는 글입니다. 글의 모든 가게가 협찬이라는 뜻은 아닙니다."
+    }
+  },
+  "unresolved": [
+    {
+      "src": "S2",
+      "text": "시부야 코모리 코듀로이 셔츠 구매 매장, 그 옆 와인샵, 야키니쿠 식당"
+    },
+    {
+      "src": "S4",
+      "text": "신주쿠 규동·가츠동 식당, 시부야 스프카레집·몬자야끼집, 편의점 음료 조합"
+    },
+    {
+      "src": "S5",
+      "text": "썬샤인시티 3층 중식당, 말차 앙금 우유 아이스크림 판매점, 마지막 날 커피 체인"
+    }
+  ]
 }

@@ -137,9 +137,19 @@ function effectiveItems(day) {
   const added = store.get('myitems', []).filter((x) => x.date === day.date);
   return [...day.items, ...added].map((it) => {
     const edit = store.get('edit:' + it.id, null);
-    return edit ? { ...it, ...edit } : it;
+    if (!edit) return it;
+    const swapped = edit.swap && placeById(edit.swap);
+    return swapped ? { ...it, ...swappedStop(it, swapped), ...edit } : { ...it, ...edit };
   });
 }
+// A stop moved to another place keeps its time; everything about the old place goes with it.
+const swappedStop = (it, p) => {
+  const ja = p.verified?.name || p.name;
+  return {
+    title: p.name, icon: CAT_ICON[p.cat], placeId: p.id, info: undefined, docs: undefined, rainPlan: undefined, link: undefined,
+    place: { nameJa: ja, query: ja }, note: `원래 일정: ${stripEmoji(it.title)}`,
+  };
+};
 function allItems() {
   return state.trip.days.flatMap((d) => effectiveItems(d).map((it) => ({ ...it, date: d.date })));
 }
@@ -1497,7 +1507,7 @@ function renderCheck() {
 
 // ---------- explore ----------
 const EX_CATS = [['eat', '먹고', 'meal'], ['drink', '마시고', 'coffee'], ['see', '보고', 'torii'], ['shop', '사고', 'shop'], ['log', '적고', 'pen']];
-const EX_AREAS = ['전체', '우에노·아키하바라', '아사쿠사·스카이트리', '긴자·쓰키지', '시부야·하라주쿠', '오다이바·도요스', '나카메구로·에비스', '도쿄역·신주쿠', '내 장소'];
+const EX_AREAS = ['전체', '우에노·아키하바라', '아사쿠사·스카이트리', '긴자·쓰키지', '시부야·하라주쿠', '오다이바·도요스', '나카메구로·에비스', '이케부쿠로', '기타', '도쿄역·신주쿠', '내 장소'];
 const CAT_ICON = { eat: '🍽', drink: '☕', see: '🏛', shop: '🛍' };
 const EX_KIND = { eat: 'food', drink: 'cafe', see: 'sight', shop: 'shop' };
 const isSaved = (id) => !!store.get('save:' + id, false);
@@ -1509,10 +1519,14 @@ const allPlaces = () => [
 ];
 const placeById = (id) => allPlaces().find((p) => p.id === id);
 function placeOfItem(itemId) {
+  const swap = store.get('edit:' + itemId, null)?.swap;
+  if (swap) return placeById(swap);
   const added = store.get('myitems', []).find((x) => x.id === itemId);
   return added ? placeById(added.placeId) : allPlaces().find((p) => p.itemId === itemId);
 }
-const placeInfo = (p) => (p.itemId && findItem(p.itemId)?.info)
+const plannedInfo = (id) => state.trip.days.flatMap((d) => d.items).find((x) => x.id === id)?.info;
+const scheduledItem = (p) => { const it = p.itemId && findItem(p.itemId); return it && !it.swap ? it : null; };
+const placeInfo = (p) => (p.itemId && plannedInfo(p.itemId))
   || { kind: EX_KIND[p.cat], r: p.r, n: p.n, recent: p.recent, hours: placeHours(p), best: p.best, tips: p.tips || (p.memo ? [p.memo] : []), mine: p.mine };
 const placeHours = (p) => (p.o ? (p.o === '00:00-24:00' ? '24시간' : p.o.replace(/-/g, '~').replace(/,/g, ', ').replace(/2([4-9]):/g, (m, h) => `0${h - 4}:`)) : '');
 
@@ -1542,7 +1556,7 @@ const placeHero = (p) => (p?.photo ? `<div class="place-hero"><img src="${esc(p.
 function placeCard(p, now) {
   const info = placeInfo(p);
   const open = openNow(p, now);
-  const item = p.itemId && findItem(p.itemId);
+  const item = scheduledItem(p);
   const v = visitOf(p.id);
   const line = [info?.r ? `★${info.r.toFixed(1)}` : '', p.area.split('·')[0], p.desc || item?.title?.split(' · ').pop()].filter(Boolean).join(' · ');
   const sub = [
@@ -1601,7 +1615,11 @@ function exploreLog(now) {
       </div>`;
   }).join('')}`).join('') : '<div class="card small muted">다녀온 곳에서 방문 표시를 누르면 여기에 모여요.</div>'}
     <div class="section-title"><span>가고 싶은 곳</span><em>${saved.length}</em></div>
-    ${saved.length ? saved.map((p) => placeCard(p, now)).join('') : '<div class="card small muted">하트를 누른 곳이 여기에 모여요.</div>'}`;
+    ${saved.length ? saved.map((p) => placeCard(p, now)).join('') : '<div class="card small muted">하트를 누른 곳이 여기에 모여요.</div>'}
+    <details class="sheet-more">
+      <summary>상호 조사 대기 ${state.trip.unresolved.length}건<i class="chev"></i></summary>
+      <div class="card small">${state.trip.unresolved.map((u) => `<div class="src-row"><b>${esc(u.src)}</b><span>${esc(u.text)}</span></div>`).join('')}</div>
+    </details>`;
 }
 
 const thumbs = [];
@@ -1643,24 +1661,93 @@ function findNear() {
   );
 }
 
+// Review notes from travel posts: what the post said, kept apart from anything checked.
+const PLACE_STATUS = {
+  branch_unconfirmed: '지점 미확인',
+  comment_identified: '댓글로 식별된 상호',
+  identity_unconfirmed: '상호 확인 필요',
+};
+function placeSource(p) {
+  if (!p.src) return '';
+  const srcs = p.src.map((k) => state.trip.sources[k]);
+  const check = p.verified
+    ? `구글지도에서 위치 확인 (${p.verified.at.slice(5).replace('-', '/')}) · 영업 여부는 다시 확인`
+    : p.lat ? '' : `${PLACE_STATUS[p.status] || '현재 영업 미확인'} · 위치 미확인`;
+  return `
+    <div class="card src-card">
+      ${check ? `<div class="src-check ${p.verified ? 'ok' : ''}">${esc(check)}</div>` : ''}
+      ${p.verified && PLACE_STATUS[p.status] ? `<div class="small muted">${esc(PLACE_STATUS[p.status])}</div>` : ''}
+      ${p.items ? `<div class="src-row"><b>품목</b><span>${esc(p.items)}</span></div>` : ''}
+      ${p.review ? `<div class="src-row"><b>후기</b><span>${esc(p.review)}</span></div>` : ''}
+      ${p.sub || p.tags ? `<div class="src-row"><b>분류</b><span>${esc([p.sub, ...(p.tags || [])].filter(Boolean).join(' · '))}</span></div>` : ''}
+      ${p.caution ? `<div class="src-row"><b>주의</b><span>${esc(p.caution)}</span></div>` : ''}
+      <div class="src-row"><b>원문</b><span>${srcs.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>${s.note ? `<small>${esc(s.note)}</small>` : ''}`).join('')}</span></div>
+    </div>`;
+}
+
+// Nearby places of the same kind that are open at the stop's time, for restaurants and cafes only.
+function altPlaces(it) {
+  const home = allPlaces().find((p) => p.itemId === it.id) || placeOfItem(it.id);
+  if (!home?.lat || it.hard || !['eat', 'drink'].includes(home.cat)) return [];
+  const day = state.trip.days.find((d) => d.date === it.date);
+  const taken = new Set(dayItems(day).map((x) => placeOfItem(x.id)?.id));
+  allPlaces().filter((p) => p.itemId).forEach((p) => taken.add(p.id));
+  const at = { date: it.date, min: toMin(it.start) };
+  return allPlaces()
+    .filter((p) => p.lat && p.cat === home.cat && !taken.has(p.id) && openNow(p, at) !== false)
+    .map((p) => ({ p, km: kmBetween(home, p), open: openNow(p, at) }))
+    .filter((x) => x.km <= 3)
+    .sort((a, b) => Number(b.open === true) - Number(a.open === true) || a.km - b.km)
+    .slice(0, 2);
+}
+function altCard(it) {
+  const alts = altPlaces(it);
+  if (!alts.length) return '';
+  return `
+    <div class="alt-card">
+      <div class="finish-label">대안 · 가까운 순</div>
+      ${alts.map(({ p, km, open }) => `
+        <button class="alt-row" data-place="${esc(p.id)}" data-from-item="${esc(it.id)}">
+          ${placeThumb(p, 'w120-h120')}
+          <span><b>${esc(p.name)}</b><small>${esc([p.r ? `★${p.r.toFixed(1)}` : '', distLabel(km), open === null ? '영업시간 미확인' : ''].filter(Boolean).join(' · '))}</small></span>
+          <i class="chev"></i>
+        </button>`).join('')}
+    </div>`;
+}
+function swapStop(id, placeId) {
+  store.set('edit:' + id, { ...store.get('edit:' + id, null), swap: placeId });
+  render();
+  openItem(id);
+  toast('장소를 바꿨어요. 캘린더 알림은 그대로예요');
+}
+function unswapStop(id) {
+  const { swap, ...rest } = store.get('edit:' + id, null) || {};
+  store.set('edit:' + id, Object.keys(rest).length ? rest : null);
+  render();
+  openItem(id);
+}
+
 function openPlace(id) {
   const p = placeById(id);
   if (!p) return;
   const v = visitOf(id);
-  const item = p.itemId && findItem(p.itemId);
+  const item = scheduledItem(p);
   const q = encodeURIComponent(item?.place?.query || [p.name, p.addr].filter(Boolean).join(' '));
   const mapUrl = p.url || `https://www.google.com/maps/search/?api=1&query=${q}`;
   const hasPhoto = state.docSlots.has('place-' + id);
   $('#sheet-body').innerHTML = `
+    ${state.swapFor ? `<button class="sheet-back" data-item="${esc(state.swapFor)}">‹ 일정으로 돌아가기</button>` : ''}
     ${placeHero(p)}
-    <div class="eyebrow dark">${esc(p.area)}</div>
+    <div class="eyebrow dark">${esc(p.loc || p.area)}</div>
     <div class="sheet-head"><h3>${esc(p.name)}</h3></div>
     ${p.desc ? `<div class="muted">${esc(p.desc)}</div>` : ''}
     ${p.addr ? `<div class="small muted">${esc(p.addr)}</div>` : ''}
-    ${infoCard({ info: placeInfo(p) })}
+    ${placeSource(p)}
+    ${p.r || !p.src ? infoCard({ info: placeInfo(p) }) : ''}
+    ${state.swapFor ? `<div class="btns"><button class="btn primary wide" data-item-swap="${esc(id)}">이 일정을 여기로 변경</button></div>` : ''}
     <div class="btns">
-      <a class="btn" href="${esc(mapUrl)}" target="_blank" rel="noopener">${icon('ext')}구글지도</a>
-      <a class="btn primary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat ? `${p.lat},${p.lng}` : q}&travelmode=transit" target="_blank" rel="noopener">${icon('nav')}길찾기</a>
+      <a class="btn ${p.src && !p.lat ? 'wide' : ''}" href="${esc(mapUrl)}" target="_blank" rel="noopener">${icon('ext')}${p.src && !p.lat ? '구글지도에서 찾기' : '구글지도'}</a>
+      ${p.src && !p.lat ? '' : `<a class="btn primary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat ? `${p.lat},${p.lng}` : q}&travelmode=transit" target="_blank" rel="noopener">${icon('nav')}길찾기</a>`}
       <button class="btn" data-place-save="${esc(id)}">${isSaved(id) ? '♥ 저장됨' : '♡ 저장'}</button>
       <button class="btn" data-place-visit="${esc(id)}">${v ? `${icon('check')}방문함` : '방문 표시'}</button>
       ${item ? `<button class="btn wide" data-item="${esc(item.id)}">${esc(dayLabel(item.date))} ${esc(item.start)} 일정 보기</button>`
@@ -2020,6 +2107,7 @@ function nextStop(it) {
 function openItem(id) {
   const it = findItem(id);
   if (!it) return;
+  state.swapFor = null;
   state.talkBack = null;
   const now = tokyoNow();
   const done = isDone(it.id);
@@ -2029,6 +2117,7 @@ function openItem(id) {
   const mine = String(it.id).startsWith('my-it');
   const spent = expenses().filter((e) => e.item === it.id).reduce((a, e) => a + e.amount, 0);
   const v = place && visitOf(place.id);
+  const hasAlts = altPlaces(it).length > 0;
   const summary = [AGAIN[v?.again], spent ? yen(spent) : '', v?.memo].filter(Boolean).join(' · ');
   $('#sheet-body').innerHTML = `
     ${placeHero(place)}
@@ -2058,7 +2147,9 @@ function openItem(id) {
       ${done && (it.place || place) ? `<button class="finish-sum" data-finish-open="${esc(it.id)}"><b>방문 기록</b><span>${esc(summary || '쓴 돈과 평가 남기기')}</span></button>` : ''}
       ${!pending && next ? navBtn(next.id, `다음: ${next.title.split(' · ').pop()}`, 'primary wide') : ''}
     </div>
-    ${infoCard(it)}
+    ${it.swap ? `<div class="btns"><button class="btn wide" data-item-unswap="${esc(it.id)}">${icon('refresh')}원래 일정으로 되돌리기</button></div>` : ''}
+    ${infoCard(hasAlts ? { ...it, info: { ...it.info, alt: null } } : it)}
+    ${altCard(it)}
     ${it.rainPlan ? `<div class="card note"><b class="note-h">${icon('umbrella')}비 올 때</b><div class="small">${esc(it.rainPlan)}</div></div>` : ''}`;
   $('#sheet').hidden = false;
 }
@@ -2121,7 +2212,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 95;
+const APP_VERSION = 97;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2183,7 +2274,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-call],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -2254,14 +2345,21 @@ document.addEventListener('click', async (e) => {
   else if (d.planSave) savePlan(d.planSave);
   else if (d.itemEdit) openEditItem(d.itemEdit);
   else if (d.editSave) saveEdit(d.editSave);
-  else if (d.editReset) { store.set('edit:' + d.editReset, null); closeSheet(); render(); }
+  else if (d.editReset) {
+    const swap = store.get('edit:' + d.editReset, null)?.swap;
+    store.set('edit:' + d.editReset, swap ? { swap } : null);
+    closeSheet();
+    render();
+  }
   else if (d.itemSkip) toggleSkip(d.itemSkip);
   else if (d.itemDel) deleteItem(d.itemDel);
   else if ('dayRoute' in d) dayRoute();
   else if ('dayShare' in d) shareDay();
   else if (d.placeSave) toggleSave(d.placeSave);
   else if (d.placeVisit) toggleVisit(d.placeVisit);
-  else if (d.place) openPlace(d.place);
+  else if (d.place) { state.swapFor = d.fromItem || null; openPlace(d.place); }
+  else if (d.itemSwap) swapStop(state.swapFor, d.itemSwap);
+  else if (d.itemUnswap) unswapStop(d.itemUnswap);
   else if (d.exCat) { state.ex.cat = d.exCat; render(); }
   else if (d.exArea) { state.ex.area = d.exArea; render(); }
   else if (d.exToggle) {

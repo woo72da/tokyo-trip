@@ -68,3 +68,5 @@ python3 tools/make_audio.py
 본문은 Pretendard, 숫자는 IBM Plex Mono입니다. `fonts/`에 넣어 앱과 함께 오프라인 저장되며, Pretendard는 일반 한글 2,350자와 앱에 쓰인 글자만 담았습니다. 라이선스는 `fonts/OFL.txt`에 있습니다.
 
 앱 아이콘 원본은 `tools/icon.svg`입니다. 인트로는 최초 실행, 앱 업데이트 후, 오늘 탭 로고를 누를 때 나오며 `index.html`에 있습니다.
+
+여행 글에서 온 장소는 `places`의 `src`·`status`·`caution`으로 구분합니다. `verified`가 있는 곳만 구글지도로 위치를 확인한 곳이고, 좌표가 없으면 위치 미확인입니다. 상호를 모르는 항목은 `unresolved`에 둡니다.
