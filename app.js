@@ -958,6 +958,18 @@ const wxIcon = (name) => icon(name, 'wxi ' + name);
 const icon = (name, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 
 // ---------- views ----------
+// The flight that matters today, with the plane parked at the end of the line it's on.
+function flightRoute(now) {
+  const [out, back] = state.trip.flights;
+  const f = now.date < back.date ? out : back;
+  const start = toMin(f.depart);
+  const end = toMin(f.arrive);
+  const before = now.date < f.date || (now.date === f.date && now.min < start);
+  const after = now.date > f.date || (now.date === f.date && now.min >= end);
+  const at = before ? 8 : after ? 92 : 8 + ((now.min - start) / (end - start)) * 84;
+  return `<div class="route" style="--at:${at}%"><b>${esc(f.from)}</b><i></i><b>${esc(f.to)}</b></div>`;
+}
+
 function renderToday() {
   const now = tokyoNow();
   const { trip, days, flights } = state.trip;
@@ -974,7 +986,7 @@ function renderToday() {
         <div class="hero-sun"></div>
         <div class="eyebrow">출발까지</div>
         <div class="big">D-${left}</div>
-        <div class="route"><b>${esc(f.from)}</b><i></i><b>${esc(f.to)}</b></div>
+        ${flightRoute(now)}
         <div class="hero-meta">${esc(f.airline)} ${esc(f.no)} · ${esc(dayLabel(f.date))} ${esc(f.depart)} · 인천 T${esc(f.fromTerminal)}</div>
         ${state.trip.transfers.map((t) => `<div class="hero-meta">${itemIcon(t.icon, 'inline')}${esc(t.label)} ${esc(t.from)} ${esc(t.depart)} → ${esc(t.to)}</div>`).join('')}
         <div class="meter"><i style="width:${Math.round(((list.length - todo.length) / list.length) * 100)}%"></i></div>
@@ -1007,7 +1019,13 @@ function renderToday() {
   const next = upcoming[0];
   setHeader(`${dayIdx + 1}일차 · ${dayLabel(day.date)}`, stripEmoji(day.title), `일몰 ${day.sunset} · ${items.length}개 일정`);
 
-  let html = wxCard(day.date, now);
+  const back = state.trip.flights[1];
+  let html = `
+    <div class="hero route-hero">
+      ${flightRoute(now)}
+      <div class="hero-meta">${now.date === flights[0].date ? `${esc(flights[0].no)} · ${esc(flights[0].depart)} 출발 · ${esc(flights[0].arrive)} 도착` : `귀국 ${esc(dayLabel(back.date))} ${esc(back.depart)} · ${esc(back.no)}`}</div>
+    </div>`;
+  html += wxCard(day.date, now);
   html += leaveCard(items, now);
   html += lateCard(items, now);
   html += todoCard(now.date, '오늘 할 일', 3);
@@ -2103,7 +2121,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 87;
+const APP_VERSION = 91;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2132,6 +2150,8 @@ function render() {
   const views = { today: renderToday, days: renderDays, explore: renderExplore, wallet: renderWallet, talk: renderTalk, check: renderCheck };
   $('#view').innerHTML = views[state.tab]() + versionLine();
   $('#top-add').hidden = state.tab !== 'explore';
+  $('#top-logo').hidden = state.tab !== 'today';
+  $('.top').classList.toggle('has-logo', state.tab === 'today');
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === (state.tab === 'check' ? 'wallet' : state.tab))));
   if (state.tab === 'wallet') hydrateDocs();
   if (state.tab === 'explore' && state.ex.cat === 'log') hydrateLog();
@@ -2160,7 +2180,7 @@ async function copy(key) {
   catch { toast('복사하지 못했어요'); }
 }
 
-const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
+const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-call],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
   + '[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
@@ -2174,6 +2194,7 @@ document.addEventListener('click', async (e) => {
   else if (d.go) go(d.go);
   else if (d.day) { state.dayIndex = Number(d.day); store.set('day', state.dayIndex); render(); }
   else if (d.nav) navigate(d.nav);
+  else if ('intro' in d) playIntro();
   else if (d.ja) openJa(d.ja);
   else if (d.jaAsk) showPlaceJa(state.jaPlace.name, state.jaPlace.sub, Number(d.jaAsk));
   else if (d.item) openItem(d.item);
@@ -2448,6 +2469,21 @@ document.addEventListener('visibilitychange', () => {
   if (!['wallet', 'talk', 'check'].includes(state.tab)) render();
 });
 
+// Plays on first install (index.html), after an app update, and when the logo is tapped.
+let introTimer;
+function playIntro() {
+  const el = $('#intro');
+  introLine();
+  el.hidden = false;
+  clearTimeout(introTimer);
+  introTimer = setTimeout(() => { el.hidden = true; }, 1900);
+}
+function introOnUpdate() {
+  let seen;
+  try { seen = localStorage.getItem('introVer'); localStorage.setItem('introVer', APP_VERSION); } catch { return; }
+  if (seen && seen !== String(APP_VERSION) && !matchMedia('(prefers-reduced-motion: reduce)').matches) playIntro();
+}
+
 function introLine() {
   const line = $('#intro-line');
   if (!line) return;
@@ -2463,6 +2499,7 @@ async function init() {
     const res = await fetch('data/trip.json', { cache: 'no-cache' });
     state.trip = await res.json();
     introLine();
+    introOnUpdate();
   } catch {
     $('#view').innerHTML = '<div class="empty">일정 데이터를 불러오지 못했어요.<br>인터넷에 연결된 상태로 한 번 열어 주세요.</div>';
     return;

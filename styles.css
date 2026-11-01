@@ -218,11 +218,8 @@ a { color: inherit; }
 .route i {
   flex: 1; height: 2px; position: relative;
   background: repeating-linear-gradient(90deg, rgba(244,241,234,.38) 0 6px, transparent 6px 11px);
-  -webkit-mask: linear-gradient(90deg, #000 calc(50% - 15px), transparent 0 calc(50% + 15px), #000 0);
-  mask: linear-gradient(90deg, #000 calc(50% - 15px), transparent 0 calc(50% + 15px), #000 0);
 }
-.route { position: relative; }
-.route::after { content: ""; position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%); background: var(--accent); -webkit-mask: var(--plane) center / contain no-repeat; mask: var(--plane) center / contain no-repeat; }
+.route i::after { content: ""; position: absolute; left: var(--at, 50%); top: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%); background: var(--on-night); -webkit-mask: var(--plane) center / contain no-repeat; mask: var(--plane) center / contain no-repeat; }
 
 /* quick actions */
 .quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
@@ -851,16 +848,20 @@ ol.alarm-note { padding-left: 18px; }
 .ck-del::after, .title-add::after, .fx-pill::after { content: ""; position: absolute; inset: -8px; }
 
 /* Intro: first open of the day only. Sun rises, the plane crosses it, the app takes over. */
-.intro { position: fixed; inset: 0; z-index: 60; background: #0d1220; animation: intro-out .3s 1.5s forwards; }
+.intro { position: fixed; inset: 0; z-index: 60; background: #071230; animation: intro-out .3s 1.5s forwards; }
 .intro svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.in-sun { animation: in-sun .6s cubic-bezier(.2, .8, .2, 1) both; }
-.in-land { animation: in-land .5s .1s cubic-bezier(.2, .8, .2, 1) both; }
+.in-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: in-bg .7s cubic-bezier(.2, .8, .2, 1) both; }
 .in-plane { animation: in-plane .75s .35s cubic-bezier(.2, .7, .2, 1) both; }
 .intro-text { position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 72px); text-align: center; color: #f4f1ea; animation: in-text .4s .7s both; }
 .intro-text b { display: block; font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
 .intro-text span { display: block; min-height: 24px; margin-top: 4px; font: 500 16px/24px var(--mono); color: rgba(244, 241, 234, .75); }
-@keyframes in-sun { from { transform: translateY(160px); opacity: .4; } }
-@keyframes in-land { from { transform: translateY(70px); } }
-@keyframes in-plane { from { transform: translate(-300px, 170px); opacity: 0; } }
+@keyframes in-bg { from { transform: scale(1.06); opacity: 0; } }
+@keyframes in-plane { from { transform: translate(-420px, 230px); opacity: 0; } }
 @keyframes in-text { from { opacity: 0; transform: translateY(8px); } }
 @keyframes intro-out { to { opacity: 0; visibility: hidden; } }
+.top-logo { position: absolute; left: 20px; bottom: 14px; width: 44px; height: 44px; padding: 0; }
+.top-logo svg { display: block; width: 100%; height: 100%; }
+.top.has-logo { padding-left: 74px; }
+.hero.route-hero { padding-top: 16px; padding-bottom: 14px; margin-bottom: 12px; }
+.route-hero .route { margin-top: 0; font-size: 20px; }
+.route-hero .hero-meta { margin-top: 8px; }

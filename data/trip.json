@@ -1523,7 +1523,7 @@
           },
           "note": "15:00 호텔 출발 · Klook 우에노 출발 바우처를 게이세이 우에노역 매표기나 카운터(05:10~20:20)에서 교환 · 2장 선택 · 여권 지참 · 빠듯하면 다음 열차로 · 이후 T3까지 도보 약 15분",
           "docs": [
-            "doc-skyliner"
+            "doc-skyliner-back"
           ],
           "alarm": 30,
           "hard": true,
@@ -1607,7 +1607,8 @@
       "linkItem": "d1-skyliner",
       "done": true,
       "docs": [
-        "doc-skyliner"
+        "doc-skyliner",
+        "doc-skyliner-back"
       ]
     },
     {
@@ -1903,9 +1904,15 @@
     },
     {
       "id": "doc-skyliner",
-      "label": "스카이라이너 (2인)",
+      "label": "스카이라이너 도쿄행 (2인)",
       "icon": "🎫",
-      "max": 4
+      "max": 2
+    },
+    {
+      "id": "doc-skyliner-back",
+      "label": "스카이라이너 나리타행 (2인)",
+      "icon": "🎫",
+      "max": 2
     },
     {
       "id": "doc-agoda",
