@@ -7,7 +7,7 @@ const TABS = ['today', 'days', 'explore', 'wallet', 'talk', 'check'];
 const state = {
   trip: null, wx: null, fx: null, tab: 'today', dayIndex: 0, talkDir: 'ko-ja',
   pendingDoc: null, viewer: null, docSlots: new Set(), syncFile: null,
-  ex: { cat: 'eat', area: '전체', open: false, plan: false, saved: false, again: false, near: false }, geo: null,
+  ex: { cat: 'eat', area: '전체', open: false, plan: false, saved: false, again: false, near: false, q: '' }, geo: null,
 };
 
 // ---------- storage (localStorage can throw in private mode) ----------
@@ -337,7 +337,10 @@ function wxTrip() {
   const rows = state.trip.days.map((d) => ({ date: d.date, w: wxDay(d.date) }));
   const known = rows.filter((r) => r.w);
   if (!known.length) {
-    return `<div class="card small muted">출발 16일 전부터 여행 기간 예보가 나와요. 그 전엔 예약 탭의 평년 날씨를 참고하세요.</div>`;
+    if (daysBetween(tokyoNow().date, state.trip.trip.start) > 15) {
+      return `<div class="card small muted">출발 16일 전부터 여행 기간 예보가 나와요. 그 전엔 예약 탭의 평년 날씨를 참고하세요.</div>`;
+    }
+    return `<div class="wx"><div class="wx-foot"><span>여행 기간 예보를 받지 못했어요. 인터넷 연결을 확인하고 다시 받아 보세요.</span><button data-wx-refresh>${icon('refresh')}다시 받기</button></div></div>`;
   }
   const rainy = known.filter((r) => r.w.pop >= 50).length;
   const lo = Math.min(...known.map((r) => r.w.min));
@@ -1558,9 +1561,9 @@ function placeCard(p, now) {
   const open = openNow(p, now);
   const item = scheduledItem(p);
   const v = visitOf(p.id);
-  const line = [info?.r ? `★${info.r.toFixed(1)}` : '', p.area.split('·')[0], p.desc || item?.title?.split(' · ').pop()].filter(Boolean).join(' · ');
+  const line = [info?.r ? `★${info.r.toFixed(1)}` : '', p.loc && p.loc !== '미기재' ? p.loc : p.area.split('·')[0], p.desc || item?.title?.split(' · ').pop()].filter(Boolean).join(' · ');
   const sub = [
-    open === null ? '' : open ? '영업 중' : '영업 종료',
+    open === null ? '' : open ? '등록 시간상 영업 중' : '등록 시간상 종료',
     item ? `${dayLabel(item.date)} ${item.start}` : '일정 없음',
     p.lat ? (state.geo ? distLabel(kmBetween(state.geo, p)) : `호텔 ${distLabel(kmBetween(state.trip.stay, p))}`) : '',
   ].filter(Boolean).join(' · ');
@@ -1576,9 +1579,14 @@ function placeCard(p, now) {
     </div>`;
 }
 
+const exploreRows = (list, now) => (list.length
+  ? list.map((p) => placeCard(p, now)).join('')
+  : '<div class="card small muted">조건에 맞는 곳이 없어요. 필터를 줄여 보세요.</div>');
 function exploreList(now) {
   const f = state.ex;
   let list = allPlaces().filter((p) => p.cat === f.cat);
+  const q = f.q.trim().toLowerCase();
+  if (q) list = list.filter((p) => [p.name, p.desc, p.items, p.loc, p.area, ...(placeInfo(p)?.best || [])].join(' ').toLowerCase().includes(q));
   if (f.area !== '전체') list = list.filter((p) => p.area === f.area);
   if (f.open) list = list.filter((p) => openNow(p, now));
   if (f.plan) list = list.filter((p) => p.itemId);
@@ -1645,10 +1653,11 @@ function renderExplore() {
   return `
     <div class="ex-cats">${EX_CATS.map(([k, label, ico]) => `<button class="seg ${f.cat === k ? 'on' : ''}" data-ex-cat="${k}">${icon(ico)}${label}</button>`).join('')}</div>
     ${f.cat === 'log' ? exploreLog(now) : `
+      <input class="input ex-search" id="ex-q" type="search" placeholder="이름·메뉴·품목 검색" value="${esc(f.q)}" autocomplete="off" enterkeyhint="search">
       <div class="ex-line"><b>지역</b><div class="ex-row">${EX_AREAS.map((a) => `<button class="${f.area === a ? 'on' : ''}" data-ex-area="${esc(a)}">${esc(a)}</button>`).join('')}</div></div>
       <div class="ex-line"><b>조건</b><div class="ex-row ex-opts">${toggles.map(([k, label, ico]) => `<button class="${f[k] ? 'on' : ''}" data-ex-toggle="${k}" aria-pressed="${!!f[k]}">${icon(ico)}${label}</button>`).join('')}</div></div>
-      ${list.length ? list.map((p) => placeCard(p, now)).join('') : '<div class="card small muted">조건에 맞는 곳이 없어요. 필터를 줄여 보세요.</div>'}
-      <div class="small muted ex-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 저장 정보 · 영업시간은 다시 확인</div>`}`;
+      <div id="ex-list">${exploreRows(list, now)}</div>
+      <div class="small muted ex-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 저장 정보 · 임시휴무는 반영되지 않아요</div>`}`;
 }
 
 function findNear() {
@@ -2088,7 +2097,7 @@ function infoCard(it) {
   const facts = [['영업', f.hours], ['휴무', f.closed], ['가격', f.price], ['대기', f.wait], ['예약', f.reserve], ['결제', f.pay]].filter(([, v]) => v);
   return `
     <div class="card info">
-      ${f.r ? `<div class="info-rate"><b>★ ${f.r.toFixed(1)}</b><span>리뷰 ${esc(f.n)}${f.recent ? ` · 최근 평균 ${f.recent.toFixed(1)}` : ''}</span></div>` : ''}
+      ${f.r ? `<div class="info-rate"><b>★ ${f.r.toFixed(1)}</b><span>구글지도 ${esc(state.trip.trip.infoAsOf || '')} · 리뷰 ${esc(f.n)}${f.recent ? ` · 최근 평균 ${f.recent.toFixed(1)}` : ''}</span></div>` : ''}
       ${f.ko ? `<div class="small muted info-ko">${/^최근/.test(f.ko) ? '' : '한국어 리뷰 '}${esc(f.ko)}</div>` : ''}
       ${facts.length ? `<dl class="info-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
       ${f.best?.length ? `<div class="info-sec"><h4>${INFO_BEST[f.kind] || '볼거리'}</h4><div class="info-tags">${f.best.map((x) => `<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
@@ -2215,7 +2224,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 99;
+const APP_VERSION = 100;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2465,6 +2474,11 @@ document.addEventListener('input', (e) => {
   else if (t.id === 'fx-in') { state.fxCalc.value = t.value; updateFx(); }
   else if (t.id === 'fx-tax') { state.fxCalc.tax = t.checked; updateFx(); }
   else if (t.id === 'pn-paste') fillShare(t.value);
+  else if (t.id === 'ex-q') {
+    state.ex.q = t.value;
+    const now = tokyoNow();
+    $('#ex-list').innerHTML = exploreRows(exploreList(now), now);
+  }
   else if (t.id === 'talk-text') { store.set('talkText', t.value); $('.talk-clear').hidden = !t.value; }
 });
 
@@ -2493,6 +2507,12 @@ document.addEventListener('touchend', (e) => {
   render();
   window.scrollTo(0, 0);
 }, { passive: true });
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!$('#bigja').hidden) $('[data-close-ja]').click();
+  else if (!$('#sheet').hidden) closeSheet();
+});
 
 document.addEventListener('submit', (e) => {
   if (e.target.classList.contains('exp-form')) {

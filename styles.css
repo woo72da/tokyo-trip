@@ -880,3 +880,6 @@ ol.alarm-note { padding-left: 18px; }
 .alt-row .chev { transform: rotate(-45deg); }
 .info-tags.plain span { background: var(--soft); color: var(--ink); }
 .info-sec .info-facts { margin: 0; }
+.ex-search { width: 100%; margin-bottom: 8px; }
+.sheet-close { position: sticky; top: 0; z-index: 2; float: right; width: 40px; height: 40px; margin: -8px -4px 0 8px; border-radius: 50%; background: var(--soft); color: var(--ink); display: grid; place-items: center; }
+.sheet-close svg { width: 16px; height: 16px; }
