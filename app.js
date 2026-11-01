@@ -2121,7 +2121,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 91;
+const APP_VERSION = 93;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2475,6 +2475,7 @@ function playIntro() {
   const el = $('#intro');
   introLine();
   el.hidden = false;
+  window.flyIntro();
   clearTimeout(introTimer);
   introTimer = setTimeout(() => { el.hidden = true; }, 1900);
 }

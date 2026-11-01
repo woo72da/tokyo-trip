@@ -23,22 +23,50 @@
     <img class="in-bg" src="intro-bg.webp" alt="">
     <svg viewBox="0 0 941 1672" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <defs>
-        <linearGradient id="in-trail" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".4" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff"/></linearGradient>
+        <linearGradient id="in-trail" gradientUnits="userSpaceOnUse" x1="90" y1="0" x2="586" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".4" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff"/></linearGradient>
+        <mask id="in-reveal" maskUnits="userSpaceOnUse" x="-100" y="500" width="800" height="400">
+          <path id="in-path" d="M-60 822C200 820 442 770 583 645" fill="none" stroke="#fff" stroke-width="30"/>
+        </mask>
       </defs>
-      <g class="in-plane">
-        <path d="M160 813C324 807 467 742 580 642L586 649C476 759 328 825 160 820Z" fill="url(#in-trail)"/>
-        <path transform="translate(608 606) rotate(43) scale(1.25)" fill="#fff" d="M0-57C5-57 8-51 8-43V-14L43 13Q45 15 45 18V25L8 10V36L19 46V52L0 46-19 52V46L-8 36V10L-45 25V18Q-45 15-43 13L-8-14V-43C-8-51-5-57 0-57Z"/>
-      </g>
+      <path mask="url(#in-reveal)" d="M-60 822C200 818 440 766 580 642L586 649C446 774 200 822 -60 822Z" fill="url(#in-trail)"/>
+      <path id="in-plane-shape" fill="#fff" d="M0-57C5-57 8-51 8-43V-14L43 13Q45 15 45 18V25L8 10V36L19 46V52L0 46-19 52V46L-8 36V10L-45 25V18Q-45 15-43 13L-8-14V-43C-8-51-5-57 0-57Z" visibility="hidden"/>
     </svg>
     <div class="intro-text"><b>도쿄 여행</b><span id="intro-line"></span></div>
     <script>
       (function () {
         var el = document.getElementById('intro');
+        var line = document.getElementById('in-path');
+        var plane = document.getElementById('in-plane-shape');
+        var len = line.getTotalLength();
+        // Draws one moment of the flight: k runs 0 to 1, the plane leads and the trail follows behind it.
+        function frame(k) {
+          var at = len * k;
+          var p = line.getPointAtLength(at);
+          var q = line.getPointAtLength(Math.max(0, at - 1));
+          var dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy) || 1;
+          var x = p.x + (dx / d) * 62, y = p.y + (dy / d) * 62;
+          plane.setAttribute('transform', 'translate(' + x + ' ' + y + ') rotate(' + (Math.atan2(dy, dx) * 180 / Math.PI + 90) + ') scale(1.2)');
+          plane.setAttribute('visibility', 'visible');
+          line.style.strokeDasharray = at + ' ' + (len + 1);
+        }
+        var run = 0;
+        window.flyIntro = function () {
+          var id = ++run, start = performance.now() + 250;
+          frame(0);
+          requestAnimationFrame(function step(now) {
+            if (id !== run) return;
+            var t = Math.min(1, Math.max(0, (now - start) / 1000));
+            frame(1 - Math.pow(1 - t, 3));
+            if (t < 1) requestAnimationFrame(step);
+          });
+        };
+        window.flyFrame = frame;
         el.addEventListener('click', function () { el.hidden = true; });
         try {
           if (localStorage.getItem('introVer') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         } catch (e) { return; }
         el.hidden = false;
+        flyIntro();
         setTimeout(function () { el.hidden = true; }, 1900);
       })();
     </script>
