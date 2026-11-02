@@ -28,7 +28,7 @@ const store = {
   },
 };
 // What the sync carries: checks, done marks, own checklist items, added document sets, booking numbers, links, expenses, budget.
-const isShared = (key) => /^(ck|done|visit|save|edit):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'pnr', 'agoda', 'esim1', 'esim2', 'sosCard', 'sosIns', 'exp', 'budget'].includes(key);
+const isShared = (key) => /^(ck|done|visit|save|edit):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'cashYen', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
 // Deleted list entries and photos are remembered so a sync doesn't bring them back.
 // Ids stay unique across both phones even when two records are made in the same millisecond.
 const uid = (prefix) => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -52,13 +52,7 @@ const SECRETS = [
   { key: 'esim2', label: 'eSIM 설치 링크 · 다희', placeholder: '카카오톡 링크 붙여넣기', link: true },
 ];
 
-// Our own contacts for emergencies, kept with the booking numbers on the phones only.
-const SOS_FIELDS = [
-  { key: 'sosCard', label: '카드 분실 신고', placeholder: '카드사 해외 분실 번호' },
-  { key: 'sosIns', label: '여행자보험 긴급 지원', placeholder: '보험사 해외 긴급 번호' },
-];
-
-const isTyped = (key) => [...SECRETS, ...SOS_FIELDS].some((s) => s.key === key);
+const isTyped = (key) => SECRETS.some((s) => s.key === key);
 
 // Photos of vouchers and QR codes live in IndexedDB on this phone (too big for localStorage).
 const docs = {
@@ -187,7 +181,7 @@ function bookingNeeded(it) {
 // A must or fixed-time stop whose time has passed without being marked done, today only.
 function lateness(it, now) {
   if (!now || now.date !== it.date || it.skip || isDone(it.id) || !(it.hard || it.priority === 'must')) return null;
-  const over = now.min - it.endMin;
+  const over = now.min - (it.hard ? it.startMin : it.endMin);
   return over > 0 ? { hard: !!it.hard, over } : null;
 }
 const clock = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
@@ -215,6 +209,13 @@ function chipsFor(it, now) {
   if (it.rainPlan) chips.push(w && w.pop >= 50 ? ['warn', `비 ${w.pop}% · 대안 보기`, 'umbrella'] : ['', '비 올 때 대안', 'umbrella']);
   return chips;
 }
+// Must/optional sits beside the time as a small tag, so the chip row only carries what changes.
+const tagFor = (it) => (it.priority === 'must' ? '<span class="tag must">필수</span>' : it.priority === 'optional' ? '<span class="tag">선택</span>' : '');
+const noTag = ([cls, t]) => cls !== 'must' && t !== '선택';
+// In the detail popup chips sit in the same line as the time; the rain tag jumps to the plan further down.
+const chipTag = ([cls, t, ic]) => (ic === 'umbrella'
+  ? `<button class="tag ${cls}" data-jump="item-rain">${icon(ic)}${esc(t)}</button>`
+  : `<span class="tag ${cls}">${ic ? icon(ic) : ''}${esc(t)}</span>`);
 const chipsHtml = (chips) => chips.length
   ? `<div class="chips">${chips.map(([cls, t, ic]) => `<span class="chip ${cls}">${ic ? icon(ic) : ''}${esc(t)}</span>`).join('')}</div>`
   : '';
@@ -363,7 +364,7 @@ function wxTrip() {
 }
 
 // ---------- expenses (yen, shown with won) ----------
-const EXP_CATS = ['식당', '카페', '교통', '쇼핑', '관광', '기타'];
+const EXP_CATS = ['식당', '카페', '편의점', '교통', '쇼핑', '관광', '기타'];
 const SCENE_CAT = { 식당: '식당', 카페: '카페', 교통: '교통', 공항: '교통', 쇼핑: '쇼핑', 관광: '관광', 호텔: '기타' };
 const expenses = () => store.get('exp', []);
 const yen = (n) => `${Math.round(n).toLocaleString('ko-KR')}엔`;
@@ -481,25 +482,53 @@ function openFx() {
   loadFx(true);
 }
 
-function addExpense({ amount, memo, cat, item, date }) {
+// amount is always yen so totals add up; a won entry keeps what was typed in orig.
+const expAmount = (value, cur) => (cur === 'KRW' ? { amount: Math.round(value / fxRate()), orig: { cur, value } } : { amount: value, orig: null });
+function addExpense({ value, cur, pay, memo, cat, item, date }) {
   const list = expenses();
-  list.push({ id: uid('e-'), amount, memo, cat, item: item || null, date: date || tokyoNow().date, by: who() });
+  localStorage.setItem('lastPay', pay);
+  list.push({ id: uid('e-'), ...expAmount(value, cur), pay, memo, cat, item: item || null, date: date || tokyoNow().date, by: who(), at: Date.now() });
   store.set('exp', list);
+}
+const payOf = () => { try { return localStorage.getItem('lastPay') || 'card'; } catch { return 'card'; } };
+const expPick = (cur = 'JPY', pay = payOf()) => `
+  <select class="input" name="cur" aria-label="통화"><option value="JPY" ${cur === 'JPY' ? 'selected' : ''}>엔</option><option value="KRW" ${cur === 'KRW' ? 'selected' : ''}>원</option></select>
+  <select class="input" name="pay" aria-label="결제 수단"><option value="card" ${pay === 'card' ? 'selected' : ''}>카드</option><option value="cash" ${pay === 'cash' ? 'selected' : ''}>현금</option></select>`;
+const expValue = (form) => Number(String(new FormData(form).get('amount') || '').replace(/[^0-9]/g, ''));
+const cashTotal = () => store.get('cashYen', state.trip.guides.find((g) => g.costs)?.cash?.yen || 0);
+const cashSpent = () => expenses().filter((e) => e.pay === 'cash' && e.orig?.cur !== 'KRW').reduce((a, e) => a + e.amount, 0);
+function openExpEdit(id) {
+  const e = expenses().find((x) => x.id === id);
+  if (!e) return;
+  $('#sheet-body').innerHTML = `
+    <div class="sheet-head"><h3>지출 수정</h3></div>
+    <form class="exp-edit exp-form" data-id="${esc(id)}">
+      <input class="input" name="amount" inputmode="numeric" pattern="[0-9]*" value="${e.orig?.value || e.amount}" autocomplete="off" required aria-label="금액">
+      ${expPick(e.orig?.cur || 'JPY', e.pay || 'card')}
+      <select class="input" name="cat" aria-label="분류">${EXP_CATS.map((c) => `<option ${c === e.cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
+      <input class="input exp-wide" name="memo" placeholder="메모" value="${esc(e.memo)}" autocomplete="off">
+      <button class="btn primary exp-wide" type="submit">저장</button>
+      <button class="btn exp-wide" type="button" data-exp-del="${esc(id)}">삭제</button>
+    </form>`;
+  $('#sheet').hidden = false;
 }
 function expRow(e) {
   return `
     <div class="exp-row">
       <span class="exp-cat">${esc(e.cat)}</span>
-      <span class="grow"><b>${esc(e.memo || e.cat)}</b><small>${esc(shortDate(e.date))} · ${esc(person(e.by))}</small></span>
-      <span class="exp-amt"><b>${yen(e.amount)}</b><small>${won(e.amount)}</small></span>
+      <button type="button" class="exp-open" data-exp-edit="${esc(e.id)}">
+        <span class="grow"><b>${esc(e.memo || e.cat)}</b><small>${esc([shortDate(e.date), person(e.by), e.pay ? { cash: '현금', card: '카드' }[e.pay] : ''].filter(Boolean).join(' · '))}</small></span>
+        <span class="exp-amt">${e.orig?.cur === 'KRW' ? `<b>${e.orig.value.toLocaleString('ko-KR')}원</b><small>${yen(e.amount)}</small>` : `<b>${yen(e.amount)}</b><small>${won(e.amount)}</small>`}</span>
+      </button>
       <button type="button" class="ck-del" data-exp-del="${esc(e.id)}" aria-label="삭제">${icon('x')}</button>
     </div>`;
 }
 const expForm = (item = null, memo = '', cat = '식당') => `
   <form class="exp-form" data-exp-item="${esc(item || '')}">
-    <input class="input" name="amount" inputmode="numeric" pattern="[0-9]*" placeholder="금액 (엔)" autocomplete="off" required>
+    <input class="input" name="amount" inputmode="numeric" pattern="[0-9]*" placeholder="금액" autocomplete="off" required>
+    ${expPick()}
+    <select class="input" name="cat" aria-label="분류">${EXP_CATS.map((c) => `<option ${c === cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
     <input class="input" name="memo" placeholder="메모" value="${esc(memo)}" autocomplete="off">
-    <select class="input" name="cat">${EXP_CATS.map((c) => `<option ${c === cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
     <button class="btn primary" type="submit">${icon('plus')}기록</button>
   </form>`;
 
@@ -515,7 +544,7 @@ function expenseSection() {
   // Costs matter most before leaving, the spending log once the trip starts.
   const view = state.expView || (tokyoNow().date < state.trip.trip.start ? 'cost' : 'spent');
   return `
-    <div class="section-title" id="exp"><span>경비</span><button class="fx-pill" data-fx aria-label="환율 계산기 열기"><i>¥</i><span class="fx-pill-t">${esc(rate)}</span><i class="chev"></i></button></div>
+    <div class="section-title" id="exp">${secIcon('money')}<span>경비</span><button class="fx-pill" data-fx aria-label="환율 계산기 열기"><i>¥</i><span class="fx-pill-t">${esc(rate)}</span><i class="chev"></i></button></div>
     <div class="card exp">
       <div class="exp-tabs" role="tablist">
         <button class="seg ${view === 'spent' ? 'on' : ''}" data-exp-view="spent" role="tab" aria-selected="${view === 'spent'}">내 지출</button>
@@ -528,6 +557,7 @@ function expenseSection() {
         <div class="small muted exp-budget">예산 ${yen(budget)} (약 ${manwon(budget)}) 중 ${pct}% 사용 (쇼핑 제외) · 남은 돈 ${yen(Math.max(0, budget - used))}
           <button class="link" data-budget>예산 바꾸기</button></div>` : ''}
       <div class="small muted exp-budget">현지 예상 ${span(costLocal(guide), yen)} 중 ${yen(used)} 사용</div>
+      <div class="cash-left"><span>엔화 현금 남음</span><b>${yen(Math.max(0, cashTotal() - cashSpent()))}</b><small>환전 ${yen(cashTotal())} 중 ${yen(cashSpent())} 사용</small><button class="link" data-cash>환전액 바꾸기</button></div>
       ${expForm()}
       ${list.length ? `<div class="exp-list">${list.map(expRow).join('')}</div>` : '<div class="small muted exp-empty">아직 기록이 없어요. 일정을 눌러서도 기록할 수 있어요.</div>'}`}
     </div>`;
@@ -635,8 +665,12 @@ async function importSync(file) {
       const mine = store.get(k, []);
       const ids = new Set(mine.map((x) => x.id));
       const extra = (v || []).filter((x) => !ids.has(x.id));
-      const merged = [...mine, ...extra].filter((x) => !tomb[`${k}:${x.id}`]);
-      if (extra.length || merged.length !== mine.length) { store.set(k, merged, Math.max(t, meta[k] || 0)); records += extra.length; }
+      const theirs = new Map((v || []).map((x) => [x.id, x]));
+      const updated = mine.map((x) => ((theirs.get(x.id)?.at || 0) > (x.at || 0) ? theirs.get(x.id) : x));
+      const edits = updated.filter((x, i) => x !== mine[i]).length;
+      records += edits;
+      const merged = [...updated, ...extra].filter((x) => !tomb[`${k}:${x.id}`]);
+      if (extra.length || edits || merged.length !== mine.length) { store.set(k, merged, Math.max(t, meta[k] || 0)); records += extra.length; }
     } else if (t > (meta[k] || 0) || (isTyped(k) && v && !store.get(k, ''))) { store.set(k, v, Math.max(t, 1)); records += 1; }
   }
   for (const k of MERGED_LISTS) {
@@ -939,7 +973,7 @@ const ICONS = {
   'copy': '<path d="M216,40V168H168V88H88V40Z" class="d"/><path d="M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z"/>',
   'sound': '<path d="M80,88v80H32a8,8,0,0,1-8-8V96a8,8,0,0,1,8-8Z" class="d"/><path d="M155.51,24.81a8,8,0,0,0-8.42.88L77.25,80H32A16,16,0,0,0,16,96v64a16,16,0,0,0,16,16H77.25l69.84,54.31A8,8,0,0,0,160,224V32A8,8,0,0,0,155.51,24.81ZM32,96H72v64H32ZM144,207.64,88,164.09V91.91l56-43.55Zm54-106.08a40,40,0,0,1,0,52.88,8,8,0,0,1-12-10.58,24,24,0,0,0,0-31.72,8,8,0,0,1,12-10.58ZM248,128a79.9,79.9,0,0,1-20.37,53.34,8,8,0,0,1-11.92-10.67,64,64,0,0,0,0-85.33,8,8,0,1,1,11.92-10.67A79.83,79.83,0,0,1,248,128Z"/>',
   'home': '<path d="M216,120v96H152V152H104v64H40V120a8,8,0,0,1,2.34-5.66l80-80a8,8,0,0,1,11.32,0l80,80A8,8,0,0,1,216,120Z" class="d"/><path d="M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z"/>',
-  'plus': '<path d="M216,56V200a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V56A16,16,0,0,1,56,40H200A16,16,0,0,1,216,56Z" class="d"/><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/>',
+  'plus': '<path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/>',
   'swap': '<path d="M208,80v96H48V80Z" class="d"/><path d="M213.66,181.66l-32,32a8,8,0,0,1-11.32-11.32L188.69,184H48a8,8,0,0,1,0-16H188.69l-18.35-18.34a8,8,0,0,1,11.32-11.32l32,32A8,8,0,0,1,213.66,181.66Zm-139.32-64a8,8,0,0,0,11.32-11.32L67.31,88H208a8,8,0,0,0,0-16H67.31L85.66,53.66A8,8,0,0,0,74.34,42.34l-32,32a8,8,0,0,0,0,11.32Z"/>',
   'refresh': '<path d="M216,128a88,88,0,1,1-88-88A88,88,0,0,1,216,128Z" class="d"/><path d="M224,48V96a8,8,0,0,1-8,8H168a8,8,0,0,1,0-16h28.69L182.06,73.37a79.56,79.56,0,0,0-56.13-23.43h-.45A79.52,79.52,0,0,0,69.59,72.71,8,8,0,0,1,58.41,61.27a96,96,0,0,1,135,.79L208,76.69V48a8,8,0,0,1,16,0ZM186.41,183.29a80,80,0,0,1-112.47-.66L59.31,168H88a8,8,0,0,0,0-16H40a8,8,0,0,0-8,8v48a8,8,0,0,0,16,0V179.31l14.63,14.63A95.43,95.43,0,0,0,130,222.06h.53a95.36,95.36,0,0,0,67.07-27.33,8,8,0,0,0-11.18-11.44Z"/>',
   'check': '<path d="M232,56V200a16,16,0,0,1-16,16H40a16,16,0,0,1-16-16V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56Z" class="d"/><path d="M205.66,85.66l-96,96a8,8,0,0,1-11.32,0l-40-40a8,8,0,0,1,11.32-11.32L104,164.69l90.34-90.35a8,8,0,0,1,11.32,11.32Z"/>',
@@ -966,6 +1000,8 @@ const GLYPHS = {
 };
 const glyph = (emoji) => (GLYPHS[String(emoji || '').replace(/\uFE0F/g, '')] || 'pin see').split(' ');
 const itemIcon = (emoji, cls = '') => { const [name, kind] = glyph(emoji); return `<span class="ii ${kind} ${cls}">${icon(name)}</span>`; };
+// Reservation tab headings share their icon with the shortcut that jumps to them.
+const secIcon = (name) => `<span class="ii sm sec">${icon(name)}</span>`;
 const stripEmoji = (s) => String(s || '').replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '');
 const wxIcon = (name) => icon(name, 'wxi ' + name);
 const icon = (name, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">${ICONS[name] || ''}</svg>`;
@@ -979,8 +1015,8 @@ function flightRoute(now) {
   const end = toMin(f.arrive);
   const before = now.date < f.date || (now.date === f.date && now.min < start);
   const after = now.date > f.date || (now.date === f.date && now.min >= end);
-  const at = before ? 8 : after ? 92 : 8 + ((now.min - start) / (end - start)) * 84;
-  return `<div class="route" style="--at:${at}%"><b>${esc(f.from)}</b><i></i><b>${esc(f.to)}</b></div>`;
+  const at = before ? 0 : after ? 100 : ((now.min - start) / (end - start)) * 100;
+  return `<div class="route ${after ? 'arrived' : ''}" style="--at:${at}%"><b>${esc(f.from)}</b><i></i><b>${esc(f.to)}</b></div>`;
 }
 
 function renderToday() {
@@ -1006,7 +1042,6 @@ function renderToday() {
         <div class="hero-meta">준비 ${list.length - todo.length} / ${list.length}</div>
       </div>
       ${todoCard(now.date, '지금 할 일', 5)}
-      <button class="btn wide alarm-btn" data-alarm-sheet>${icon('ext')}일정 알림 받기</button>
       <div class="quick four">
         <button data-go="check"><b>${todo.length}</b><span>남은 준비</span></button>
         <button data-go="wallet"><b>${icon('ext')}</b><span>예약 확인</span></button>
@@ -1032,15 +1067,16 @@ function renderToday() {
   const next = upcoming[0];
   setHeader(`${dayIdx + 1}일차 · ${dayLabel(day.date)}`, stripEmoji(day.title), `일몰 ${day.sunset} · ${items.length}개 일정`);
 
-  const back = state.trip.flights[1];
-  let html = `
+  const back = flights[1];
+  const flightDay = now.date === flights[0].date || now.date === back.date;
+  const f = now.date === back.date ? back : flights[0];
+  let html = lateCard(items, now);
+  if (flightDay) html += `
     <div class="hero route-hero">
       ${flightRoute(now)}
-      <div class="hero-meta">${now.date === flights[0].date ? `${esc(flights[0].no)} · ${esc(flights[0].depart)} 출발 · ${esc(flights[0].arrive)} 도착` : `귀국 ${esc(dayLabel(back.date))} ${esc(back.depart)} · ${esc(back.no)}`}</div>
+      <div class="hero-meta">${esc(f.no)} · ${esc(f.depart)} 출발 · ${esc(f.arrive)} 도착</div>
     </div>`;
   html += wxCard(day.date, now);
-  html += leaveCard(items, now);
-  html += lateCard(items, now);
   html += todoCard(now.date, '오늘 할 일', 3);
   if (current) html += heroCard(current, 'now', now);
   if (next) html += heroCard(next, 'next', now);
@@ -1099,24 +1135,21 @@ function openAlarms() {
 }
 
 // Countdown to when we must walk out the door for the next fixed-time stop.
-function leaveCard(items, now) {
-  const it = items.find((x) => x.hard && !isDone(x.id) && now.min >= x.startMin - (x.lead || 0) - 30 && now.min < x.startMin);
-  if (!it) return '';
-  const leave = it.startMin - (it.lead || 0);
-  const left = leave - now.min;
-  return `
-    <div class="leave ${left <= 15 ? 'urgent' : ''}">
-      <div class="leave-main">
-        <b>${left > 0 ? `${formatLeft(left)} 뒤 출발` : left === 0 ? '지금 출발하세요' : `출발 시간 ${formatLeft(-left)} 지남`}</b>
-        <span>${esc(it.title)} · ${clock(leave)}까지 출발 · ${esc(it.start)} 시작</span>
-      </div>
-      <button class="btn" data-done="${esc(it.id)}">${icon('check')}방문 완료</button>
-    </div>`;
+// The finish word fits the stop: you visit a restaurant, arrive at an airport, and simply finish an errand.
+function doneLabel(it) {
+  if (it.swap) return '방문 완료';
+  if (/라운지/.test(it.title)) return '방문 완료';
+  if (/환전|수령|체크인|체크아웃|짐|대기 등록|조식|휴식|위탁/.test(it.title)) return '완료';
+  if (it.icon === '✈️') return /도착$/.test(it.title) ? '도착 완료' : '탑승 완료';
+  if (/→|복귀/.test(it.title) || ['🚌', '🚄', '🚇', '🚝', '🚃'].includes(it.icon)) return '도착 완료';
+  return '방문 완료';
 }
 
 // One line for the most pressing stop still not marked done, so a forgotten tap doesn't pile up warnings.
 function lateCard(items, now) {
-  const late = items.filter((it) => lateness(it, now));
+  // Only the stop in progress can be late: once a later stop is done or due, the trip has moved on.
+  const lastDone = items.map((it) => isDone(it.id)).lastIndexOf(true);
+  const late = items.filter((it, i) => i > lastDone && lateness(it, now) && !(items[i + 1]?.startMin <= now.min));
   if (!late.length) return '';
   const it = late.find((x) => x.hard) || late[late.length - 1];
   const info = lateness(it, now);
@@ -1124,9 +1157,9 @@ function lateCard(items, now) {
     <div class="leave late ${info.hard ? 'urgent' : ''}">
       <div class="leave-main">
         <b>${info.hard ? `${formatLeft(info.over)} 지연` : '시간 지남'} · ${esc(it.title)}</b>
-        <span>끝났으면 방문 완료를 눌러 주세요${late.length > 1 ? ` · 외 ${late.length - 1}개` : ''}</span>
+        <span>끝났으면 눌러 주세요${late.length > 1 ? ` · 외 ${late.length - 1}개` : ''}</span>
       </div>
-      <button class="btn" data-done="${esc(it.id)}">${icon('check')}방문 완료</button>
+      <button class="btn" data-done="${esc(it.id)}">${icon('check')}${doneLabel(it)}</button>
     </div>`;
 }
 
@@ -1136,21 +1169,27 @@ function heroCard(it, kind, now) {
     : 0;
   const label = kind === 'now' ? `지금 · ${it.endMin - now.min}분 남음` : `다음 · ${formatLeft(it.startMin - now.min)} 후`;
   return `
-    <div class="hero ${kind}">
+    <div class="hero ${kind}" data-item="${esc(it.id)}" role="button" tabindex="0">
       <div class="hero-sun"></div>
-      <div class="eyebrow"><i class="pulse"></i>${esc(label)}</div>
-      <div class="hero-time">${esc(it.start)}${it.end ? ' — ' + esc(it.end) : ''}${heroWx(it)}</div>
-      <div class="hero-head">${itemIcon(it.icon, 'lg')}<div class="hero-title">${esc(it.title)}</div></div>
-      ${it.place && it.place.lang !== 'ko' ? `<div class="hero-ja ja">${esc(it.place.nameJa)}</div>` : ''}
-      ${it.note ? `<div class="hero-note">${esc(it.note)}</div>` : ''}
-      ${chipsHtml(chipsFor(it, now))}
+      <div class="hero-bar">
+        <div class="eyebrow"><i class="pulse"></i>${esc(label)}${tagFor(it)}</div>
+        <div class="hero-time">${esc(it.start)}${it.end ? '–' + esc(it.end) : ''}</div>
+      </div>
+      <div class="hero-head">
+        ${itemIcon(it.icon, 'lg')}
+        <div class="hero-body">
+          <div class="hero-title">${esc(it.title)}</div>
+          ${it.place && it.place.lang !== 'ko' ? `<div class="hero-ja ja">${esc(it.place.nameJa)}</div>` : ''}
+          ${it.note || wxFor(it) ? `<div class="hero-note">${heroWx(it)}${esc(it.note || '')}</div>` : ''}
+        </div>
+        <i class="chev" aria-label="자세히"></i>
+      </div>
+      ${chipsHtml(chipsFor(it, now).filter(noTag))}
       ${kind === 'now' ? `<div class="meter"><i style="width:${progress}%"></i></div>` : ''}
       ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
-      <div class="btns">
-        ${it.place?.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', 'primary wide') : ''}
-        ${it.place && it.place.lang !== 'ko' ? `${navBtn(it.id, '구글맵 길찾기')}<button class="btn ghost" data-ja="${esc(it.id)}">${icon('ja')}일본어</button>` : ''}
-        <button class="btn ghost wide" data-item="${esc(it.id)}">${sceneOf(it) ? '자세히 · 현지 회화' : '자세히'}</button>
-      </div>
+      ${it.place ? `<div class="btns">
+        ${it.place.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', 'primary wide') : `${navBtn(it.id, '구글맵 길찾기')}<button class="btn ghost" data-ja="${esc(it.id)}">${icon('ja')}일본어</button>`}
+      </div>` : ''}
     </div>`;
 }
 function heroWx(it) {
@@ -1223,6 +1262,7 @@ function renderDays() {
       <button class="btn" data-day-share>${icon('ext')}일정 공유</button>
     </div>
     ${timeline(dayItems(day), now)}
+    <button class="btn wide alarm-btn" data-alarm-sheet>${icon('ext')}일정 알림 받기</button>
   `;
 }
 
@@ -1315,19 +1355,20 @@ function renderWallet() {
   setHeader('', '예약·여행정보', `${dayLabel(trip.start)} ~ ${dayLabel(trip.end)} · ${trip.travelers}명`);
   return `
     ${walletTabs('wallet')}
+    <nav class="wallet-nav" aria-label="바로가기">${[['exp', '경비', 'money'], ['w-air', '항공', 'plane'], ['w-road', '공항 가는 길', 'bus'], ['w-stay', '숙소', 'bed'], ['w-secret', '예약번호', 'id'], ['w-docs', '바우처', 'ticket'], ['w-sos', '긴급', 'phone'], ['w-guide', '안내', 'checklist']].map(([k, l, ic]) => `<button data-jump="${k}">${icon(ic)}${l}</button>`).join('')}</nav>
     ${syncCard()}
     ${expenseSection()}
-    <div class="section-title"><span>항공</span></div>
+    <div class="section-title" id="w-air">${secIcon('plane')}<span>항공</span></div>
     ${flights.map(boardingPass).join('')}
     <div class="btns solo">
       <a class="btn" href="${esc(links.jejuair.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(links.jejuair.label)}</a>
       <button class="btn" data-doc-view="doc-eticket">${icon('plane')}e-티켓 사진</button>
     </div>
 
-    <div class="section-title"><span>공항 가는 길</span></div>
+    <div class="section-title" id="w-road">${secIcon('bus')}<span>공항 가는 길</span></div>
     ${state.trip.transfers.map(transferPass).join('')}
 
-    <div class="section-title"><span>숙소 · ${esc(stay.bookedVia)}</span></div>
+    <div class="section-title" id="w-stay">${secIcon('bed')}<span>숙소 · ${esc(stay.bookedVia)}</span></div>
     <div class="stay">
       <div class="stay-head">
         <div class="grow">
@@ -1359,7 +1400,7 @@ function renderWallet() {
       </details>
     </div>
 
-    <div class="section-title"><span>예약번호 · 링크</span><em class="muted">폰에만 저장, 동기화로 공유</em></div>
+    <div class="section-title" id="w-secret">${secIcon('id')}<span>예약번호 · 링크</span><em class="muted">폰에만 저장, 동기화로 공유</em></div>
     <div class="card">
       ${SECRETS.map((s) => `
         <label class="field">
@@ -1373,7 +1414,7 @@ function renderWallet() {
         </label>`).join('')}
     </div>
 
-    <div class="section-title"><span>바우처·자료</span><button class="title-add" data-doc-new>${icon('plus')}추가</button></div>
+    <div class="section-title" id="w-docs">${secIcon('ticket')}<span>바우처·자료</span><button class="title-add" data-doc-new>${icon('plus')}추가</button></div>
     <div class="docs">
       ${allDocs().map((s) => `
         <div class="doc" data-doc="${esc(s.id)}">
@@ -1386,26 +1427,18 @@ function renderWallet() {
         </div>`).join('')}
     </div>
 
-    <div class="section-title"><span>긴급 연락처</span></div>
+    <div class="section-title" id="w-sos">${secIcon('phone')}<span>긴급 연락처</span></div>
     <div class="card">
       ${(state.trip.emergency || []).map((e) => `
         <a class="sos-row" href="tel:${esc(e.tel.replace(/-/g, ''))}">
           <span class="grow"><b>${esc(e.label)}</b>${e.note ? `<small>${esc(e.note)}</small>` : ''}</span>
           <span class="sos-tel">${icon('phone')}${esc(e.tel)}</span>
         </a>`).join('')}
-      ${SOS_FIELDS.map((s) => `
-        <label class="field">
-          <span>${esc(s.label)}</span>
-          <div class="field-row">
-            <input class="input mono" data-secret="${s.key}" type="tel" autocomplete="off" value="${esc(store.get(s.key, ''))}" placeholder="${esc(s.placeholder)}">
-            <button class="icon-btn" data-call="${s.key}" aria-label="전화 걸기">${icon('phone')}</button>
-          </div>
-        </label>`).join('')}
       <button class="btn wide sos-hotel" data-ja="__stay">${icon('ja')}호텔 주소 크게 보기</button>
     </div>
 
-    ${guides.filter((g) => !g.costs).map((g) => `
-      <div class="section-title">${itemIcon(g.icon, 'sm')}<span>${esc(g.title)}</span></div>
+    ${guides.filter((g) => !g.costs).map((g, i) => `
+      <div class="section-title" ${i ? '' : 'id="w-guide"'}>${itemIcon(g.icon, 'sm sec')}<span>${esc(g.title)}</span></div>
       <div class="card"><ul class="plain">${g.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>`).join('')}
   `;
 }
@@ -1755,7 +1788,7 @@ function openPlace(id) {
     ${p.r || !p.src ? infoCard({ info: placeInfo(p) }) : ''}
     ${state.swapFor ? `<div class="btns"><button class="btn primary wide" data-item-swap="${esc(id)}">이 일정을 여기로 변경</button></div>` : ''}
     <div class="btns">
-      <a class="btn ${p.src && !p.lat ? 'wide' : ''}" href="${esc(mapUrl)}" target="_blank" rel="noopener">${icon('ext')}${p.src && !p.lat ? '구글지도에서 찾기' : '구글지도'}</a>
+      <a class="btn ${p.src && !p.lat ? 'wide' : ''}" href="${esc(mapUrl)}" target="_blank" rel="noopener">${icon('pin')}${p.src && !p.lat ? '구글지도에서 찾기' : '구글지도'}</a>
       ${p.src && !p.lat ? '' : `<a class="btn primary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat ? `${p.lat},${p.lng}` : q}&travelmode=transit" target="_blank" rel="noopener">${icon('nav')}길찾기</a>`}
       <button class="btn" data-place-save="${esc(id)}">${isSaved(id) ? '♥ 저장됨' : '♡ 저장'}</button>
       <button class="btn" data-place-visit="${esc(id)}">${v ? `${icon('check')}방문함` : '방문 표시'}</button>
@@ -1935,12 +1968,13 @@ function openFinish(id) {
   const next = nextStop(it);
   $('#sheet-body').innerHTML = `
     ${placeHero(p)}
-    <div class="eyebrow dark">방문 완료</div>
+    <div class="eyebrow dark">${doneLabel(it)}</div>
     <div class="sheet-head"><h3>${esc(p?.name || stripEmoji(it.title).split(' · ').pop())}</h3></div>
     <form class="finish" data-exp-item="${esc(id)}">
       ${money ? `
         <label class="finish-label" for="finish-amount">쓴 돈${spent.length ? ` · ${yen(spent.reduce((a, e) => a + e.amount, 0))}` : ''}</label>
         <input class="input" id="finish-amount" name="amount" inputmode="numeric" pattern="[0-9]*" placeholder="${spent.length ? '추가 금액 (엔)' : '금액 (엔)'}" autocomplete="off">
+        <div class="finish-pay">${expPick()}</div>
         ${spent.map(expRow).join('')}` : ''}
       ${p ? `
         <div class="finish-label">또 갈래요?</div>
@@ -2133,10 +2167,14 @@ function openItem(id) {
   const summary = [AGAIN[v?.again], spent ? yen(spent) : '', v?.memo].filter(Boolean).join(' · ');
   $('#sheet-body').innerHTML = `
     ${placeHero(place)}
-    <div class="eyebrow dark">${esc(dayLabel(it.date))} · ${esc(it.start)}${it.end ? ' — ' + esc(it.end) : ''}</div>
-    <div class="sheet-head">${itemIcon(it.icon, 'lg')}<h3>${esc(it.title)}</h3></div>
-    ${it.place ? `<div class="ja muted">${esc(it.place.nameJa)}</div>` : ''}
-    ${chipsHtml(chipsFor(it, now))}
+    <div class="sheet-head item-head">
+      ${itemIcon(it.icon, 'lg')}
+      <div class="grow">
+        <h3>${esc(it.title)}</h3>
+        ${it.place ? `<div class="ja muted small">${esc(it.place.nameJa)}</div>` : ''}
+        <div class="item-when">${esc(dayLabel(it.date))} · ${esc(it.start)}${it.end ? '–' + esc(it.end) : ''}${tagFor(it)}${chipsFor(it, now).filter(noTag).map(chipTag).join('')}</div>
+      </div>
+    </div>
     ${it.docs ? `<div class="section-title"><span>여기서 쓸 바우처</span></div><div class="btns">${docBtns(it, 'btn wide')}</div>` : ''}
     ${it.link ? `<div class="section-title"><span>${esc(it.link.title || '위치 안내')}</span></div><div class="btns"><a class="btn wide" href="${esc(/Android/i.test(navigator.userAgent) && it.link.android || it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
     <div class="btns">
@@ -2145,12 +2183,12 @@ function openItem(id) {
     </div>
     ${it.place && it.place.lang !== 'ko' ? `
       <div class="sheet-tools two">
-        <a class="tool" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}" target="_blank" rel="noopener">${icon('ext')}구글지도</a>
+        <a class="tool" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}" target="_blank" rel="noopener">${icon('pin')}구글지도</a>
         <button class="tool" data-ja="${esc(it.id)}">${icon('ja')}보여주기</button>
       </div>` : ''}
     ${sceneOf(it) ? talkCard(sceneOf(it), it.id) : ''}
     <div class="state-seg" role="group" aria-label="일정 상태">
-      <button class="seg ${done ? 'on' : ''}" data-done="${esc(it.id)}" aria-pressed="${done}"><i class="check-box"></i>방문 완료</button>
+      <button class="seg ${done ? 'on' : ''}" data-done="${esc(it.id)}" aria-pressed="${done}"><i class="check-box"></i>${doneLabel(it)}</button>
       ${mine ? '' : `<button class="seg ${it.skip ? 'on' : ''}" data-item-skip="${esc(it.id)}" aria-pressed="${!!it.skip}">${icon('skip')}건너뛰기</button>`}
       <button class="seg" data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button>
       ${mine ? `<button class="seg" data-item-del="${esc(it.id)}">${icon('x')}일정 삭제</button>` : ''}
@@ -2162,7 +2200,7 @@ function openItem(id) {
     ${it.swap ? `<div class="btns"><button class="btn wide" data-item-unswap="${esc(it.id)}">${icon('refresh')}원래 일정으로 되돌리기</button></div>` : ''}
     ${infoCard(hasAlts ? { ...it, info: { ...it.info, alt: null } } : it)}
     ${altCard(it)}
-    ${it.rainPlan ? `<div class="card note"><b class="note-h">${icon('umbrella')}비 올 때</b><div class="small">${esc(it.rainPlan)}</div></div>` : ''}`;
+    ${it.rainPlan ? `<div class="card note" id="item-rain"><b class="note-h">${icon('umbrella')}비 올 때</b><div class="small">${esc(it.rainPlan)}</div></div>` : ''}`;
   $('#sheet').hidden = false;
 }
 const closeSheet = () => { $('#sheet').hidden = true; };
@@ -2181,12 +2219,13 @@ const JA_ASKS = [
   { label: '길 물을 때', ja: 'ここへ行きたいです。', read: '코코에 이키타이데스', ko: '여기에 가고 싶어요' },
   { label: '택시 탈 때', ja: 'ここまでお願いします。', read: '코코마데 오네가이시마스', ko: '여기까지 가 주세요' },
 ];
-function showPlaceJa(name, sub, on) {
+function showPlaceJa(name, sub, on, ko = '') {
   const ask = JA_ASKS[on];
-  state.jaPlace = { name, sub };
+  state.jaPlace = { name, sub, ko };
   $('#bigja-body').innerHTML = `
     <div class="ja-asks">${JA_ASKS.map((a, i) => `<button class="${i === on ? 'on' : ''}" data-ja-ask="${i}">${a.label}</button>`).join('')}</div>
     <div class="ja ja-name">${esc(name)}</div>
+    ${ko && ko !== name ? `<div class="ja-place-ko">${esc(ko)}</div>` : ''}
     ${sub ? `<div class="ja ja-addr">${esc(sub)}</div>` : ''}
     <div class="ja ja-say">${esc(ask.ja)}</div>
     <div class="ja-read">${esc(ask.read)}</div>
@@ -2198,10 +2237,11 @@ function showPlaceJa(name, sub, on) {
 function openJa(id) {
   if (id === '__stay') {
     const { stay } = state.trip;
-    return showPlaceJa(stay.nameJa, `${stay.address}\n${stay.phone.replace('+81-', '0')}`, 1);
+    return showPlaceJa(stay.nameJa, `${stay.address}\n${stay.phone.replace('+81-', '0')}`, 1, stay.name);
   }
-  const place = findItem(id)?.place;
-  if (place) showPlaceJa(place.nameJa, place.query !== place.nameJa ? place.query : '', 0);
+  const it = findItem(id);
+  const place = it?.place;
+  if (place) showPlaceJa(place.nameJa, place.query !== place.nameJa ? place.query : '', 0, placeOfItem(id)?.name || stripEmoji(it.title));
 }
 
 // ---------- shell ----------
@@ -2224,7 +2264,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 100;
+const APP_VERSION = 111;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2253,6 +2293,7 @@ function render() {
   const views = { today: renderToday, days: renderDays, explore: renderExplore, wallet: renderWallet, talk: renderTalk, check: renderCheck };
   $('#view').innerHTML = views[state.tab]() + versionLine();
   $('#top-add').hidden = state.tab !== 'explore';
+  document.documentElement.style.setProperty('--top-h', `${$('.top').offsetHeight}px`);
   $('#top-logo').hidden = state.tab !== 'today';
   $('.top').classList.toggle('has-logo', state.tab === 'today');
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === (state.tab === 'check' ? 'wallet' : state.tab))));
@@ -2284,9 +2325,9 @@ async function copy(key) {
 }
 
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
-  + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-call],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
+  + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -2299,7 +2340,7 @@ document.addEventListener('click', async (e) => {
   else if (d.nav) navigate(d.nav);
   else if ('intro' in d) playIntro();
   else if (d.ja) openJa(d.ja);
-  else if (d.jaAsk) showPlaceJa(state.jaPlace.name, state.jaPlace.sub, Number(d.jaAsk));
+  else if (d.jaAsk) showPlaceJa(state.jaPlace.name, state.jaPlace.sub, Number(d.jaAsk), state.jaPlace.ko);
   else if (d.item) openItem(d.item);
   else if (d.check) {
     const c = checklist().find((x) => x.id === d.check);
@@ -2332,10 +2373,6 @@ document.addEventListener('click', async (e) => {
   else if (d.copyText) {
     try { await navigator.clipboard.writeText(d.copyText); toast('복사했어요 · Safari 주소창에 붙여넣으세요'); }
     catch { toast('복사하지 못했어요'); }
-  }
-  else if (d.call) {
-    const tel = store.get(d.call, '').replace(/[^0-9+]/g, '');
-    if (tel) location.href = `tel:${tel}`; else toast('먼저 번호를 입력해 주세요.');
   }
   else if (d.openSecret) {
     const url = store.get(d.openSecret, '');
@@ -2444,13 +2481,22 @@ document.addEventListener('click', async (e) => {
     phraseStep[card.dataset.scene] = Number(d.phraseStep);
     card.outerHTML = talkCard(card.dataset.scene, card.dataset.id);
   }
+  else if (d.expEdit) openExpEdit(d.expEdit);
+  else if ('cash' in d) {
+    const v = prompt('환전한 엔화 금액', String(cashTotal()));
+    if (v !== null) { store.set('cashYen', Number(v.replace(/[^0-9]/g, '')) || 0); render(); }
+  }
+  else if (d.jump) $(`#${d.jump}`)?.scrollIntoView({ block: 'start' });
   else if (d.expView) { state.expView = d.expView; render(); }
   else if ('goExp' in d) { state.expView = 'spent'; go('wallet'); $('#exp')?.scrollIntoView({ block: 'start' }); scrollBy(0, -100); }
   else if (d.expDel) {
     if (!confirm('이 지출 기록을 삭제할까요?')) return;
     forget('exp:' + d.expDel);
     store.set('exp', expenses().filter((x) => x.id !== d.expDel));
-    if ($('#sheet').hidden) render(); else { const id = $('#sheet-body [data-exp-item]')?.dataset.expItem; render(); if (id) openFinish(id); }
+    const finishing = $('#sheet').hidden ? null : $('#sheet-body [data-exp-item]')?.dataset.expItem;
+    if ($('.exp-edit')) closeSheet();
+    render();
+    if (finishing) openFinish(finishing);
   }
   else if ('budget' in d) {
     const v = prompt('예산 (엔, 쇼핑 제외)', String(store.get('budget', state.trip.budget?.yen || 0)));
@@ -2508,6 +2554,32 @@ document.addEventListener('touchend', (e) => {
   window.scrollTo(0, 0);
 }, { passive: true });
 
+// While a popup is open the page behind it stays put. iPhone can still drag the page, so touches that
+// would not scroll something inside the popup are stopped too.
+const OVERLAYS = ['#sheet', '#bigja', '#viewer'];
+const overlayOpen = () => OVERLAYS.some((s) => !$(s).hidden);
+const lockPage = () => document.documentElement.classList.toggle('locked', overlayOpen());
+const lockObserver = new MutationObserver(lockPage);
+OVERLAYS.forEach((s) => lockObserver.observe($(s), { attributes: true, attributeFilter: ['hidden'] }));
+// Each popup starts at its top; redrawing the same one (a ticked step, a saved rating) stays where it was.
+const sheetTop = () => { $('.sheet-panel').scrollTop = 0; };
+let sheetKey = '';
+new MutationObserver(() => { if (!$('#sheet').hidden) sheetTop(); }).observe($('#sheet'), { attributes: true, attributeFilter: ['hidden'] });
+new MutationObserver(() => {
+  const key = $('#sheet-body h3')?.textContent || '';
+  if (key !== sheetKey) sheetTop();
+  sheetKey = key;
+}).observe($('#sheet-body'), { childList: true });
+document.addEventListener('touchmove', (e) => {
+  if (!overlayOpen() || e.touches.length > 1) return;
+  for (let el = e.target; el && el !== document.body; el = el.parentElement) {
+    if (el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1) continue;
+    const { overflowX, overflowY } = getComputedStyle(el);
+    if (/auto|scroll/.test(overflowX + overflowY)) return;
+  }
+  e.preventDefault();
+}, { passive: false });
+
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (!$('#bigja').hidden) $('[data-close-ja]').click();
@@ -2515,24 +2587,37 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('submit', (e) => {
+  if (e.target.classList.contains('exp-edit')) {
+    e.preventDefault();
+    const value = expValue(e.target);
+    if (!value) return toast('금액을 입력해 주세요.');
+    const f = new FormData(e.target);
+    store.set('exp', expenses().map((x) => (x.id === e.target.dataset.id
+      ? { ...x, ...expAmount(value, f.get('cur')), pay: f.get('pay'), cat: f.get('cat'), memo: String(f.get('memo') || '').trim(), at: Date.now() }
+      : x)));
+    closeSheet();
+    render();
+    return toast('수정했어요');
+  }
   if (e.target.classList.contains('exp-form')) {
     e.preventDefault();
     const f = new FormData(e.target);
-    const amount = Number(String(f.get('amount')).replace(/[^0-9]/g, ''));
-    if (!amount) return toast('금액을 엔으로 입력해 주세요.');
+    const value = expValue(e.target);
+    if (!value) return toast('금액을 입력해 주세요.');
     const item = e.target.dataset.expItem || null;
-    addExpense({ amount, memo: String(f.get('memo') || '').trim(), cat: f.get('cat'), item, date: item ? findItem(item)?.date : undefined });
-    toast(`${yen(amount)} (${won(amount)}) 기록했어요`);
+    addExpense({ value, cur: f.get('cur'), pay: f.get('pay'), memo: String(f.get('memo') || '').trim(), cat: f.get('cat'), item, date: item ? findItem(item)?.date : undefined });
+    toast('지출을 기록했어요');
     render();
     return;
   }
   if (e.target.classList.contains('finish')) {
     e.preventDefault();
     const it = findItem(e.target.dataset.expItem);
-    const amount = Number(String(new FormData(e.target).get('amount') || '').replace(/[^0-9]/g, ''));
-    if (amount) {
-      addExpense({ amount, memo: stripEmoji(it.title).split(' · ').pop(), cat: SCENE_CAT[sceneOf(it)] || '기타', item: it.id, date: it.date });
-      toast(`${yen(amount)} (${won(amount)}) 기록했어요`);
+    const value = expValue(e.target);
+    if (value) {
+      const f = new FormData(e.target);
+      addExpense({ value, cur: f.get('cur'), pay: f.get('pay'), memo: stripEmoji(it.title).split(' · ').pop(), cat: SCENE_CAT[sceneOf(it)] || '기타', item: it.id, date: it.date });
+      toast('지출을 기록했어요');
     }
     render();
     const next = nextStop(it);

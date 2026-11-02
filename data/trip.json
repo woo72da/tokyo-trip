@@ -1313,7 +1313,7 @@
         {
           "id": "d4-pfs",
           "start": "16:10",
-          "end": "16:50",
+          "end": "16:45",
           "title": "P.F.S. PARTS CENTER",
           "icon": "🛍",
           "place": {
@@ -1341,9 +1341,36 @@
           }
         },
         {
+          "id": "d4-maunaloa",
+          "start": "16:55",
+          "end": "17:25",
+          "title": "Maunaloa 에비스 본점 · 훌라샵",
+          "icon": "🛍",
+          "place": {
+            "nameJa": "Maunaloa 恵比寿本店",
+            "query": "Maunaloa 恵比寿本店"
+          },
+          "note": "에비스 1-15-6 Oak2 1층 · 에비스역 근처 · 17:25엔 역으로 · 03-6456-2270",
+          "info": {
+            "kind": "shop",
+            "r": 4.2,
+            "n": "35",
+            "hours": "매일 10:30~18:30",
+            "best": [
+              "훌라 의상",
+              "하와이안 소품",
+              "티셔츠"
+            ],
+            "tips": [
+              "카드 결제 가능 리뷰",
+              "계절이 바뀔 때 세일 품목이 많다는 리뷰"
+            ]
+          }
+        },
+        {
           "id": "d4-hoseki",
-          "start": "17:10",
-          "end": "18:20",
+          "start": "17:45",
+          "end": "18:50",
           "title": "호세키히로바 시부야 본점",
           "icon": "⌚",
           "priority": "must",
@@ -1371,8 +1398,8 @@
         },
         {
           "id": "d4-dinner",
-          "start": "18:30",
-          "end": "19:30",
+          "start": "19:00",
+          "end": "20:00",
           "title": "저녁 · 몬자 쿠우야 시부야",
           "icon": "🍽",
           "meal": true,
@@ -1419,8 +1446,8 @@
         },
         {
           "id": "d4-to-nakameguro",
-          "start": "19:30",
-          "end": "19:50",
+          "start": "20:00",
+          "end": "20:20",
           "title": "도큐 도요코선 → 나카메구로",
           "icon": "🚃",
           "place": {
@@ -1431,8 +1458,8 @@
         },
         {
           "id": "d4-roastery",
-          "start": "19:50",
-          "end": "21:00",
+          "start": "20:20",
+          "end": "21:20",
           "title": "스타벅스 리저브 로스터리 도쿄",
           "icon": "☕",
           "priority": "must",
@@ -1481,7 +1508,7 @@
         },
         {
           "id": "d4-back",
-          "start": "21:00",
+          "start": "21:20",
           "title": "히비야선 → 나카오카치마치 (환승 없음)",
           "icon": "🚇",
           "place": {
@@ -3831,6 +3858,17 @@
       ],
       "itemId": "d4-pfs",
       "photo": "https://lh3.googleusercontent.com/gps-cs-s/ANWiy9STghImNO02CFbUTSvRtiR21YaPdjyWdvHoe0irGrpqyCH81INk872GkqePSJ6O_C7GvlnX8EGz5s4nY6svz2ATmgOKM8VGYXODqzJsFqOn537lF6TW1EbQmJNUHZO3i4RJlcjh-eI_8su9"
+    },
+    {
+      "id": "maunaloa",
+      "name": "Maunaloa 에비스 본점",
+      "cat": "shop",
+      "area": "나카메구로·에비스",
+      "lat": 35.6475143,
+      "lng": 139.7121215,
+      "o": "10:30-18:30",
+      "itemId": "d4-maunaloa",
+      "photo": "https://lh3.googleusercontent.com/grass-cs/AABkmLcJCvRC4q3sWy_EVGMf818acJSVreqNb072H6FYTT15W3rceplXu6fH9dQgGgC0nlhhKqSvZTijJ8UwDRyqu9Ne5dP3jucoCcdssTQ0I5-CPzzcqnFFnZ8sqZHxC8nE_pGFAPsPfW-T66iY"
     },
     {
       "id": "ebipota",
