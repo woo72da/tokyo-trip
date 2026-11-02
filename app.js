@@ -28,7 +28,7 @@ const store = {
   },
 };
 // What the sync carries: checks, done marks, own checklist items, added document sets, booking numbers, links, expenses, budget.
-const isShared = (key) => /^(ck|done|visit|save|edit|seal):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'cashYen', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
+const isShared = (key) => /^(ck|done|visit|save|edit|seal|start):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'cashYen', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
 // Deleted list entries and photos are remembered so a sync doesn't bring them back.
 // Ids stay unique across both phones even when two records are made in the same millisecond.
 const uid = (prefix) => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -435,6 +435,16 @@ const fxWhen = (t) => new Date(t).toLocaleString('ko-KR', { month: 'numeric', da
 const FX_SIGN = { yen: '¥', won: '₩' };
 const money = (dir, n) => `${FX_SIGN[dir]}${Math.round(n).toLocaleString('ko-KR')}`;
 
+// Amount fields take digits only and group thousands as they are typed; the caret stays after the same digit.
+const commas = (v) => String(v).replace(/\D/g, '').replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+$)/g, ',');
+function formatAmount(field) {
+  const digits = field.value.slice(0, field.selectionStart).replace(/\D/g, '').length;
+  field.value = commas(field.value);
+  let at = 0;
+  for (let seen = 0; seen < digits && at < field.value.length; at += 1) if (/\d/.test(field.value[at])) seen += 1;
+  field.setSelectionRange(at, at);
+}
+
 function fxCalc() {
   const f = state.fxCalc;
   const n = Number(String(f.value).replace(/[^0-9.]/g, '')) || 0;
@@ -458,15 +468,15 @@ function openFx() {
   const f = state.fxCalc;
   const from = FX_SIGN[f.dir];
   $('#sheet-body').innerHTML = `
-    <div class="sheet-head">${itemIcon('💴', 'lg')}<h3>환율 계산기</h3></div>
+    <div class="sheet-head"><span class="ii lg yen">¥</span><h3>환율 계산기</h3></div>
     <div class="fx">
-      <div class="talk-dir"><b>${f.dir === 'yen' ? '일본 엔' : '한국 원'}</b>
+      <div class="talk-dir"><b>${f.dir === 'yen' ? '일본 엔 (¥)' : '한국 원 (₩)'}</b>
         <button class="icon-btn" data-fx-swap aria-label="방향 바꾸기">${icon('swap')}</button>
-        <b>${f.dir === 'yen' ? '한국 원' : '일본 엔'}</b></div>
+        <b>${f.dir === 'yen' ? '한국 원 (₩)' : '일본 엔 (¥)'}</b></div>
       <div class="fx-field">
-        <input id="fx-in" class="fx-in" inputmode="decimal" autocomplete="off" placeholder="0" value="${esc(f.value)}">
+        <input id="fx-in" class="fx-in amount" inputmode="numeric" autocomplete="off" placeholder="0" value="${esc(commas(f.value))}">
         <span class="fx-unit">${from}</span>
-        <button class="talk-clear fx-clear" data-fx-clear aria-label="지우기">${icon('x')}</button>
+        <button class="talk-clear fx-clear" data-fx-clear>지우기</button>
       </div>
       <div class="fx-res"><b id="fx-out">0</b><small id="fx-sub"></small></div>
       <div class="fx-quick">${FX_QUICK[f.dir].map((v) => `<button data-fx-set="${v}">+${money(f.dir, v)}</button>`).join('')}</div>
@@ -478,6 +488,8 @@ function openFx() {
     <div class="btns"><button class="btn primary wide" data-fx-log>${icon('plus')}이 금액 지출로 기록</button></div>`;
   $('#sheet').hidden = false;
   updateFx();
+  $('#fx-in').focus();
+  $('#fx-in').select();
   loadFx(true);
 }
 
@@ -502,7 +514,7 @@ function openExpEdit(id) {
   $('#sheet-body').innerHTML = `
     <div class="sheet-head"><h3>지출 수정</h3></div>
     <form class="exp-edit exp-form" data-id="${esc(id)}">
-      <input class="input" name="amount" inputmode="numeric" pattern="[0-9]*" value="${e.orig?.value || e.amount}" autocomplete="off" required aria-label="금액">
+      <input class="input amount" name="amount" inputmode="numeric" value="${commas(e.orig?.value || e.amount)}" autocomplete="off" required aria-label="금액">
       ${expPick(e.orig?.cur || 'JPY', e.pay || 'card')}
       <select class="input" name="cat" aria-label="분류">${EXP_CATS.map((c) => `<option ${c === e.cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
       <input class="input exp-wide" name="memo" placeholder="메모" value="${esc(e.memo)}" autocomplete="off">
@@ -524,7 +536,7 @@ function expRow(e) {
 }
 const expForm = (item = null, memo = '', cat = '식당') => `
   <form class="exp-form" data-exp-item="${esc(item || '')}">
-    <input class="input" name="amount" inputmode="numeric" pattern="[0-9]*" placeholder="금액" autocomplete="off" required>
+    <input class="input amount" name="amount" inputmode="numeric" placeholder="금액" autocomplete="off" required>
     ${expPick()}
     <select class="input" name="cat" aria-label="분류">${EXP_CATS.map((c) => `<option ${c === cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
     <input class="input" name="memo" placeholder="메모" value="${esc(memo)}" autocomplete="off">
@@ -919,6 +931,8 @@ function toast(msg, href, label) {
 // The 20% layer (class "d") takes the category tint.
 const ICONS = {
   'heart': '<path d="M178,32c-20.65,0-38.73,8.88-50,23.89C116.73,40.88,98.65,32,78,32A62.07,62.07,0,0,0,16,94c0,70,103.79,126.66,108.21,129a8,8,0,0,0,7.58,0C136.21,220.66,240,164,240,94A62.07,62.07,0,0,0,178,32ZM128,206.8C109.74,196.16,32,147.69,32,94A46.06,46.06,0,0,1,78,48c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46C224,147.61,146.24,196.15,128,206.8Z"/>',
+  'image': '<path d="M224,56V178.06l-39.72-39.72a8,8,0,0,0-11.31,0L147.31,164,97.66,114.34a8,8,0,0,0-11.32,0L32,168.69V56a8,8,0,0,1,8-8H216A8,8,0,0,1,224,56Z" class="d"/><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z"/>',
+  'route': '<g fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><circle cx="60" cy="196" r="28"/><circle cx="196" cy="60" r="28"/><path d="M88 196H164a36 36 0 0 0 0-72H92a32 32 0 0 1 0-64H168"/></g>',
   'camera': '<path d="M208,64H176L160,40H96L80,64H48A16,16,0,0,0,32,80V192a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V80A16,16,0,0,0,208,64Z" class="d"/><path d="M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.71,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.43l13.63,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z"/>',
   'mic': '<path d="M168,64v64a40,40,0,0,1-80,0V64a40,40,0,0,1,80,0Z" class="d"/><path d="M128,176a48.05,48.05,0,0,0,48-48V64a48,48,0,0,0-96,0v64A48.05,48.05,0,0,0,128,176ZM96,64a32,32,0,0,1,64,0v64a32,32,0,0,1-64,0Zm40,143.6V232a8,8,0,0,1-16,0V207.6A80.11,80.11,0,0,1,48,128a8,8,0,0,1,16,0,64,64,0,0,0,128,0,8,8,0,0,1,16,0A80.11,80.11,0,0,1,136,207.6Z"/>',
   'talk': '<path d="M148,32h60a24,24,0,0,1,24,24v36a24,24,0,0,1-24,24H184l-28,22V116h-8a24,24,0,0,1-24-24V56A24,24,0,0,1,148,32Z" class="d"/><path d="M148,32h60a24,24,0,0,1,24,24v36a24,24,0,0,1-24,24H184l-28,22V116h-8a24,24,0,0,1-24-24V56A24,24,0,0,1,148,32Z" fill="none" stroke="currentColor" stroke-width="16" stroke-linejoin="round"/><circle cx="76" cy="132" r="32" fill="none" stroke="currentColor" stroke-width="16"/><path d="M16,224c6-30,31-48,60-48s54,18,60,48" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round"/>',
@@ -973,10 +987,10 @@ const ICONS = {
   'sound': '<path d="M80,88v80H32a8,8,0,0,1-8-8V96a8,8,0,0,1,8-8Z" class="d"/><path d="M155.51,24.81a8,8,0,0,0-8.42.88L77.25,80H32A16,16,0,0,0,16,96v64a16,16,0,0,0,16,16H77.25l69.84,54.31A8,8,0,0,0,160,224V32A8,8,0,0,0,155.51,24.81ZM32,96H72v64H32ZM144,207.64,88,164.09V91.91l56-43.55Zm54-106.08a40,40,0,0,1,0,52.88,8,8,0,0,1-12-10.58,24,24,0,0,0,0-31.72,8,8,0,0,1,12-10.58ZM248,128a79.9,79.9,0,0,1-20.37,53.34,8,8,0,0,1-11.92-10.67,64,64,0,0,0,0-85.33,8,8,0,1,1,11.92-10.67A79.83,79.83,0,0,1,248,128Z"/>',
   'home': '<path d="M216,120v96H152V152H104v64H40V120a8,8,0,0,1,2.34-5.66l80-80a8,8,0,0,1,11.32,0l80,80A8,8,0,0,1,216,120Z" class="d"/><path d="M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z"/>',
   'plus': '<path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/>',
-  'swap': '<path d="M208,80v96H48V80Z" class="d"/><path d="M213.66,181.66l-32,32a8,8,0,0,1-11.32-11.32L188.69,184H48a8,8,0,0,1,0-16H188.69l-18.35-18.34a8,8,0,0,1,11.32-11.32l32,32A8,8,0,0,1,213.66,181.66Zm-139.32-64a8,8,0,0,0,11.32-11.32L67.31,88H208a8,8,0,0,0,0-16H67.31L85.66,53.66A8,8,0,0,0,74.34,42.34l-32,32a8,8,0,0,0,0,11.32Z"/>',
+  'swap': '<path d="M213.66,181.66l-32,32a8,8,0,0,1-11.32-11.32L188.69,184H48a8,8,0,0,1,0-16H188.69l-18.35-18.34a8,8,0,0,1,11.32-11.32l32,32A8,8,0,0,1,213.66,181.66Zm-139.32-64a8,8,0,0,0,11.32-11.32L67.31,88H208a8,8,0,0,0,0-16H67.31L85.66,53.66A8,8,0,0,0,74.34,42.34l-32,32a8,8,0,0,0,0,11.32Z"/>',
   'refresh': '<path d="M216,128a88,88,0,1,1-88-88A88,88,0,0,1,216,128Z" class="d"/><path d="M224,48V96a8,8,0,0,1-8,8H168a8,8,0,0,1,0-16h28.69L182.06,73.37a79.56,79.56,0,0,0-56.13-23.43h-.45A79.52,79.52,0,0,0,69.59,72.71,8,8,0,0,1,58.41,61.27a96,96,0,0,1,135,.79L208,76.69V48a8,8,0,0,1,16,0ZM186.41,183.29a80,80,0,0,1-112.47-.66L59.31,168H88a8,8,0,0,0,0-16H40a8,8,0,0,0-8,8v48a8,8,0,0,0,16,0V179.31l14.63,14.63A95.43,95.43,0,0,0,130,222.06h.53a95.36,95.36,0,0,0,67.07-27.33,8,8,0,0,0-11.18-11.44Z"/>',
-  'check': '<path d="M232,56V200a16,16,0,0,1-16,16H40a16,16,0,0,1-16-16V56A16,16,0,0,1,40,40H216A16,16,0,0,1,232,56Z" class="d"/><path d="M205.66,85.66l-96,96a8,8,0,0,1-11.32,0l-40-40a8,8,0,0,1,11.32-11.32L104,164.69l90.34-90.35a8,8,0,0,1,11.32,11.32Z"/>',
-  'x': '<path d="M216,56V200a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V56A16,16,0,0,1,56,40H200A16,16,0,0,1,216,56Z" class="d"/><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/>',
+  'check': '<path d="M205.66,85.66l-96,96a8,8,0,0,1-11.32,0l-40-40a8,8,0,0,1,11.32-11.32L104,164.69l90.34-90.35a8,8,0,0,1,11.32,11.32Z"/>',
+  'x': '<path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/>',
   'pin': '<path d="M128,24a80,80,0,0,0-80,80c0,72,80,128,80,128s80-56,80-128A80,80,0,0,0,128,24Zm0,112a32,32,0,1,1,32-32A32,32,0,0,1,128,136Z" class="d"/><path d="M128,64a40,40,0,1,0,40,40A40,40,0,0,0,128,64Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,128Zm0-112a88.1,88.1,0,0,0-88,88c0,31.4,14.51,64.68,42,96.25a254.19,254.19,0,0,0,41.45,38.3,8,8,0,0,0,9.18,0A254.19,254.19,0,0,0,174,200.25c27.45-31.57,42-64.85,42-96.25A88.1,88.1,0,0,0,128,16Zm0,206c-16.53-13-72-60.75-72-118a72,72,0,0,1,144,0C200,161.23,144.53,209,128,222Z"/>',
   'ticket': '<path d="M200,128a32,32,0,0,0,32,32v32a8,8,0,0,1-8,8H96V56H224a8,8,0,0,1,8,8V96A32,32,0,0,0,200,128Z" class="d"/><path d="M232,104a8,8,0,0,0,8-8V64a16,16,0,0,0-16-16H32A16,16,0,0,0,16,64V96a8,8,0,0,0,8,8,24,24,0,0,1,0,48,8,8,0,0,0-8,8v32a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V160a8,8,0,0,0-8-8,24,24,0,0,1,0-48ZM32,167.2a40,40,0,0,0,0-78.4V64H88V192H32Zm192,0V192H104V64H224V88.8a40,40,0,0,0,0,78.4Z"/>',
   'calendar': '<path d="M216,48V88H40V48a8,8,0,0,1,8-8H208A8,8,0,0,1,216,48Z" class="d"/><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Zm-68-76a12,12,0,1,1-12-12A12,12,0,0,1,140,132Zm44,0a12,12,0,1,1-12-12A12,12,0,0,1,184,132ZM96,172a12,12,0,1,1-12-12A12,12,0,0,1,96,172Zm44,0a12,12,0,1,1-12-12A12,12,0,0,1,140,172Zm44,0a12,12,0,1,1-12-12A12,12,0,0,1,184,172Z"/>',
@@ -1109,7 +1123,9 @@ function renderToday() {
   const back = flights[1];
   const flightDay = now.date === flights[0].date || now.date === back.date;
   const f = now.date === back.date ? back : flights[0];
-  let html = lateCard(items, now) + updateBand();
+  // A stop waiting to be confirmed moves up with the alerts.
+  const askStart = current && !store.get('start:' + current.id, false);
+  let html = lateCard(items, now) + updateBand() + (askStart ? heroCard(current, 'now', now) : '');
   if (flightDay) html += `
     <div class="hero route-hero">
       ${flightRoute(now)}
@@ -1117,7 +1133,7 @@ function renderToday() {
     </div>`;
   html += wxCard(day.date, now);
   html += todoCard(now.date, '오늘 할 일', 3);
-  if (current) html += heroCard(current, 'now', now);
+  if (current && !askStart) html += heroCard(current, 'now', now);
   if (next) html += heroCard(next, 'next', now);
   if (!current && !next) html += dayEndCard(dayIdx, items);
   html += `
@@ -1206,9 +1222,14 @@ function heroCard(it, kind, now) {
   const progress = kind === 'now'
     ? Math.max(0, Math.min(100, ((now.min - it.startMin) / (it.endMin - it.startMin)) * 100))
     : 0;
-  const label = kind === 'now' ? `지금 · ${it.endMin - now.min}분 남음` : `다음 · ${formatLeft(it.startMin - now.min)} 후`;
+  // Past its start time, a stop asks whether it really began; the trip may be running behind.
+  const waiting = kind === 'now' && !store.get('start:' + it.id, false);
+  const passed = now.min - it.startMin;
+  const label = waiting
+    ? (passed ? `시작 시간 ${formatLeft(passed)} 지남` : '시작 시간이에요')
+    : kind === 'now' ? `지금 · ${it.endMin - now.min}분 남음` : `다음 · ${formatLeft(it.startMin - now.min)} 후`;
   return `
-    <div class="hero ${kind}" data-item="${esc(it.id)}" role="button" tabindex="0">
+    <div class="hero ${kind} ${waiting ? 'wait' : ''}" data-item="${esc(it.id)}" role="button" tabindex="0">
       <div class="hero-sun"></div>
       <div class="hero-bar">
         <div class="eyebrow"><i class="pulse"></i>${esc(label)}${tagFor(it)}</div>
@@ -1224,7 +1245,8 @@ function heroCard(it, kind, now) {
         <i class="chev" aria-label="자세히"></i>
       </div>
       ${chipsHtml(chipsFor(it, now).filter(noTag))}
-      ${kind === 'now' ? `<div class="meter"><i style="width:${progress}%"></i></div>` : ''}
+      ${waiting ? `<div class="start-ask"><span class="grow">시작했나요?</span><button class="start-yes" data-start="${esc(it.id)}">${icon('check')}시작했어요</button><button data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button></div>` : ''}
+      ${kind === 'now' && !waiting ? `<div class="meter"><i style="width:${progress}%"></i></div>` : ''}
       ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
       ${it.place ? `<div class="btns">
         ${it.place.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', 'primary wide') : `${navBtn(it.id, '구글맵 길찾기')}<button class="btn ghost" data-ja="${esc(it.id)}">${icon('ja')}일본어</button>`}
@@ -1242,7 +1264,7 @@ function gapLabel(it, next) {
   const a = next && !it.skip && !next.skip && placeOfItem(it.id);
   const b = a && placeOfItem(next.id);
   if (!b || a === b || !a.lat || !b.lat) return '';
-  return `<div class="tl-gap">다음 장소까지 ${distLabel(kmBetween(a, b))}</div>`;
+  return `<div class="tl-gap">${icon('route')}다음 장소까지 ${distLabel(kmBetween(a, b))}</div>`;
 }
 
 function timeline(items, now) {
@@ -1493,13 +1515,13 @@ function talkBox() {
       </div>
       <div class="talk-field">
         <textarea id="talk-text" class="talk-input" rows="3" placeholder="${state.talkDir === 'ko-ja' ? '번역할 말을 입력하세요' : '日本語を入力'}">${esc(store.get('talkText', ''))}</textarea>
-        <button class="talk-clear" data-talk-clear aria-label="모두 지우기" ${store.get('talkText', '') ? '' : 'hidden'}>${icon('x')}</button>
+        <button class="talk-clear" data-talk-clear ${store.get('talkText', '') ? '' : 'hidden'}>지우기</button>
       </div>
       <div class="btns">
-        <button class="btn primary" data-translate="google">Google 번역 앱</button>
-        <button class="btn papago" data-translate="papago">파파고 웹</button>
+        <button class="btn" data-translate="google"><i class="app-tile google">G</i>Google 번역</button>
+        <button class="btn" data-translate="papago"><i class="app-tile papago">P</i>파파고</button>
       </div>
-      <div class="small muted talk-hint">Google 번역은 앱에 문장이 바로 들어가요. 파파고는 웹에서 열려요.</div>
+      <div class="small muted talk-hint">Google은 앱에 문장이 바로 들어가고, 파파고는 웹으로 열려요.</div>
     </div>`;
 }
 
@@ -1727,7 +1749,10 @@ function renderExplore() {
   return `
     <div class="ex-cats">${EX_CATS.map(([k, label, ico]) => `<button class="seg ${f.cat === k ? 'on' : ''}" data-ex-cat="${k}">${icon(ico)}${label}</button>`).join('')}</div>
     ${f.cat === 'log' ? exploreLog(now) : `
-      <input class="input ex-search" id="ex-q" type="search" placeholder="이름·메뉴·품목 검색" value="${esc(f.q)}" autocomplete="off" enterkeyhint="search">
+      <div class="ex-field">
+        <input class="input ex-search" id="ex-q" type="search" placeholder="이름·메뉴·품목 검색" value="${esc(f.q)}" autocomplete="off" enterkeyhint="search">
+        <button class="talk-clear" data-ex-clear ${f.q ? '' : 'hidden'}>지우기</button>
+      </div>
       <div class="ex-line"><b>지역</b><div class="ex-row">${EX_AREAS.map((a) => `<button class="${f.area === a ? 'on' : ''}" data-ex-area="${esc(a)}">${esc(a)}</button>`).join('')}</div></div>
       <div class="ex-line"><b>조건</b><div class="ex-row ex-opts">${toggles.map(([k, label, ico]) => `<button class="${f[k] ? 'on' : ''}" data-ex-toggle="${k}" aria-pressed="${!!f[k]}">${icon(ico)}${label}</button>`).join('')}</div></div>
       <div id="ex-list">${exploreRows(list, now)}</div>
@@ -1841,8 +1866,8 @@ function openPlace(id) {
     ${v ? `<div class="rate-row">${rateBtns(id, v.again, 'place')}</div>` : ''}
     <textarea class="input place-memo" data-place-memo="${esc(id)}" rows="3" maxlength="300" placeholder="맛, 분위기, 다시 가고 싶은지 남겨 보세요">${esc(v?.memo || '')}</textarea>
     <div class="btns">
-      <button class="btn" data-doc-add="place-${esc(id)}">${icon('plus')}사진 추가</button>
-      <button class="btn" data-doc-view="place-${esc(id)}" ${hasPhoto ? '' : 'disabled'}>사진 보기</button>
+      <button class="btn" data-doc-add="place-${esc(id)}">${icon('camera')}사진 추가</button>
+      <button class="btn" data-doc-view="place-${esc(id)}" ${hasPhoto ? '' : 'disabled'}>${icon('image')}사진 보기</button>
     </div>`;
   $('#sheet').hidden = false;
 }
@@ -2014,7 +2039,7 @@ function openFinish(id) {
     <form class="finish" data-exp-item="${esc(id)}">
       ${money ? `
         <label class="finish-label" for="finish-amount">쓴 돈${spent.length ? ` · ${yen(spent.reduce((a, e) => a + e.amount, 0))}` : ''}</label>
-        <input class="input" id="finish-amount" name="amount" inputmode="numeric" pattern="[0-9]*" placeholder="${spent.length ? '추가 금액 (엔)' : '금액 (엔)'}" autocomplete="off">
+        <input class="input amount" id="finish-amount" name="amount" inputmode="numeric" placeholder="${spent.length ? '추가 금액 (엔)' : '금액 (엔)'}" autocomplete="off">
         <div class="finish-pay">${expPick()}</div>
         ${spent.map(expRow).join('')}` : ''}
       ${p ? `
@@ -2111,7 +2136,7 @@ function openDocNew() {
     <div class="sheet-head">${itemIcon('📎', 'lg')}<h3>바우처·자료 추가</h3></div>
     <label class="field"><span>제목</span>
       <input class="input" id="doc-title" maxlength="20" placeholder="예: 여행자보험 증권" autocomplete="off"></label>
-    <button class="btn primary doc-pick" data-doc-pick>${icon('plus')}사진 선택 (여러 장 가능)</button>`;
+    <button class="btn primary doc-pick" data-doc-pick>${icon('image')}사진 선택 (여러 장 가능)</button>`;
   $('#sheet').hidden = false;
 }
 
@@ -2305,7 +2330,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 118;
+const APP_VERSION = 129;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2380,8 +2405,8 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
-  + '[data-talk-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
+  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
   const el = e.target.closest(ACTIONS);
@@ -2440,6 +2465,7 @@ document.addEventListener('click', async (e) => {
   else if (d.docAdd) pickPhotos(d.docAdd);
   else if ('update' in d) updateApp();
   else if ('bandOff' in d) { state.bandOff = true; render(); }
+  else if (d.start) { store.set('start:' + d.start, true); render(); }
   else if (d.seal) {
     store.set('seal:' + d.seal, true);
     state.sealHit = d.seal;
@@ -2497,12 +2523,18 @@ document.addEventListener('click', async (e) => {
     const f = state.fxCalc; const { out } = fxCalc();
     f.value = out ? String(Math.round(out)) : ''; f.dir = f.dir === 'yen' ? 'won' : 'yen'; f.tax = false; openFx();
   }
+  else if ('exClear' in d) {
+    const input = $('#ex-q');
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+  }
   else if ('fxClear' in d) { state.fxCalc.value = ''; $('#fx-in').value = ''; updateFx(); $('#fx-in').focus(); }
   else if (d.fxSet) {
     // Each tap adds, so 5,000 + 1,000 + 500 builds 6,500 without typing.
     const f = state.fxCalc;
     f.value = String((Number(String(f.value).replace(/[^0-9.]/g, '')) || 0) + Number(d.fxSet));
-    $('#fx-in').value = f.value; updateFx();
+    $('#fx-in').value = commas(f.value); updateFx();
   }
   else if ('fxRefresh' in d) {
     if (state.fx) state.fx.at = 0;
@@ -2568,8 +2600,12 @@ document.addEventListener('click', async (e) => {
   else if ('syncPick' in d) $('#sync-file').click();
 });
 
+document.addEventListener('compositionend', (e) => {
+  if (e.target.classList?.contains('amount')) e.target.dispatchEvent(new Event('input', { bubbles: true }));
+});
 document.addEventListener('input', (e) => {
   const t = e.target;
+  if (t.classList.contains('amount') && !e.isComposing) formatAmount(t);
   if (t.dataset.placeMemo) {
     const id = t.dataset.placeMemo;
     const v = visitOf(id);
@@ -2584,6 +2620,7 @@ document.addEventListener('input', (e) => {
     state.ex.q = t.value;
     const now = tokyoNow();
     $('#ex-list').innerHTML = exploreRows(exploreList(now), now);
+    $('[data-ex-clear]').hidden = !t.value;
   }
   else if (t.id === 'talk-text') { store.set('talkText', t.value); $('.talk-clear').hidden = !t.value; }
 });
