@@ -313,8 +313,7 @@ function wxCard(date, now) {
     return state.wx ? '' : `<button class="wx wx-empty" data-wx-refresh>${wxIcon('wx-partly')}날씨를 불러오는 중이에요 · 탭해서 다시 시도</button>`;
   }
   const cur = now ? wxHour(date, now.min) : null;
-  const from = cur ? cur.hour : 8;
-  const strip = wxHours(date, from, cur ? Math.min(from + 11, 23) : 22);
+  const strip = wxHours(date, Math.min(cur?.hour ?? 8, 8), Math.max(cur?.hour ?? 22, 22));
   const tips = wxTips(date);
   return `
     <div class="wx">
@@ -328,7 +327,7 @@ function wxCard(date, now) {
       </div>
       ${chipsHtml(tips)}
       ${strip.length ? `<div class="wx-strip">${strip.map((h) => `
-        <div class="${h.pop >= 50 ? 'wet' : ''}"><small>${cur && h.hour === cur.hour ? '지금' : h.hour + '시'}</small><span>${wxIcon(h.icon)}</span><b>${h.temp}°</b><i>${h.pop >= 10 ? h.pop + '%' : ''}</i></div>`).join('')}
+        <div class="${[h.pop >= 50 ? 'wet' : '', cur && h.hour === cur.hour ? 'now' : ''].join(' ')}"><small>${cur && h.hour === cur.hour ? '지금' : h.hour + '시'}</small><span>${wxIcon(h.icon)}</span><b>${h.temp}°</b><i>${h.pop >= 10 ? h.pop + '%' : ''}</i></div>`).join('')}
       </div>` : ''}
     </div>`;
 }
@@ -2264,7 +2263,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 111;
+const APP_VERSION = 113;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2288,10 +2287,22 @@ async function updateApp() {
   location.reload();
 }
 
+// The hourly strip opens with the current hour first; a redraw in the same hour keeps where it was dragged to.
+function placeWxStrip(at) {
+  const strip = $('.wx-strip');
+  const cell = strip?.querySelector('.now');
+  if (!cell) return;
+  strip.scrollLeft = at ?? cell.getBoundingClientRect().left - strip.getBoundingClientRect().left - 16;
+}
+
 function render() {
   if (!state.trip) return;
   const views = { today: renderToday, days: renderDays, explore: renderExplore, wallet: renderWallet, talk: renderTalk, check: renderCheck };
+  const stripKey = `${state.tab}:${state.dayIndex}:${Math.floor(tokyoNow().min / 60)}`;
+  const stripAt = stripKey === state.stripKey ? $('.wx-strip')?.scrollLeft : null;
   $('#view').innerHTML = views[state.tab]() + versionLine();
+  state.stripKey = stripKey;
+  placeWxStrip(stripAt);
   $('#top-add').hidden = state.tab !== 'explore';
   document.documentElement.style.setProperty('--top-h', `${$('.top').offsetHeight}px`);
   $('#top-logo').hidden = state.tab !== 'today';
@@ -2570,6 +2581,43 @@ new MutationObserver(() => {
   if (key !== sheetKey) sheetTop();
   sheetKey = key;
 }).observe($('#sheet-body'), { childList: true });
+// With the popup at its top, pulling it down drags it along and closes it past a short distance or on a quick flick.
+const sheetPanel = $('.sheet-panel');
+let pull = null;
+sheetPanel.addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  const free = sheetPanel.scrollTop <= 0 && e.touches.length === 1 && !e.target.closest('input, textarea, select');
+  pull = free ? { x: t.clientX, y: t.clientY, at: Date.now(), dy: 0, on: false } : null;
+}, { passive: true });
+sheetPanel.addEventListener('touchmove', (e) => {
+  if (!pull) return;
+  const t = e.touches[0];
+  const dx = Math.abs(t.clientX - pull.x);
+  const dy = t.clientY - pull.y;
+  if (!pull.on) {
+    if (dx + Math.abs(dy) < 8) return;
+    if (dy <= 0 || dx > dy) { pull = null; return; }
+    pull.on = true;
+    sheetPanel.style.transition = 'none';
+  }
+  pull.dy = Math.max(0, dy);
+  sheetPanel.style.transform = `translateY(${pull.dy}px)`;
+  e.preventDefault();
+}, { passive: false });
+const endPull = () => {
+  if (!pull?.on) { pull = null; return; }
+  const { dy, at } = pull;
+  pull = null;
+  const close = dy > 110 || (dy > 40 && dy / (Date.now() - at) > 0.5);
+  sheetPanel.style.transition = 'transform .2s ease';
+  sheetPanel.style.transform = close ? 'translateY(100%)' : '';
+  setTimeout(() => {
+    if (close) closeSheet();
+    sheetPanel.style.transition = sheetPanel.style.transform = '';
+  }, 200);
+};
+sheetPanel.addEventListener('touchend', endPull);
+sheetPanel.addEventListener('touchcancel', endPull);
 document.addEventListener('touchmove', (e) => {
   if (!overlayOpen() || e.touches.length > 1) return;
   for (let el = e.target; el && el !== document.body; el = el.parentElement) {
