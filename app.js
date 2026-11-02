@@ -1473,6 +1473,7 @@ function openTalkSheet(id) {
   $('#sheet').hidden = false;
 }
 
+const SCENE_ICONS = { 기본: 'talk', 식당: 'meal', 카페: 'coffee', 쇼핑: 'shop', 교통: 'train', 호텔: 'bed', 공항: 'plane', 관광: 'torii', 긴급: 'warn' };
 function renderTalk() {
   const { phrases } = state.trip;
   setHeader('', '번역 · 회화', 'Google 번역 앱 · 파파고 웹');
@@ -1483,12 +1484,13 @@ function renderTalk() {
 
     ${nowPhrases()}
     <div class="section-title"><span>상황별 일본어</span><em class="muted">탭하면 크게 · 스피커로 발음</em></div>
-    <div class="scene-pick">${groups.map((g) => `<a href="#ph-${esc(g)}">${esc(g)}</a>`).join('')}</div>
+    <div class="scene-pick">${groups.map((g) => `<a href="#ph-${esc(g)}">${icon(SCENE_ICONS[g])}${esc(g)}</a>`).join('')}</div>
     ${groups.map((g) => `
-      <div class="phrase-group" id="ph-${esc(g)}">${esc(g)}</div>
+      <div class="phrase-group" id="ph-${esc(g)}">${secIcon(SCENE_ICONS[g])}${esc(g)}</div>
       <div class="card list">${phrasesFor(g).map(phraseRow).join('')}</div>`).join('')}
   `;
 }
+
 
 // During the trip, the talk tab opens with phrases for what is happening now (or next).
 function nowPhrases() {
@@ -2263,7 +2265,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 113;
+const APP_VERSION = 116;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
