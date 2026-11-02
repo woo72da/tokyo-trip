@@ -1018,6 +1018,19 @@ function flightRoute(now) {
   return `<div class="route ${after ? 'arrived' : ''}" style="--at:${at}%"><b>${esc(f.from)}</b><i></i><b>${esc(f.to)}</b></div>`;
 }
 
+// New version notice at the top of today; it pulses for its first three seconds, and closing it lasts until the app is reopened.
+function updateBand() {
+  if (!(state.latest > APP_VERSION) || state.bandOff) return '';
+  state.bandAt ||= Date.now();
+  const fresh = Date.now() - state.bandAt < 3000;
+  return `
+    <div class="update-band ${fresh ? 'fresh' : ''}">
+      <span class="grow">새 버전 v${state.latest}이 있어요</span>
+      <button class="band-go" data-update>지금 업데이트</button>
+      <button class="band-x" data-band-off aria-label="닫기">${icon('x')}</button>
+    </div>`;
+}
+
 function renderToday() {
   const now = tokyoNow();
   const { trip, days, flights } = state.trip;
@@ -1030,6 +1043,7 @@ function renderToday() {
     const f = flights[0];
     setHeader('', trip.title, `${dayLabel(trip.start)} 출발 · ${trip.travelers}명`);
     return `
+      ${updateBand()}
       <div class="hero countdown">
         <div class="hero-sun"></div>
         <div class="eyebrow">출발까지</div>
@@ -1069,7 +1083,7 @@ function renderToday() {
   const back = flights[1];
   const flightDay = now.date === flights[0].date || now.date === back.date;
   const f = now.date === back.date ? back : flights[0];
-  let html = lateCard(items, now);
+  let html = lateCard(items, now) + updateBand();
   if (flightDay) html += `
     <div class="hero route-hero">
       ${flightRoute(now)}
@@ -2265,7 +2279,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 116;
+const APP_VERSION = 117;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2340,7 +2354,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -2399,6 +2413,7 @@ document.addEventListener('click', async (e) => {
   }
   else if (d.docAdd) pickPhotos(d.docAdd);
   else if ('update' in d) updateApp();
+  else if ('bandOff' in d) { state.bandOff = true; render(); }
   else if ('alarmSheet' in d) openAlarms();
   else if ('placeNew' in d) openPlaceNew();
   else if ('placeCreate' in d) createPlace();

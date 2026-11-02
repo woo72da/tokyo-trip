@@ -739,6 +739,13 @@ ol.sync-note { padding-left: 18px; }
 .leave .btn { flex: none; min-height: 40px; padding: 0 12px; background: rgba(255,255,255,.9); color: #101216; }
 @keyframes leave-pulse { 50% { opacity: .65; } }
 @media (prefers-reduced-motion: reduce) { .leave.urgent { animation: none; } }
+.update-band { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 6px 4px 6px 14px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-size: 14px; font-weight: 700; }
+.update-band.fresh { animation: band-pulse 1s ease-in-out 3; }
+@keyframes band-pulse { 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .update-band.fresh { animation: none; } }
+.band-go { flex: none; min-height: 36px; padding: 0 12px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 700; }
+.band-x { flex: none; width: 36px; height: 40px; display: grid; place-items: center; }
+.band-x .ico { width: 14px; height: 14px; }
 .alarm-btn { margin: 10px 0; }
 .sos-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; }
 .sos-row b { display: block; font-size: 14px; font-weight: 700; }
