@@ -28,7 +28,7 @@ const store = {
   },
 };
 // What the sync carries: checks, done marks, own checklist items, added document sets, booking numbers, links, expenses, budget.
-const isShared = (key) => /^(ck|done|visit|save|edit):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'cashYen', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
+const isShared = (key) => /^(ck|done|visit|save|edit|seal):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'cashYen', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
 // Deleted list entries and photos are remembered so a sync doesn't bring them back.
 // Ids stay unique across both phones even when two records are made in the same millisecond.
 const uid = (prefix) => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -1031,6 +1031,32 @@ function updateBand() {
     </div>`;
 }
 
+// End of the day: a goshuin-style stamp to press, one per day, with the day's tally and tomorrow's first stop.
+function dayEndCard(dayIdx, items) {
+  const { days } = state.trip;
+  const { date } = days[dayIdx];
+  const last = dayIdx === days.length - 1;
+  const sealed = store.get('seal:' + date, false);
+  const hit = state.sealHit === date;
+  state.sealHit = null;
+  const visited = items.filter((it) => it.place && isDone(it.id)).length;
+  const spent = expenses().filter((e) => e.date === date).reduce((sum, e) => sum + e.amount, 0);
+  const tally = [visited ? `오늘 ${visited}곳` : '', spent ? `${yen(spent)} 사용` : ''].filter(Boolean).join(' · ');
+  const tomorrow = last ? null : dayItems(days[dayIdx + 1])[0];
+  return `
+    <div class="day-end">
+      <i class="moon"></i>${'<i class="star"></i>'.repeat(5)}
+      <div class="day-end-ja ja">お疲れさまでした</div>
+      <div class="day-end-ko">오츠카레사마데시타 · ${last ? '여행 내내 수고했어요' : '오늘도 수고했어요'}</div>
+      <button class="seal-slot" data-seal="${esc(date)}" aria-label="오늘 도장 찍기" ${sealed ? 'disabled' : ''}>
+        ${sealed ? `<span class="seal ${hit ? 'hit' : ''}">${last ? '여행' : `${dayIdx + 1}일차`}<br>완료</span>` : '눌러서 찍기'}
+      </button>
+      <div class="seal-days">${days.map((d, i) => `<span class="${store.get('seal:' + d.date, false) ? 'on' : ''}">${i + 1}</span>`).join('')}</div>
+      ${tally ? `<div class="day-end-sum">${esc(tally)}</div>` : ''}
+      <div class="day-end-next">${tomorrow ? `내일 첫 일정 ${esc(tomorrow.start)} ${esc(stripEmoji(tomorrow.title))}` : '도쿄 여행을 모두 마쳤어요'}</div>
+    </div>`;
+}
+
 function renderToday() {
   const now = tokyoNow();
   const { trip, days, flights } = state.trip;
@@ -1093,7 +1119,7 @@ function renderToday() {
   html += todoCard(now.date, '오늘 할 일', 3);
   if (current) html += heroCard(current, 'now', now);
   if (next) html += heroCard(next, 'next', now);
-  if (!current && !next) html += `<div class="card empty">오늘 일정이 모두 끝났어요. 푹 쉬세요.</div>`;
+  if (!current && !next) html += dayEndCard(dayIdx, items);
   html += `
     <div class="quick four">
       <button data-nav="__stay"><b>${icon('home')}</b><span>호텔로</span></button>
@@ -2279,7 +2305,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 117;
+const APP_VERSION = 118;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2354,7 +2380,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -2414,6 +2440,12 @@ document.addEventListener('click', async (e) => {
   else if (d.docAdd) pickPhotos(d.docAdd);
   else if ('update' in d) updateApp();
   else if ('bandOff' in d) { state.bandOff = true; render(); }
+  else if (d.seal) {
+    store.set('seal:' + d.seal, true);
+    state.sealHit = d.seal;
+    navigator.vibrate?.(30);
+    render();
+  }
   else if ('alarmSheet' in d) openAlarms();
   else if ('placeNew' in d) openPlaceNew();
   else if ('placeCreate' in d) createPlace();
