@@ -1169,3 +1169,16 @@ ol.alarm-note { padding-left: 18px; }
 .gear-other, .gear-note { margin-top: 8px; }
 .day-end-log { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; min-height: 40px; padding: 0 14px; border-radius: 12px; border: 0; background: rgba(255,255,255,.1); color: var(--on-night); font: inherit; font-size: 14px; font-weight: 700; }
 .day-end-log .ico { width: 15px; height: 15px; }
+
+/* Day picker: a finished day's date sits in a red ring, like the numbered rings under the day-end stamp. */
+.dp.done b { display: grid; place-items: center; width: 36px; height: 36px; margin-top: 2px; border-radius: 50%; border: 1.5px solid #d06a5d; color: #d06a5d; font-size: 20px; }
+.dp.done[aria-pressed="true"] b { color: #eeb3aa; border-color: #eeb3aa; }
+.dp.done.today b::after { display: none; }
+
+/* End of the day with stops still open. */
+.wrap-day { margin-bottom: 12px; padding: 14px 16px; border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow), inset 0 0 0 2px var(--gold); }
+.wrap-day b { display: block; font-size: 16px; font-weight: 800; }
+.wrap-day span { display: block; margin-top: 3px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.wrap-act { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.wrap-act .btn { min-height: 44px; font-size: 14px; }
+.wrap-act .ico { width: 16px; height: 16px; }

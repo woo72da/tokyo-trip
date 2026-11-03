@@ -1276,6 +1276,9 @@ function updateBand() {
     </div>`;
 }
 
+// Days already behind us count as done even without a stamp; the current day joins once it's stamped.
+const isDayDone = (date, today = tokyoNow().date) => date < today || store.get('seal:' + date, false);
+
 // End of the day: a goshuin-style stamp to press, one per day, with the day's tally and tomorrow's first stop.
 function dayEndCard(dayIdx, items) {
   const { days } = state.trip;
@@ -1296,7 +1299,7 @@ function dayEndCard(dayIdx, items) {
       <button class="seal-slot" data-seal="${esc(date)}" aria-label="오늘 도장 찍기" ${sealed ? 'disabled' : ''}>
         ${sealed ? `<span class="seal ${hit ? 'hit' : ''}">${last ? '여행' : `${dayIdx + 1}일차`}<br>완료</span>` : '눌러서 찍기'}
       </button>
-      <div class="seal-days">${days.map((d, i) => `<span class="${store.get('seal:' + d.date, false) ? 'on' : ''}">${i + 1}</span>`).join('')}</div>
+      <div class="seal-days">${days.map((d, i) => `<span class="${isDayDone(d.date, date) ? 'on' : ''}">${i + 1}</span>`).join('')}</div>
       ${tally ? `<div class="day-end-sum">${esc(tally)}</div>` : ''}
       <button class="day-end-log" data-day-sum="${dayIdx}">${icon('pen')}날씨·챙김 기록 남기기</button>
       <div class="day-end-next">${tomorrow ? `내일 첫 일정 ${esc(tomorrow.start)} ${esc(stripEmoji(tomorrow.title))}` : '도쿄 여행을 모두 마쳤어요'}</div>
@@ -1358,7 +1361,7 @@ function renderToday() {
   const f = now.date === back.date ? back : flights[0];
   // Stops piling up, or one waiting to be confirmed, move up with the alerts.
   const top = queue.length > 1 ? backlogCard(queue, items, now) : current && !started ? heroCard(current, 'now', now, false) : '';
-  let html = updateBand() + top + prepCard(day, items, now);
+  let html = updateBand() + (upcoming.length ? '' : wrapDayCard(queue)) + top + prepCard(day, items, now);
   if (flightDay) html += `
     <div class="hero route-hero">
       ${flightRoute(now)}
@@ -1457,9 +1460,25 @@ function backlogCard(queue, items, now) {
       ${catchBtn(head, items, now)}
     </div>`;
 }
+// Every stop's time has come and some are still open: close the day in one go, so the stamp card can show.
+function wrapDayCard(queue) {
+  if (!queue.length) return '';
+  const ids = queue.map((it) => it.id).join(',');
+  return `
+    <div class="wrap-day">
+      <div class="grow"><b>오늘 일정을 마무리할까요?</b><span>남은 ${queue.length}개를 한 번에 정리하면 오늘 도장을 찍을 수 있어요.</span></div>
+      <div class="wrap-act">
+        <button class="btn primary" data-wrap-day="done" data-ids="${esc(ids)}">${icon('check')}모두 완료</button>
+        <button class="btn" data-wrap-day="skip" data-ids="${esc(ids)}">${icon('skip')}건너뛰고 마무리</button>
+      </div>
+    </div>`;
+}
+
 // Running late, one tap opens the change with the knock-on moves worked out: start the stop now,
 // or give the stop under way 15 more minutes. Fixed stops can't start later.
 function catchBtn(it, items, now) {
+  // Once every stop's time has passed there's nothing left to push; the day gets wrapped up instead.
+  if (!items.some((x) => x.startMin > now.min)) return '';
   if (isStarted(it, items)) return now.min > it.endMin - 5 ? `<button class="catch-btn" data-catch="${esc(it.id)}">${icon('clock')}15분 더 · 뒤 일정 밀기</button>` : '';
   const late = now.min - it.startMin;
   return late >= 5 && !isFixed(it) ? `<button class="catch-btn" data-catch="${esc(it.id)}">${icon('clock')}지금부터 시작 · 뒤 일정 ${formatLeft(late)} 밀기</button>` : '';
@@ -1570,7 +1589,7 @@ function renderDays() {
   return `
     <div class="daypick" role="group" aria-label="날짜 선택">
       ${days.map((d, i) => `
-        <button class="dp ${d.date === now.date ? 'today' : ''}" data-day="${i}" aria-pressed="${i === state.dayIndex}">
+        <button class="dp ${d.date === now.date ? 'today' : ''} ${isDayDone(d.date, now.date) ? 'done' : ''}" data-day="${i}" aria-pressed="${i === state.dayIndex}" ${isDayDone(d.date, now.date) ? 'aria-label="완료한 날"' : ''}>
           <small>${i + 1}일차</small><b>${Number(d.date.slice(8))}</b><span>${WEEKDAYS[dowOf(d.date)]}</span>
           ${wxDay(d.date) ? `<span class="dp-wx">${wxIcon(wxDay(d.date).icon)}${wxDay(d.date).max}°</span>` : ''}
         </button>`).join('')}
@@ -2873,7 +2892,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 131;
+const APP_VERSION = 132;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2948,7 +2967,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-prep-done],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -3147,6 +3166,19 @@ document.addEventListener('click', async (e) => {
     const g = store.get(key, null) || {};
     store.set(key, { ...g, [k]: g[k] === v ? '' : v });
     el.parentElement.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === el && g[k] !== v));
+  }
+  else if (d.wrapDay) {
+    const ids = d.ids.split(',');
+    const before = ids.map((id) => [id, store.get('done:' + id, false), store.get('edit:' + id, null)]);
+    for (const id of ids) {
+      if (d.wrapDay === 'done') setDone(id, true);
+      else store.set('edit:' + id, { ...store.get('edit:' + id, null), skip: true });
+    }
+    render();
+    toast(d.wrapDay === 'done' ? `${ids.length}개를 완료했어요` : `${ids.length}개를 건너뛰었어요`, () => {
+      for (const [id, done, edit] of before) { setDone(id, done); store.set('edit:' + id, edit); }
+      render();
+    }, '되돌리기');
   }
   else if (d.prep) {
     const [date, k] = d.prep.split('|');
