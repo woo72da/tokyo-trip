@@ -28,7 +28,7 @@ const store = {
   },
 };
 // What the sync carries: checks, done marks, own checklist items, added document sets, booking numbers, links, expenses, budget.
-const isShared = (key) => /^(ck|done|visit|save|edit|seal|start):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'cashYen', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
+const isShared = (key) => /^(ck|done|visit|save|edit|seal|start|gear):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'cashYen', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
 // Deleted list entries and photos are remembered so a sync doesn't bring them back.
 // Ids stay unique across both phones even when two records are made in the same millisecond.
 const uid = (prefix) => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -126,16 +126,24 @@ const dayLabel = (date) => `${shortDate(date)} (${WEEKDAYS[dowOf(date)]})`;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = (sel) => document.querySelector(sel);
 
-// A day's stops as planned here: added stops included, with any time change or skip laid over the trip file.
-function effectiveItems(day) {
-  const added = store.get('myitems', []).filter((x) => x.date === day.date);
-  return [...day.items, ...added].map((it) => {
+// Every stop as planned on this phone: added stops included, with any change, move to another day,
+// skip or delete laid over the trip file. The trip file itself never changes, so each edit can be undone.
+function planItems() {
+  const base = [...state.trip.days.flatMap((d) => d.items.map((it) => ({ ...it, date: d.date }))), ...store.get('myitems', [])];
+  return base.map((it) => {
     const edit = store.get('edit:' + it.id, null);
     if (!edit) return it;
     const swapped = edit.swap && placeById(edit.swap);
     return swapped ? { ...it, ...swappedStop(it, swapped), ...edit } : { ...it, ...edit };
   });
 }
+const effectiveItems = (day, withDeleted = false) => planItems().filter((it) => it.date === day.date && (withDeleted || !it.del));
+const rawItem = (id) => state.trip.days.flatMap((d) => d.items.map((it) => ({ ...it, date: d.date }))).find((x) => x.id === id)
+  || store.get('myitems', []).find((x) => x.id === id);
+const dayOf = (date) => state.trip.days.find((d) => d.date === date);
+// Booked and boarding times can't move; a stop the user locked can't either.
+const isFixed = (it) => ('lock' in it ? !!it.lock : !!it.hard);
+const isMove = (it) => glyph(it.icon)[1] === 'move';
 // A stop moved to another place keeps its time; everything about the old place goes with it.
 const swappedStop = (it, p) => {
   const ja = p.verified?.name || p.name;
@@ -144,9 +152,7 @@ const swappedStop = (it, p) => {
     place: { nameJa: ja, query: ja }, note: `원래 일정: ${stripEmoji(it.title)}`,
   };
 };
-function allItems() {
-  return state.trip.days.flatMap((d) => effectiveItems(d).map((it) => ({ ...it, date: d.date })));
-}
+const allItems = () => planItems().filter((it) => !it.del);
 function findItem(id) {
   const it = allItems().find((x) => x.id === id);
   const added = it?.placeId && placeById(it.placeId);
@@ -177,19 +183,87 @@ function bookingNeeded(it) {
   return !(ck && isChecked(ck.id));
 }
 
-// Warning chips for an item on its date; `now` adds "closing soon" when it is today.
-// A must or fixed-time stop whose time has passed without being marked done, today only.
-function lateness(it, now) {
-  if (!now || now.date !== it.date || it.skip || isDone(it.id) || !(it.hard || it.priority === 'must')) return null;
-  const over = now.min - (it.hard ? it.startMin : it.endMin);
-  return over > 0 ? { hard: !!it.hard, over } : null;
+// ---------- running late ----------
+// A stop counts as begun once it is marked started, or once a shorter stop inside it (lunch inside Ginza) is.
+const isStarted = (it, items) => store.get('start:' + it.id, false)
+  || items.some((y) => y.startMin > it.startMin && y.startMin < it.endMin && (isDone(y.id) || store.get('start:' + y.id, false)));
+
+// Today's stops whose time has come but that aren't finished, in order: the first is the one we're on,
+// the rest are waiting behind it. Stops before the last one done or started drop out (the trip moved on),
+// unless they're long stops still running around it; such a long stop also waits quietly while one inside it runs.
+function dueQueue(items, now) {
+  const mark = items.reduce((m, it, i) => (isDone(it.id) || isStarted(it, items) ? i : m), -1);
+  const anchor = items[mark];
+  const open = items.filter((it, i) => !it.skip && !isDone(it.id) && it.startMin <= now.min
+    && (i >= mark || (it.endMin > anchor.startMin && now.min < it.endMin)));
+  return open.filter((x) => !(now.min < x.endMin && open.some((y) => y !== x && y.startMin > x.startMin && y.startMin < x.endMin)));
 }
+// How one of today's stops is running behind: `over` past its end, `late` to start, `wait` stuck behind another.
+function delayOf(it, now) {
+  if (!now || now.date !== it.date || it.skip || isDone(it.id)) return null;
+  const items = dayItems(dayOf(it.date)).filter((x) => !x.skip);
+  const queue = dueQueue(items, now);
+  const i = queue.findIndex((x) => x.id === it.id);
+  if (i < 0) return null;
+  if (i === 0 && isStarted(it, items)) return now.min > it.endMin ? { kind: 'over', min: now.min - it.endMin } : null;
+  const min = now.min - it.startMin;
+  return i === 0 && min < 10 ? null : { kind: i ? 'wait' : 'late', min };
+}
+const delayText = (d) => (d.kind === 'over' ? `${formatLeft(d.min)} 초과` : d.kind === 'late' ? `${formatLeft(d.min)} 늦음` : `밀림 · ${formatLeft(d.min)}`);
+
+// The knock-on changes when one stop takes [s, e] (idx -1: a new stop put in at s). Later stops keep their
+// lengths and the gaps between them; free time soaks up the push, a fixed stop is a wall nothing moves past,
+// and `cut` shortens stops by the given minutes. Pulling earlier only moves stops that follow straight on.
+function ripple(list, idx, s, e, cut = {}) {
+  const t = list[idx];
+  let push = t ? e - t.endMin : e - s;
+  let prevEnd = t ? t.endMin : s;
+  const changes = [];
+  const walls = [];
+  for (const it of t ? list.slice(idx + 1) : list.filter((x) => x.startMin >= s)) {
+    const gap = it.startMin - prevEnd;
+    prevEnd = Math.max(prevEnd, it.endMin);
+    if (gap > 0) push = push > 0 ? Math.max(0, push - gap) : 0;
+    if (isDone(it.id)) continue;
+    if (isFixed(it)) {
+      if (push > 0) walls.push({ it, over: push });
+      push = 0;
+      continue;
+    }
+    const c = cut[it.id] || 0;
+    if (!push && !c) continue;
+    const start = Math.min(1439, it.startMin + push);
+    changes.push({ it, start, end: Math.min(1439, start + it.endMin - it.startMin - c), cut: c });
+    push -= c;
+  }
+  return { changes, walls, push: t ? e - t.endMin : e - s };
+}
+// Minutes to take off the pushed stops ahead of the first wall so it fits: optional stops first, must-sees last,
+// never moves, and no stop below half its length or 20 minutes.
+function fitCuts(list, idx, s, e) {
+  const plan = ripple(list, idx, s, e);
+  const wall = plan.walls[0];
+  if (!wall) return null;
+  const before = plan.changes.filter((c) => c.it.startMin < wall.it.startMin && !isMove(c.it));
+  const tier = (it) => (it.priority === 'optional' ? 0 : it.priority === 'must' ? 2 : 1);
+  const cut = {};
+  let need = wall.over;
+  for (const c of [...before].sort((a, b) => tier(a.it) - tier(b.it))) {
+    const len = c.it.endMin - c.it.startMin;
+    const take = Math.min(need, Math.max(0, len - Math.max(20, Math.ceil(len / 2))));
+    if (take) { cut[c.it.id] = take; need -= take; }
+    if (!need) break;
+  }
+  return Object.keys(cut).length ? cut : null;
+}
+
 const clock = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
-function chipsFor(it, now) {
+// The hero says how late it is in its own words, so it leaves out the delay chip.
+function chipsFor(it, now, withDelay = true) {
   const chips = [];
-  const late = lateness(it, now);
-  if (late) chips.push(late.hard ? ['late', `${formatLeft(late.over)} 지연`] : ['warn', '시간 지남']);
+  const late = withDelay && delayOf(it, now);
+  if (late) chips.push([isFixed(it) ? 'late' : 'warn', delayText(late)]);
   if (it.priority === 'must') chips.push(['must', '필수']);
   if (it.priority === 'optional') chips.push(['', '선택']);
   if (it.booking?.required) chips.push(bookingNeeded(it) ? ['warn', '예약 필요'] : ['ok', '예약 완료']);
@@ -222,9 +296,11 @@ const chipsHtml = (chips) => chips.length
 
 // ---------- weather (Open-Meteo, no key; last forecast kept on this phone for offline) ----------
 const WX_URL = 'https://api.open-meteo.com/v1/forecast?latitude=35.69&longitude=139.75'
-  + '&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code'
-  + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max'
-  + '&timezone=Asia%2FTokyo&forecast_days=16';
+  + '&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,precipitation,uv_index,cloud_cover,wind_speed_10m'
+  + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max,precipitation_sum,sunshine_duration'
+  + '&timezone=Asia%2FTokyo&forecast_days=16&past_days=2';
+// Bumped when the fields asked for change, so an older saved forecast is fetched again.
+const WX_V = 2;
 const WX_TTL = 30 * 60 * 1000;
 // WMO weather codes: each entry covers codes from its number up to the next entry.
 const WMO = [[0, 'wx-sun', '맑음'], [1, 'wx-partly', '대체로 맑음'], [2, 'wx-partly', '구름 조금'], [3, 'wx-cloud', '흐림'], [45, 'wx-fog', '안개'],
@@ -235,13 +311,14 @@ const wmo = (code) => {
 };
 
 async function loadWeather(force = false) {
-  if (!force && state.wx && Date.now() - state.wx.at < WX_TTL) return;
+  if (!force && state.wx?.v === WX_V && Date.now() - state.wx.at < WX_TTL) return;
   try {
     const res = await fetch(WX_URL);
     if (!res.ok) throw new Error(String(res.status));
     const { hourly, daily } = await res.json();
-    state.wx = { at: Date.now(), hourly, daily };
+    state.wx = { v: WX_V, at: Date.now(), hourly, daily };
     store.set('wx', state.wx);
+    logWeather(state.wx);
     if (force) toast('날씨를 업데이트했어요');
     if ($('#sheet').hidden) render();
   } catch {
@@ -249,30 +326,34 @@ async function loadWeather(force = false) {
   }
 }
 
+// Each day the forecast covers is kept on this phone by date, so a past day (yesterday's weather,
+// a finished day's summary) stays readable after it drops out of the forecast, and offline.
+function logWeather({ hourly: h, daily: d }) {
+  const log = { ...(state.wxlog || {}) };
+  d.time.forEach((date, i) => {
+    const hrs = {};
+    h.time.forEach((t, j) => {
+      if (t.startsWith(date)) hrs[Number(t.slice(11, 13))] = [h.weather_code[j], h.temperature_2m[j], h.apparent_temperature[j], h.precipitation_probability?.[j], h.precipitation?.[j], h.uv_index?.[j], h.cloud_cover?.[j], h.wind_speed_10m?.[j]];
+    });
+    log[date] = { d: [d.weather_code[i], d.temperature_2m_max[i], d.temperature_2m_min[i], d.precipitation_probability_max[i], d.uv_index_max?.[i], d.precipitation_sum?.[i], d.sunshine_duration?.[i]], h: hrs };
+  });
+  state.wxlog = log;
+  store.set('wxlog', log);
+}
+
 function wxDay(date) {
-  const d = state.wx?.daily;
-  const i = d ? d.time.indexOf(date) : -1;
-  if (i < 0) return null;
-  return {
-    ...wmo(d.weather_code[i]),
-    max: Math.round(d.temperature_2m_max[i]),
-    min: Math.round(d.temperature_2m_min[i]),
-    pop: d.precipitation_probability_max[i] ?? 0,
-  };
+  const e = state.wxlog?.[date];
+  if (!e) return null;
+  const [code, max, min, pop, uv, rain, sun] = e.d;
+  return { ...wmo(code), code, max: Math.round(max), min: Math.round(min), pop: pop ?? 0, uv: uv ?? 0, rain: rain ?? 0, sun: sun ?? 0 };
 }
 
 function wxHour(date, min) {
-  const h = state.wx?.hourly;
   const hour = Math.floor(min / 60);
-  const i = h ? h.time.indexOf(`${date}T${String(hour).padStart(2, '0')}:00`) : -1;
-  if (i < 0) return null;
-  return {
-    ...wmo(h.weather_code[i]),
-    hour,
-    temp: Math.round(h.temperature_2m[i]),
-    feels: Math.round(h.apparent_temperature[i]),
-    pop: h.precipitation_probability[i] ?? 0,
-  };
+  const r = state.wxlog?.[date]?.h[hour];
+  if (!r || r[1] == null) return null;
+  const [code, temp, feels, pop, rain, uv, cloud, wind] = r;
+  return { ...wmo(code), code, hour, temp: Math.round(temp), feels: Math.round(feels), pop: pop ?? 0, rain: rain ?? 0, uv: uv ?? 0, cloud: cloud ?? 0, wind: wind ?? 0 };
 }
 const wxHours = (date, fromH, toH) =>
   Array.from({ length: toH - fromH + 1 }, (_, k) => wxHour(date, (fromH + k) * 60)).filter(Boolean);
@@ -287,7 +368,10 @@ function wxTips(date) {
   const tips = [];
   const wet = hrs.reduce((a, b) => (b.pop > a.pop ? b : a));
   const wetHours = hrs.filter((h) => h.pop >= 50).length;
-  if (wetHours >= 6) tips.push(['warn', `우산 필수 · 낮 내내 비 최대 ${wet.pop}%`, 'umbrella']);
+  // Drizzle under 0.5mm an hour only needs a folding umbrella.
+  const light = hrs.filter((h) => h.pop >= 50 || isWet(h)).every((h) => h.rain < 0.5);
+  if (light && wet.pop >= 30) tips.push(['', `접이식 우산 · ${wet.hour}시쯤 약한 비 ${wet.pop}%`, 'umbrella']);
+  else if (wetHours >= 6) tips.push(['warn', `우산 필수 · 낮 내내 비 최대 ${wet.pop}%`, 'umbrella']);
   else if (wet.pop >= 50) tips.push(['warn', `우산 필수 · ${wet.hour}시쯤 비 ${wet.pop}%`, 'umbrella']);
   else if (wet.pop >= 30) tips.push(['', `접이식 우산 · ${wet.hour}시쯤 비 ${wet.pop}%`, 'umbrella']);
   const lo = Math.min(...hrs.map((h) => h.feels));
@@ -297,6 +381,124 @@ function wxTips(date) {
   if (hi - lo >= 8) tips.push(['', `일교차 ${hi - lo}° · 겹쳐 입기`, 'temp']);
   if (hi >= 24) tips.push(['', `낮 ${hi}° · 가벼운 옷`, 'tshirt']);
   return tips;
+}
+
+// ---------- the day's weather in words, and what to bring ----------
+const isWet = (h) => h.code >= 51 || h.rain >= 0.3;
+// Sky over the given hours, judged on daylight hours only.
+const skyOf = (hrs) => {
+  const lit = hrs.filter((h) => h.hour >= 8 && h.hour <= 17);
+  const list = lit.length ? lit : hrs;
+  if (!list.length) return '';
+  const clear = list.filter((h) => h.code <= 1).length / list.length;
+  const fair = list.filter((h) => h.code <= 2).length / list.length;
+  return clear >= 0.5 || fair >= 0.8 ? '맑음' : fair >= 0.4 ? '구름 조금' : '흐림';
+};
+const uvWord = (uv) => (uv >= 8 ? '매우 강함' : uv >= 6 ? '강함' : uv >= 3 ? '보통' : '약함');
+// When it rained, when it cleared, and how warm and bright the day was. Rain before dawn counts as "cleared".
+function wxStory(date) {
+  const day = wxDay(date);
+  const all = wxHours(date, 0, 22);
+  const hrs = all.filter((h) => h.hour >= 5);
+  if (!day || hrs.length < 6) return null;
+  const runs = [];
+  for (const h of hrs) {
+    if (!isWet(h)) continue;
+    const r = runs[runs.length - 1];
+    if (r && r[1] === h.hour - 1) r[1] = h.hour; else runs.push([h.hour, h.hour]);
+  }
+  const wetN = runs.reduce((a, [f, t]) => a + t - f + 1, 0);
+  const light = hrs.filter(isWet).every((h) => h.rain < 0.5);
+  const rainWord = light ? '약한 비' : '비';
+  // Sunny most of the day by the hours of sunshine, even if a few hours read as cloud.
+  const sky = (list) => (day.sun >= 6 * 3600 && list.length >= 8 ? '맑음' : skyOf(list));
+  let head;
+  if (!runs.length) {
+    const s0 = sky(hrs);
+    const dawn = all.some((h) => h.hour < 5 && isWet(h));
+    head = dawn ? `새벽 비 그친 뒤 ${s0}` : { 맑음: '하루 종일 맑음', '구름 조금': '구름 조금, 비 없음', 흐림: '대체로 흐림, 비 없음' }[s0];
+  } else if (wetN >= 12) head = `하루 종일 ${rainWord}`;
+  else {
+    const f = runs[0][0];
+    const t = runs[runs.length - 1][1];
+    const after = hrs.filter((h) => h.hour > t);
+    const before = hrs.filter((h) => h.hour < f);
+    if (f <= 9 && after.length >= 4) head = `아침 ${rainWord}(${f}~${t + 1}시) 그친 뒤 ${skyOf(after)}`;
+    else if (t >= 21 || after.length < 2) head = `${skyOf(before) || '흐림'}, ${f}시부터 ${rainWord}`;
+    else head = `${skyOf(before) || '흐림'}, ${f}~${t + 1}시 ${rainWord}`;
+  }
+  const uv = Math.max(day.uv, ...hrs.map((h) => h.uv));
+  const wind = Math.max(...hrs.map((h) => h.wind));
+  const sunH = Math.round(day.sun / 3600);
+  const facts = [`${day.min}~${day.max}°`, `자외선 ${uvWord(uv)} (${uv.toFixed(0)})`, sunH ? `해 ${sunH}시간` : '', day.rain >= 1 ? `비 ${day.rain.toFixed(0)}mm` : '', wind >= 25 ? '바람 강함' : ''];
+  const icon = runs.length ? 'wx-rain' : { 맑음: 'wx-sun', '구름 조금': 'wx-partly', 흐림: 'wx-cloud' }[sky(hrs)];
+  return { head, line: facts.filter(Boolean).join(' · '), icon, sky: runs.length ? rainWord : sky(hrs) };
+}
+
+// How things worked out on a day, per person: umbrella and sunglasses used / not needed / missed, and the coat.
+const GEAR = [
+  ['umbrella', 'umbrella', '우산', [['used', '썼어요'], ['unused', '안 썼어요'], ['missed', '아쉬웠어요']]],
+  ['sun', 'wx-sun', '선글라스', [['used', '썼어요'], ['unused', '안 썼어요'], ['missed', '아쉬웠어요']]],
+  ['coat', 'coat', '겉옷', [['hot', '더웠어요'], ['ok', '딱 맞았어요'], ['cold', '추웠어요']]],
+];
+const PEOPLE = ['안드레아', '다희'];
+const gearLog = (date, name) => store.get(`gear:${date}:${name}`, null);
+const lastGear = (date, name) => state.trip.days.map((d) => d.date).filter((d) => d < date).reverse().map((d) => gearLog(d, name)).find(Boolean) || null;
+const gearText = (g) => (g ? GEAR.map(([k, , label, opts]) => g[k] && `${label} ${opts.find(([v]) => v === g[k])[1]}`).filter(Boolean).concat(g.memo ? [g.memo] : []) : []);
+// The latest record before `date` nudges the next day's advice for that person.
+function gearBias(date, name) {
+  const g = lastGear(date, name) || {};
+  const notes = [];
+  if (g.umbrella === 'unused') notes.push('어제 우산을 안 썼다고 남겨서, 비 확률만 조금 있는 날은 우산을 빼요.');
+  if (g.umbrella === 'missed') notes.push('어제 우산이 아쉬웠다고 남겨서, 비가 조금만 와도 챙기게 했어요.');
+  if (g.sun === 'missed') notes.push('어제 선글라스가 없어서 아쉬웠다고 남겨서, 조금만 맑아도 챙기게 했어요.');
+  if (g.sun === 'unused') notes.push('어제 선글라스를 안 썼다고 남겨서, 아주 맑을 때만 챙기게 했어요.');
+  if (g.coat === 'cold') notes.push('어제 추웠다고 남겨서, 겉옷을 한 단계 두껍게 추천해요.');
+  if (g.coat === 'hot') notes.push('어제 더웠다고 남겨서, 겉옷을 한 단계 얇게 추천해요.');
+  return {
+    u: g.umbrella === 'unused' ? 15 : g.umbrella === 'missed' ? -15 : 0,
+    s: g.sun === 'missed' ? -1.5 : g.sun === 'unused' ? 1.5 : 0,
+    c: g.coat === 'cold' ? 3 : g.coat === 'hot' ? -3 : 0,
+    notes, memo: g.memo || '',
+  };
+}
+
+// Stops spent outside, where rain and sun matter most.
+const OUT_ICONS = ['park', 'torii', 'bridge', 'sunset', 'flower', 'walk', 'lantern', 'tower'];
+const isOutdoor = (it) => !it.skip && (OUT_ICONS.includes(glyph(it.icon)[0]) || /공원|해변|시장|산책|신궁|스트리트|교차로|외관|나카미세|상점가|센소지/.test(it.title));
+
+// What to bring today, and what can stay at the hotel, for one person; each with the reason, tied to a stop when it can be.
+function gearFor(date, items, name) {
+  const hrs = wxHours(date, 8, 22);
+  if (hrs.length < 6) return null;
+  const b = gearBias(date, name);
+  const outs = items.filter(isOutdoor);
+  const outAt = (h) => outs.find((it) => it.startMin < (h.hour + 1) * 60 && it.endMin > h.hour * 60);
+  const why = (h, what) => { const it = outAt(h); return it ? `${it.start} ${stripEmoji(it.title).split(' · ')[0]} · ${what}` : `${h.hour}시쯤 ${what}`; };
+  const need = [];
+  const skip = [];
+  const wet = hrs.filter((h) => h.pop >= 50 || h.code >= 61);
+  const top = hrs.reduce((a, c) => (c.pop > a.pop ? c : a));
+  // Drizzle (under 0.5mm an hour) needs a folding umbrella at most, never boots.
+  const light = hrs.filter((h) => h.pop >= 50 || isWet(h)).every((h) => h.rain < 0.5);
+  if (wet.length >= 3 && !light) need.push({ key: 'umbrella', icon: 'umbrella', label: '튼튼한 우산', why: why(wet.find(outAt) || wet[0], `비 ${Math.max(...wet.map((h) => h.pop))}% · ${wet.length}시간`) });
+  else if (top.pop >= 30 + b.u || wet.length) { const at = wet.find(outAt) || wet[0] || top; need.push({ key: 'umbrella', icon: 'umbrella', label: '접이식 우산', why: why(at, `${light ? '약한 비' : '비'} ${at.pop}%`) }); }
+  else skip.push(`우산 (비 최대 ${top.pop}%)`);
+  const uv = Math.max(...hrs.map((h) => h.uv));
+  const bright = hrs.filter((h) => h.code <= 1 && h.hour >= 9 && h.hour <= 16);
+  if (uv >= 4 + b.s || bright.length >= 4 + (b.s > 0 ? 2 : b.s < 0 ? -1 : 0)) need.push({ key: 'sun', icon: 'wx-sun', label: '선글라스·모자', why: `${bright[0] ? why(bright.find(outAt) || bright[0], '맑음') + ' · ' : ''}자외선 ${uvWord(uv)} (${uv.toFixed(0)})` });
+  else skip.push(`선글라스 (${skyOf(hrs.filter((h) => h.hour >= 9 && h.hour <= 16))})`);
+  const lo = Math.min(...hrs.map((h) => h.feels));
+  const hi = Math.max(...hrs.map((h) => h.temp));
+  const felt = lo - b.c;
+  const cold = hrs.find((h) => h.feels === lo);
+  if (felt <= 10) need.push({ key: 'coat', icon: 'coat', label: '따뜻한 겉옷', why: `${cold.hour}시쯤 체감 ${lo}°까지` });
+  else if (felt <= 15) need.push({ key: 'coat', icon: 'coat', label: '가벼운 겉옷', why: `${cold.hour}시쯤 체감 ${lo}°까지` });
+  else skip.push(`겉옷 (체감 ${lo}° 이상)`);
+  if (hi - lo >= 8) need.push({ key: 'layer', icon: 'temp', label: '겹쳐 입기', why: `일교차 ${hi - lo}° · 낮 ${hi}°` });
+  const rain = hrs.reduce((a, h) => a + h.rain, 0);
+  if (rain >= 5 || (wet.length >= 4 && !light)) need.push({ key: 'shoes', icon: 'walk', label: '젖어도 되는 신발', why: `비 ${rain >= 1 ? `${rain.toFixed(0)}mm` : `${wet.length}시간`} · 걷는 일정` });
+  return { need, skip, bias: b };
 }
 
 function wxAge() {
@@ -314,7 +516,7 @@ function wxCard(date, now) {
   }
   const cur = now ? wxHour(date, now.min) : null;
   const strip = wxHours(date, Math.min(cur?.hour ?? 8, 8), Math.max(cur?.hour ?? 22, 22));
-  const tips = wxTips(date);
+  const tips = date < tokyoNow().date ? [] : wxTips(date);
   return `
     <div class="wx">
       <div class="wx-head">
@@ -368,7 +570,6 @@ const SCENE_CAT = { 식당: '식당', 카페: '카페', 교통: '교통', 공항
 const expenses = () => store.get('exp', []);
 const yen = (n) => `${Math.round(n).toLocaleString('ko-KR')}엔`;
 const won = (n) => `${(Math.round((n * (state.fx?.rate || 8.5)) / 10) * 10).toLocaleString('ko-KR')}원`;
-const PEOPLE = ['안드레아', '다희'];
 // Records and files made before the names were set still say 나 / 와이프.
 const person = (name) => ({ 나: '안드레아', 와이프: '다희' })[name] || name;
 const who = () => person(store.get('who', '나'));
@@ -498,13 +699,31 @@ const expAmount = (value, cur) => (cur === 'KRW' ? { amount: Math.round(value / 
 function addExpense({ value, cur, pay, memo, cat, item, date }) {
   const list = expenses();
   localStorage.setItem('lastPay', pay);
-  list.push({ id: uid('e-'), ...expAmount(value, cur), pay, memo, cat, item: item || null, date: date || tokyoNow().date, by: who(), at: Date.now() });
+  const id = uid('e-');
+  list.push({ id, ...expAmount(value, cur), pay, memo, cat, item: item || null, date: date || tokyoNow().date, by: who(), at: Date.now() });
   store.set('exp', list);
+  return id;
 }
+// Receipt photos sit with the voucher photos under the expense's own slot, so they sync and stay off GitHub.
+const rcptSlot = (id) => 'rcpt-' + id;
+const hasRcpt = (id) => state.docSlots.has(rcptSlot(id));
 const payOf = () => { try { return localStorage.getItem('lastPay') || 'card'; } catch { return 'card'; } };
 const expPick = (cur = 'JPY', pay = payOf()) => `
   <select class="input" name="cur" aria-label="통화"><option value="JPY" ${cur === 'JPY' ? 'selected' : ''}>엔</option><option value="KRW" ${cur === 'KRW' ? 'selected' : ''}>원</option></select>
   <select class="input" name="pay" aria-label="결제 수단"><option value="card" ${pay === 'card' ? 'selected' : ''}>카드</option><option value="cash" ${pay === 'cash' ? 'selected' : ''}>현금</option></select>`;
+// An expense goes on a trip day or before leaving (booked at home); before the trip it shows as "출발 전".
+const addDays = (date, n) => new Date(Date.parse(date + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+const expDateLabel = (date) => (date < state.trip.trip.start ? '출발 전' : shortDate(date));
+function expDatePick(date, cls = '') {
+  const { days, trip } = state.trip;
+  const today = tokyoNow().date;
+  const pre = date && date < trip.start ? date : today < trip.start ? today : addDays(trip.start, -1);
+  const on = date || (today < trip.start ? pre : days.some((d) => d.date === today) ? today : days[days.length - 1].date);
+  return `<select class="input ${cls}" name="date" aria-label="날짜">
+    <option value="${pre}" ${on === pre ? 'selected' : ''}>출발 전</option>
+    ${days.map((d, i) => `<option value="${d.date}" ${on === d.date ? 'selected' : ''}>${i + 1}일차 ${shortDate(d.date)}</option>`).join('')}
+  </select>`;
+}
 const expValue = (form) => Number(String(new FormData(form).get('amount') || '').replace(/[^0-9]/g, ''));
 const cashTotal = () => store.get('cashYen', state.trip.guides.find((g) => g.costs)?.cash?.yen || 0);
 const cashSpent = () => expenses().filter((e) => e.pay === 'cash' && e.orig?.cur !== 'KRW').reduce((a, e) => a + e.amount, 0);
@@ -517,7 +736,10 @@ function openExpEdit(id) {
       <input class="input amount" name="amount" inputmode="numeric" value="${commas(e.orig?.value || e.amount)}" autocomplete="off" required aria-label="금액">
       ${expPick(e.orig?.cur || 'JPY', e.pay || 'card')}
       <select class="input" name="cat" aria-label="분류">${EXP_CATS.map((c) => `<option ${c === e.cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
+      ${expDatePick(e.date, 'exp-wide')}
       <input class="input exp-wide" name="memo" placeholder="메모" value="${esc(e.memo)}" autocomplete="off">
+      <button class="btn exp-wide" type="button" data-doc-add="${rcptSlot(id)}">${icon('camera')}${hasRcpt(id) ? '영수증 사진 더 넣기' : '영수증 사진 넣기'}</button>
+      ${hasRcpt(id) ? `<button class="btn exp-wide" type="button" data-doc-view="${rcptSlot(id)}">${icon('image')}영수증 보기</button>` : ''}
       <button class="btn primary exp-wide" type="submit">저장</button>
       <button class="btn exp-wide" type="button" data-exp-del="${esc(id)}">삭제</button>
     </form>`;
@@ -528,9 +750,10 @@ function expRow(e) {
     <div class="exp-row">
       <span class="exp-cat">${esc(e.cat)}</span>
       <button type="button" class="exp-open" data-exp-edit="${esc(e.id)}">
-        <span class="grow"><b>${esc(e.memo || e.cat)}</b><small>${esc([shortDate(e.date), person(e.by), e.pay ? { cash: '현금', card: '카드' }[e.pay] : ''].filter(Boolean).join(' · '))}</small></span>
+        <span class="grow"><b>${esc(e.memo || e.cat)}</b><small>${esc([expDateLabel(e.date), person(e.by), e.pay ? { cash: '현금', card: '카드' }[e.pay] : ''].filter(Boolean).join(' · '))}</small></span>
         <span class="exp-amt">${e.orig?.cur === 'KRW' ? `<b>${e.orig.value.toLocaleString('ko-KR')}원</b><small>${yen(e.amount)}</small>` : `<b>${yen(e.amount)}</b><small>${won(e.amount)}</small>`}</span>
       </button>
+      ${hasRcpt(e.id) ? `<button type="button" class="exp-rcpt" data-doc-view="${rcptSlot(e.id)}" aria-label="영수증 보기">${icon('image')}</button>` : ''}
       <button type="button" class="ck-del" data-exp-del="${esc(e.id)}" aria-label="삭제">${icon('x')}</button>
     </div>`;
 }
@@ -539,7 +762,9 @@ const expForm = (item = null, memo = '', cat = '식당') => `
     <input class="input amount" name="amount" inputmode="numeric" placeholder="금액" autocomplete="off" required>
     ${expPick()}
     <select class="input" name="cat" aria-label="분류">${EXP_CATS.map((c) => `<option ${c === cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
+    ${item ? '' : expDatePick()}
     <input class="input" name="memo" placeholder="메모" value="${esc(memo)}" autocomplete="off">
+    ${item ? '' : `<button class="btn" type="button" data-exp-rcpt>${icon('camera')}영수증 등록</button>`}
     <button class="btn primary" type="submit">${icon('plus')}기록</button>
   </form>`;
 
@@ -918,9 +1143,12 @@ function speakFallback(text, why) {
 }
 
 let toastTimer;
+// `href` is a link to open, or a function for an action button such as "되돌리기".
 function toast(msg, href, label) {
   const el = $('#toast');
-  el.innerHTML = `<span>${esc(msg)}</span>${href ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}</a>` : ''}`;
+  const act = typeof href === 'function';
+  el.innerHTML = `<span>${esc(msg)}</span>${act ? `<button type="button">${esc(label)}</button>` : href ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}</a>` : ''}`;
+  if (act) el.querySelector('button').onclick = () => { el.hidden = true; href(); };
   el.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.hidden = true; }, href ? 6000 : 2200);
@@ -996,6 +1224,9 @@ const ICONS = {
   'calendar': '<path d="M216,48V88H40V48a8,8,0,0,1,8-8H208A8,8,0,0,1,216,48Z" class="d"/><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Zm-68-76a12,12,0,1,1-12-12A12,12,0,0,1,140,132Zm44,0a12,12,0,1,1-12-12A12,12,0,0,1,184,132ZM96,172a12,12,0,1,1-12-12A12,12,0,0,1,96,172Zm44,0a12,12,0,1,1-12-12A12,12,0,0,1,140,172Zm44,0a12,12,0,1,1-12-12A12,12,0,0,1,184,172Z"/>',
   'checklist': '<path d="M216,48V208a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V48a8,8,0,0,1,8-8H208A8,8,0,0,1,216,48Z" class="d"/><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM224,48V208a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32H208A16,16,0,0,1,224,48ZM208,208V48H48V208H208Z"/>',
   'warn': '<path d="M215.46,216H40.54C27.92,216,20,202.79,26.13,192.09L113.59,40.22c6.3-11,22.52-11,28.82,0l87.46,151.87C236,202.79,228.08,216,215.46,216Z" class="d"/><path d="M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM222.93,203.8a8.5,8.5,0,0,1-7.48,4.2H40.55a8.5,8.5,0,0,1-7.48-4.2,7.59,7.59,0,0,1,0-7.72L120.52,44.21a8.75,8.75,0,0,1,15,0l87.45,151.87A7.59,7.59,0,0,1,222.93,203.8ZM120,144V104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,180Z"/>',
+  'lock': '<path d="M216,96V208a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V96a8,8,0,0,1,8-8H208A8,8,0,0,1,216,96Z" class="d"/><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Z"/>',
+  'thumb': '<path d="M80,104V208H32a8,8,0,0,1-8-8V112a8,8,0,0,1,8-8Z" class="d"/><path d="M234,80.12A24,24,0,0,0,216,72H160V56a40,40,0,0,0-40-40,8,8,0,0,0-7.16,4.42L75.06,96H32a16,16,0,0,0-16,16v88a16,16,0,0,0,16,16H204a24,24,0,0,0,23.82-21l12-96A24,24,0,0,0,234,80.12ZM32,112H72v88H32ZM223.94,97l-12,96a8,8,0,0,1-7.94,7H88V105.89l36.71-73.43A24,24,0,0,1,144,56V80a8,8,0,0,0,8,8h64a8,8,0,0,1,7.94,9Z"/>',
+  'thumb-down': '<g transform="matrix(1 0 0 -1 0 256)"><path d="M80,104V208H32a8,8,0,0,1-8-8V112a8,8,0,0,1,8-8Z" class="d"/><path d="M234,80.12A24,24,0,0,0,216,72H160V56a40,40,0,0,0-40-40,8,8,0,0,0-7.16,4.42L75.06,96H32a16,16,0,0,0-16,16v88a16,16,0,0,0,16,16H204a24,24,0,0,0,23.82-21l12-96A24,24,0,0,0,234,80.12ZM32,112H72v88H32ZM223.94,97l-12,96a8,8,0,0,1-7.94,7H88V105.89l36.71-73.43A24,24,0,0,1,144,56V80a8,8,0,0,0,8,8h64a8,8,0,0,1,7.94,9Z"/></g>',
   'clock': '<path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" class="d"/><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm64-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V72a8,8,0,0,1,16,0v48h48A8,8,0,0,1,192,128Z"/>',
   'torii': '<path class="d" d="M40 60Q128 80 216 60L208 88H48Z"/><g fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"><path d="M32 56Q128 80 224 56M48 88H208M64 124H192M80 88V216M176 88V216"/></g>',
   'tower': '<path class="d" d="M116 88H140L164 224H92Z"/><g fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"><path d="M128 16V52M108 52H148V84H108ZM116 84L92 224M140 84L164 224M106 144H150M72 224H184"/></g>',
@@ -1067,6 +1298,7 @@ function dayEndCard(dayIdx, items) {
       </button>
       <div class="seal-days">${days.map((d, i) => `<span class="${store.get('seal:' + d.date, false) ? 'on' : ''}">${i + 1}</span>`).join('')}</div>
       ${tally ? `<div class="day-end-sum">${esc(tally)}</div>` : ''}
+      <button class="day-end-log" data-day-sum="${dayIdx}">${icon('pen')}날씨·챙김 기록 남기기</button>
       <div class="day-end-next">${tomorrow ? `내일 첫 일정 ${esc(tomorrow.start)} ${esc(stripEmoji(tomorrow.title))}` : '도쿄 여행을 모두 마쳤어요'}</div>
     </div>`;
 }
@@ -1114,8 +1346,9 @@ function renderToday() {
 
   const day = days[dayIdx];
   const items = dayItems(day).filter((it) => !it.skip);
-  const active = items.filter((it) => it.startMin <= now.min && now.min < it.endMin && !isDone(it.id));
-  const current = active[active.length - 1];
+  const queue = dueQueue(items, now);
+  const current = queue[0];
+  const started = current && isStarted(current, items);
   const upcoming = items.filter((it) => it.startMin > now.min);
   const next = upcoming[0];
   setHeader(`${dayIdx + 1}일차 · ${dayLabel(day.date)}`, stripEmoji(day.title), `일몰 ${day.sunset} · ${items.length}개 일정`);
@@ -1123,9 +1356,9 @@ function renderToday() {
   const back = flights[1];
   const flightDay = now.date === flights[0].date || now.date === back.date;
   const f = now.date === back.date ? back : flights[0];
-  // A stop waiting to be confirmed moves up with the alerts.
-  const askStart = current && !store.get('start:' + current.id, false);
-  let html = lateCard(items, now) + updateBand() + (askStart ? heroCard(current, 'now', now) : '');
+  // Stops piling up, or one waiting to be confirmed, move up with the alerts.
+  const top = queue.length > 1 ? backlogCard(queue, items, now) : current && !started ? heroCard(current, 'now', now, false) : '';
+  let html = updateBand() + top + prepCard(day, items, now);
   if (flightDay) html += `
     <div class="hero route-hero">
       ${flightRoute(now)}
@@ -1133,7 +1366,7 @@ function renderToday() {
     </div>`;
   html += wxCard(day.date, now);
   html += todoCard(now.date, '오늘 할 일', 3);
-  if (current && !askStart) html += heroCard(current, 'now', now);
+  if (queue.length === 1 && started) html += heroCard(current, 'now', now, true);
   if (next) html += heroCard(next, 'next', now);
   if (!current && !next) html += dayEndCard(dayIdx, items);
   html += `
@@ -1200,36 +1433,53 @@ function doneLabel(it) {
   return '방문 완료';
 }
 
-// One line for the most pressing stop still not marked done, so a forgotten tap doesn't pile up warnings.
-function lateCard(items, now) {
-  // Only the stop in progress can be late: once a later stop is done or due, the trip has moved on.
-  const lastDone = items.map((it) => isDone(it.id)).lastIndexOf(true);
-  const late = items.filter((it, i) => i > lastDone && lateness(it, now) && !(items[i + 1]?.startMin <= now.min));
-  if (!late.length) return '';
-  const it = late.find((x) => x.hard) || late[late.length - 1];
-  const info = lateness(it, now);
+// Every stop that's due but unfinished, in order. Only the first can be closed, so they're dealt with one by one.
+function backlogCard(queue, items, now) {
+  const [head] = queue;
+  const started = isStarted(head, items);
+  const behind = started ? now.min - head.endMin : now.min - head.startMin;
+  const when = (it, i) => (i ? `${it.start} 예정` : started ? `진행 중 · ${behind > 0 ? `${formatLeft(behind)} 초과` : `${it.endMin - now.min}분 남음`}` : `${it.start} 시작 예정 · ${formatLeft(behind)} 지남`);
   return `
-    <div class="leave late ${info.hard ? 'urgent' : ''}">
-      <div class="leave-main">
-        <b>${info.hard ? `${formatLeft(info.over)} 지연` : '시간 지남'} · ${esc(it.title)}</b>
-        <span>끝났으면 눌러 주세요${late.length > 1 ? ` · 외 ${late.length - 1}개` : ''}</span>
+    <div class="backlog">
+      <div class="backlog-head">
+        <b>밀린 일정 ${queue.length}개</b>
+        <span>${behind > 0 ? `${formatLeft(behind)} 늦어지고 있어요 · ` : ''}앞에서부터 처리해 주세요</span>
       </div>
-      <button class="btn" data-done="${esc(it.id)}">${icon('check')}${doneLabel(it)}</button>
+      ${queue.map((it, i) => `
+        <div class="bl-row ${i ? '' : 'first'}" data-item="${esc(it.id)}" role="button" tabindex="0">
+          <span class="bl-no">${i + 1}</span>${itemIcon(it.icon)}
+          <span class="grow"><b>${esc(it.title)}</b><small>${esc(when(it, i))}${isFixed(it) ? ' · 시간 고정' : ''}</small></span>
+        </div>
+        ${i ? '' : `<div class="bl-act">
+          <button class="btn primary" data-done="${esc(it.id)}">${icon('check')}${doneLabel(it)}</button>
+          <button class="btn" data-item-skip="${esc(it.id)}">${icon('skip')}건너뛰기</button>
+        </div>`}`).join('')}
+      ${catchBtn(head, items, now)}
     </div>`;
 }
+// Running late, one tap opens the change with the knock-on moves worked out: start the stop now,
+// or give the stop under way 15 more minutes. Fixed stops can't start later.
+function catchBtn(it, items, now) {
+  if (isStarted(it, items)) return now.min > it.endMin - 5 ? `<button class="catch-btn" data-catch="${esc(it.id)}">${icon('clock')}15분 더 · 뒤 일정 밀기</button>` : '';
+  const late = now.min - it.startMin;
+  return late >= 5 && !isFixed(it) ? `<button class="catch-btn" data-catch="${esc(it.id)}">${icon('clock')}지금부터 시작 · 뒤 일정 ${formatLeft(late)} 밀기</button>` : '';
+}
 
-function heroCard(it, kind, now) {
+function heroCard(it, kind, now, started = true) {
   const progress = kind === 'now'
     ? Math.max(0, Math.min(100, ((now.min - it.startMin) / (it.endMin - it.startMin)) * 100))
     : 0;
-  // Past its start time, a stop asks whether it really began; the trip may be running behind.
-  const waiting = kind === 'now' && !store.get('start:' + it.id, false);
+  // Past its start time, a stop asks whether it really began; past its end, whether it's over.
+  const waiting = kind === 'now' && !started;
+  const over = kind === 'now' && started ? now.min - it.endMin : 0;
   const passed = now.min - it.startMin;
   const label = waiting
     ? (passed ? `시작 시간 ${formatLeft(passed)} 지남` : '시작 시간이에요')
-    : kind === 'now' ? `지금 · ${it.endMin - now.min}분 남음` : `다음 · ${formatLeft(it.startMin - now.min)} 후`;
+    : over > 0 ? `예정보다 ${formatLeft(over)} 지남`
+      : kind === 'now' ? `지금 · ${it.endMin - now.min}분 남음` : `다음 · ${formatLeft(it.startMin - now.min)} 후`;
+  const items = kind === 'now' ? dayItems(dayOf(it.date)).filter((x) => !x.skip) : [];
   return `
-    <div class="hero ${kind} ${waiting ? 'wait' : ''}" data-item="${esc(it.id)}" role="button" tabindex="0">
+    <div class="hero ${kind} ${waiting || over > 0 ? 'wait' : ''}" data-item="${esc(it.id)}" role="button" tabindex="0">
       <div class="hero-sun"></div>
       <div class="hero-bar">
         <div class="eyebrow"><i class="pulse"></i>${esc(label)}${tagFor(it)}</div>
@@ -1244,9 +1494,11 @@ function heroCard(it, kind, now) {
         </div>
         <i class="chev" aria-label="자세히"></i>
       </div>
-      ${chipsHtml(chipsFor(it, now).filter(noTag))}
+      ${chipsHtml(chipsFor(it, now, kind !== 'now').filter(noTag))}
       ${waiting ? `<div class="start-ask"><span class="grow">시작했나요?</span><button class="start-yes" data-start="${esc(it.id)}">${icon('check')}시작했어요</button><button data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button></div>` : ''}
-      ${kind === 'now' && !waiting ? `<div class="meter"><i style="width:${progress}%"></i></div>` : ''}
+      ${over > 0 ? `<div class="start-ask"><span class="grow">끝났나요?</span><button class="start-yes" data-done="${esc(it.id)}">${icon('check')}${doneLabel(it)}</button><button data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button></div>` : ''}
+      ${kind === 'now' ? catchBtn(it, items, now) : ''}
+      ${kind === 'now' && !waiting && over <= 0 ? `<div class="meter"><i style="width:${progress}%"></i></div>` : ''}
       ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
       ${it.place ? `<div class="btns">
         ${it.place.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', 'primary wide') : `${navBtn(it.id, '구글맵 길찾기')}<button class="btn ghost" data-ja="${esc(it.id)}">${icon('ja')}일본어</button>`}
@@ -1267,23 +1519,27 @@ function gapLabel(it, next) {
   return `<div class="tl-gap">${icon('route')}다음 장소까지 ${distLabel(kmBetween(a, b))}</div>`;
 }
 
-function timeline(items, now) {
+// In edit mode a tap opens the change form, and a "put a stop here" row sits under each stop.
+function timeline(items, now, edit = false) {
   if (!items.length) return '';
-  return `<div class="tl">${items.map((it, i) => {
+  return `<div class="tl ${edit ? 'editing' : ''}">${items.map((it, i) => {
     const isToday = now && now.date === it.date;
+    // A stop still unfinished stays in full view, marked as running behind, however late it gets.
+    const late = !it.skip && delayOf(it, now);
     const cls = [
       isDone(it.id) ? 'done' : '',
-      isToday && it.endMin <= now.min ? 'past' : '',
+      isToday && it.endMin <= now.min && !late ? 'past' : '',
       isToday && it.startMin <= now.min && now.min < it.endMin ? 'current' : '',
-      lateness(it, now)?.hard ? 'late' : '',
+      late ? 'behind' : '',
+      late && isFixed(it) ? 'late' : '',
       it.skip ? 'skipped' : '',
       it.priority || '',
     ].join(' ');
     const warn = chipsFor(it, now).filter(([c]) => c === 'warn' || c === 'late');
     return `
       <div class="tl-item ${cls}">
-        <div class="tl-time">${esc(it.start)}${tlWx(it)}</div>
-        <div class="tl-card" data-item="${esc(it.id)}" role="button" tabindex="0">
+        <div class="tl-time">${esc(it.start)}${it.auto ? '<i class="tl-moved">조정</i>' : ''}${tlWx(it)}</div>
+        <div class="tl-card" ${edit ? 'data-item-edit' : 'data-item'}="${esc(it.id)}" role="button" tabindex="0">
           ${itemIcon(it.icon)}
           <div class="tl-main">
             <div class="tl-title">${esc(it.title)}</div>
@@ -1292,9 +1548,9 @@ function timeline(items, now) {
             ${chipsHtml(warn)}
             ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
           </div>
-          ${it.place ? `<button class="tl-nav" data-nav="${esc(it.id)}" aria-label="구글맵 길찾기">${icon('nav')}</button>` : ''}
+          ${edit ? `<span class="tl-nav">${icon('pen')}</span>` : it.place ? `<button class="tl-nav" data-nav="${esc(it.id)}" aria-label="구글맵 길찾기">${icon('nav')}</button>` : ''}
         </div>
-        ${gapLabel(it, items[i + 1])}
+        ${edit ? `<button class="tl-add" data-item-new="${esc(it.date)}" data-after="${esc(it.id)}">${icon('plus')}여기에 일정 넣기</button>` : gapLabel(it, items[i + 1])}
       </div>`;
   }).join('')}</div>`;
 }
@@ -1308,6 +1564,8 @@ function renderDays() {
   const now = tokyoNow();
   const { days, stay } = state.trip;
   const day = days[state.dayIndex];
+  const items = dayItems(day);
+  const edit = state.editDay === day.date;
   setHeader(`${state.dayIndex + 1}일차 / ${days.length}일`, stripEmoji(day.title), `${dayLabel(day.date)} · 일몰 ${day.sunset} · ${stay.name}`);
   return `
     <div class="daypick" role="group" aria-label="날짜 선택">
@@ -1318,13 +1576,118 @@ function renderDays() {
         </button>`).join('')}
     </div>
     ${wxCard(day.date, now.date === day.date ? now : null)}
-    <div class="btns day-actions">
-      <button class="btn" data-day-route>${icon('nav')}오늘 동선 지도</button>
-      <button class="btn" data-day-share>${icon('ext')}일정 공유</button>
+    <div class="btns day-actions three">
+      <button class="btn" data-day-route>${icon('nav')}동선 지도</button>
+      <button class="btn" data-day-share>${icon('ext')}공유</button>
+      <button class="btn ${edit ? 'primary' : ''}" data-day-edit>${icon(edit ? 'check' : 'pen')}${edit ? '편집 완료' : '편집'}</button>
     </div>
-    ${timeline(dayItems(day), now)}
+    ${edit ? '<div class="small muted edit-hint">일정을 누르면 고치고, ＋를 누르면 그 자리에 넣어요.</div>' : ''}
+    ${timeline(items, now, edit)}
+    ${edit ? '' : daySummary(day, items, now)}
+    <button class="btn wide day-add" data-item-new="${esc(day.date)}" data-after="${esc(items[items.length - 1]?.id || '')}">${icon('plus')}일정 추가</button>
+    ${edit ? dayEditTools(day) : ''}
     <button class="btn wide alarm-btn" data-alarm-sheet>${icon('ext')}일정 알림 받기</button>
   `;
+}
+
+// Once a day is over, its record sits under the last stop: the stamp, what we did, what we spent, what we'd go back for.
+function daySummary(day, items, now) {
+  const live = items.filter((it) => !it.skip);
+  const sealed = store.get('seal:' + day.date, false);
+  const over = day.date < now.date || (day.date === now.date && (sealed || (!dueQueue(live, now).length && !live.some((it) => it.startMin > now.min))));
+  if (!over) return '';
+  const dayIdx = state.trip.days.findIndex((d) => d.date === day.date);
+  const done = live.filter((it) => isDone(it.id));
+  const visited = done.filter((it) => placeOfItem(it.id)).length;
+  const skipped = items.filter((it) => it.skip).length;
+  const spent = expenses().filter((e) => e.date === day.date);
+  const total = spent.reduce((a, e) => a + e.amount, 0);
+  const byCat = Object.entries(spent.reduce((m, e) => ({ ...m, [e.cat]: (m[e.cat] || 0) + e.amount }), {})).sort((a, b) => b[1] - a[1]);
+  const notes = live.map((it) => [it, placeOfItem(it.id)]).filter(([, p]) => p).map(([it, p]) => ({ it, p, v: visitOf(p.id) }))
+    .filter(({ v }) => v && (v.again || v.memo));
+  return `
+    <div class="day-sum">
+      <div class="day-sum-head">
+        ${sealed ? `<span class="seal mini">${dayIdx + 1}일차<br>완료</span>` : `<button class="seal-slot mini" data-seal="${esc(day.date)}">도장<br>찍기</button>`}
+        <div class="grow">
+          <b>${dayIdx + 1}일차 요약</b>
+          <span>${[`일정 ${done.length}/${live.length} 완료`, visited ? `방문 ${visited}곳` : '', skipped ? `건너뜀 ${skipped}` : ''].filter(Boolean).join(' · ')}</span>
+        </div>
+      </div>
+      ${daySumWeather(day.date)}
+      <button class="day-sum-row" data-go-exp>
+        ${secIcon('money')}<span class="grow"><b>${total ? `${yen(total)} 사용` : '기록한 지출 없음'}</b>${total ? `<small>${esc(byCat.slice(0, 3).map(([c, n]) => `${c} ${yen(n)}`).join(' · '))}</small>` : ''}</span>
+        ${total ? `<span class="day-sum-won">${won(total)}</span>` : ''}
+      </button>
+      ${notes.map(({ it, p, v }) => `
+        <button class="day-sum-row" data-item="${esc(it.id)}">
+          ${itemIcon(it.icon)}<span class="grow"><b>${esc(p.name)}${v.again ? `<em class="${v.again}">${againIcon(v.again)}${AGAIN[v.again]}</em>` : ''}</b>${v.memo ? `<small>${esc(v.memo)}</small>` : ''}</span>
+        </button>`).join('')}
+    </div>`;
+}
+
+// The day's weather in words, then how this phone's person got on with umbrella, sunglasses and coat.
+function daySumWeather(date) {
+  const st = wxStory(date);
+  const me = who();
+  const g = gearLog(date, me) || {};
+  const other = PEOPLE.find((p) => p !== me);
+  const theirs = gearText(gearLog(date, other));
+  return `
+    ${st ? `<div class="day-sum-row static">${wxIcon(st.icon)}<span class="grow"><b>${esc(st.head)}</b><small>${esc(st.line)}</small></span></div>` : ''}
+    <div class="gear-fb">
+      <div class="gear-q">${esc(me)} · 챙긴 것 어땠나요?</div>
+      ${GEAR.map(([k, ic, label, opts]) => `
+        <div class="gear-row"><span class="gear-l">${icon(ic)}${label}</span>
+          <div class="gear-opts">${opts.map(([v, t]) => `<button type="button" class="${g[k] === v ? 'on' : ''}" data-gear="${esc(date)}|${k}|${v}">${t}</button>`).join('')}</div></div>`).join('')}
+      <input class="input gear-memo" data-gear-memo="${esc(date)}" value="${esc(g.memo || '')}" maxlength="120" placeholder="한 줄 메모 · 예: 맑아서 눈이 무척 부셨음" autocomplete="off">
+      ${theirs.length ? `<div class="small muted gear-other">${esc(other)}: ${esc(theirs.join(' · '))}</div>` : ''}
+      <div class="small muted gear-note">남긴 기록은 다음 날 아침 준비 추천에 반영돼요.</div>
+    </div>`;
+}
+
+// Before the first stop: yesterday against today, and what to bring, tuned by what this person said about yesterday.
+function prepCard(day, items, now) {
+  const first = items.find((it) => !it.skip);
+  const st = store.get('prep:' + day.date, {});
+  if (st.done || now.min < 240 || (first && now.min >= first.startMin)) return '';
+  const me = who();
+  const g = gearFor(day.date, items, me);
+  const today = wxDay(day.date);
+  if (!g || !today) return '';
+  const yd = wxDay(addDays(day.date, -1));
+  const story = wxStory(day.date);
+  const diff = yd ? today.max - yd.max : 0;
+  const cmp = !yd ? '' : Math.abs(diff) <= 1 ? '어제와 기온이 비슷하고' : `어제보다 ${Math.abs(diff)}° ${diff > 0 ? '따뜻하고' : '쌀쌀하고'}`;
+  const ck = st.ck || {};
+  const other = PEOPLE.find((p) => p !== me);
+  const theirs = gearText(lastGear(day.date, other));
+  return `
+    <div class="prep">
+      <div class="prep-head">${wxIcon(today.icon)}<div class="grow"><b>오늘 아침 준비</b><span>${esc(me)} · ${esc(dayLabel(day.date))}</span></div></div>
+      <div class="prep-cmp"><b>${esc([cmp, story?.head].filter(Boolean).join(' '))}</b>
+        ${yd ? `<small>어제 ${yd.min}~${yd.max}° ${esc(wxStory(addDays(day.date, -1))?.sky || yd.label)} → 오늘 ${today.min}~${today.max}° ${esc(story?.sky || today.label)}</small>` : ''}</div>
+      <div class="prep-list">${g.need.map((n) => `
+        <button type="button" class="prep-item ${ck[n.key] ? 'on' : ''}" data-prep="${esc(day.date)}|${n.key}">
+          <i class="check-box"></i>${icon(n.icon)}<span class="grow"><b>${esc(n.label)}</b><small>${esc(n.why)}</small></span>
+        </button>`).join('') || '<div class="small muted">오늘은 따로 챙길 게 없어요.</div>'}</div>
+      ${g.skip.length ? `<div class="prep-skip">필요 없어요 · ${esc(g.skip.join(' · '))}</div>` : ''}
+      ${g.bias.notes.length ? `<div class="prep-note">${icon('heart')}<span>${esc(g.bias.notes.join(' '))}${g.bias.memo ? ` <q>${esc(g.bias.memo)}</q>` : ''}</span></div>` : ''}
+      ${theirs.length ? `<div class="prep-skip">${esc(other)}의 지난 기록 · ${esc(theirs.join(' · '))}</div>` : ''}
+      <button class="btn primary wide prep-done" data-prep-done="${esc(day.date)}">${icon('check')}준비 완료</button>
+    </div>`;
+}
+
+// Edit mode extras: deleted stops to bring back, and a way back to the planned times.
+function dayEditTools(day) {
+  const gone = effectiveItems(day, true).filter((it) => it.del);
+  const moved = effectiveItems(day).filter((it) => it.auto || (rawItem(it.id) && it.start !== rawItem(it.id).start));
+  return `
+    ${gone.length ? `<div class="section-title"><span>삭제한 일정</span><em>${gone.length}</em></div>
+      <div class="card list">${gone.map((it) => `
+        <div class="gone-row"><span class="grow"><b>${esc(it.title)}</b><small>${esc(it.start)}</small></span>
+          <button class="btn" data-item-restore="${esc(it.id)}">${icon('refresh')}되살리기</button></div>`).join('')}</div>` : ''}
+    ${moved.length ? `<button class="btn wide day-reset" data-day-reset="${esc(day.date)}">${icon('refresh')}이날 시간을 원래 계획으로 (${moved.length}개)</button>` : ''}`;
 }
 
 function dayRoute() {
@@ -1618,8 +1981,9 @@ const allPlaces = () => [
 ];
 const placeById = (id) => allPlaces().find((p) => p.id === id);
 function placeOfItem(itemId) {
-  const swap = store.get('edit:' + itemId, null)?.swap;
-  if (swap) return placeById(swap);
+  const edit = store.get('edit:' + itemId, null);
+  if (edit?.swap) return placeById(edit.swap);
+  if (edit && 'placeId' in edit) return placeById(edit.placeId);
   const added = store.get('myitems', []).find((x) => x.id === itemId);
   return added ? placeById(added.placeId) : allPlaces().find((p) => p.itemId === itemId);
 }
@@ -1649,7 +2013,10 @@ const distLabel = (km) => (km < 1 ? `${Math.round(km * 100) * 10}m` : `${km.toFi
 const placeThumb = (p, size) => `
   <span class="thumb">${itemIcon(CAT_ICON[p.cat], 'lg')}${p.photo ? `<img src="${esc(p.photo)}=${size}-k-no" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span>`;
 
-const AGAIN = { yes: '또 갈래요', no: '한 번이면 충분' };
+// Would we go back: strongly, yes, or no. Older "한 번이면 충분" marks read as 비추천.
+const AGAIN = { best: '강력 추천', yes: '추천', no: '비추천' };
+const againIcon = (k) => (k === 'best' ? `<span class="thumbs two">${icon('thumb')}${icon('thumb')}</span>` : k === 'yes' ? `<span class="thumbs">${icon('thumb')}</span>` : k === 'no' ? `<span class="thumbs">${icon('thumb-down')}</span>` : '');
+const recommended = (v) => v?.again === 'best' || v?.again === 'yes';
 const placeHero = (p) => (p?.photo ? `<div class="place-hero"><img src="${esc(p.photo)}=w800-h400-k-no" alt="" referrerpolicy="no-referrer" onerror="this.parentElement.remove()"></div>` : '');
 
 function placeCard(p, now) {
@@ -1667,7 +2034,7 @@ function placeCard(p, now) {
     <div class="place ${v ? 'visited' : ''}" data-place="${esc(p.id)}" role="button" tabindex="0">
       ${placeThumb(p, 'w160-h160')}
       <div class="place-main">
-        <b>${esc(p.name)}${v ? `<i>${v.again === 'yes' ? AGAIN.yes : '방문'}</i>` : ''}</b>
+        <b>${esc(p.name)}${v ? `<i class="${recommended(v) ? 'rec' : ''}">${recommended(v) ? againIcon(v.again) + AGAIN[v.again] : '방문'}</i>` : ''}</b>
         <span>${esc(line)}</span>
         <small>${esc(sub)}</small>
       </div>
@@ -1686,7 +2053,7 @@ function exploreList(now) {
   if (f.area !== '전체') list = list.filter((p) => p.area === f.area);
   if (f.open) list = list.filter((p) => openNow(p, now));
   if (f.plan) list = list.filter((p) => p.itemId);
-  if (f.again) list = list.filter((p) => visitOf(p.id)?.again === 'yes');
+  if (f.again) list = list.filter((p) => recommended(visitOf(p.id)));
   if (f.saved) list = list.filter((p) => isSaved(p.id));
   const dist = (p) => (p.lat ? kmBetween(state.geo, p) : Infinity);
   if (f.near && state.geo) return [...list].sort((a, b) => dist(a) - dist(b));
@@ -1744,7 +2111,7 @@ function renderExplore() {
   const f = state.ex;
   const seen = allPlaces().filter((p) => visitOf(p.id)).length;
   setHeader('', '탐색', `${allPlaces().length}곳 · 방문 ${seen}곳`);
-  const toggles = [['open', '지금 영업', 'clock'], ['plan', '일정 장소', 'calendar'], ['saved', '저장함', 'heart'], ['again', '또 갈 곳', 'refresh'], ['near', '내 주변', 'nav']];
+  const toggles = [['open', '지금 영업', 'clock'], ['plan', '일정 장소', 'calendar'], ['saved', '저장함', 'heart'], ['again', '추천한 곳', 'thumb'], ['near', '내 주변', 'nav']];
   const list = f.cat === 'log' ? [] : exploreList(now);
   return `
     <div class="ex-cats">${EX_CATS.map(([k, label, ico]) => `<button class="seg ${f.cat === k ? 'on' : ''}" data-ex-cat="${k}">${icon(ico)}${label}</button>`).join('')}</div>
@@ -1960,32 +2327,189 @@ function savePlan(id) {
   toast('일정에 추가했어요');
 }
 
-function openEditItem(id) {
-  const it = findItem(id);
+// ---------- adding and changing stops ----------
+const KINDS = [['🍽', '먹기'], ['☕', '카페'], ['🏛', '구경'], ['🛍', '쇼핑'], ['🚇', '이동'], ['🏨', '휴식']];
+const DURS = [15, 30, 60, 90, 120];
+const fromClock = (v) => (/^\d{1,2}:\d{2}/.test(v || '') ? toMin(v) : null);
+
+// One form for a new stop and for changing one. `opt.after` puts a new stop right after that one;
+// `opt.catch` comes from "running late" and starts the stop now, or gives the stop under way 15 more minutes.
+function openItemForm(id, opt = {}) {
+  const it = id ? dayItems(dayOf(findItem(id).date)).find((x) => x.id === id) : null;
+  const now = tokyoNow();
+  const date = it?.date || opt.date;
+  const list = dayItems(dayOf(date)).filter((x) => !x.skip);
+  const prev = opt.after && list.find((x) => x.id === opt.after);
+  let s = it ? it.startMin : prev ? prev.endMin : 720;
+  // A new stop starts when the one before it ends and fills the free time up to the next, up to an hour.
+  const gap = prev ? (list.find((x) => x.startMin >= prev.endMin && x.id !== prev.id)?.startMin ?? 1440) - prev.endMin : 0;
+  let dur = it ? it.endMin - it.startMin : gap >= 15 ? Math.min(60, gap) : 60;
+  let started = false;
+  if (it && opt.catch) {
+    started = isStarted(it, list);
+    if (started) dur = Math.ceil((Math.max(now.min, it.endMin) + 15 - it.startMin) / 5) * 5;
+    else s = now.min;
+  }
+  state.form = { id, date, s, dur, kind: it?.icon || '', catch: !!opt.catch && !started, rip: null, fit: 'cut', mine: !it || String(id).startsWith('my-it') };
+  const place = it?.place && !state.form.mine ? it.place.nameJa : it?.place?.query || '';
   $('#sheet-body').innerHTML = `
-    <div class="sheet-head"><h3>일정 시간 변경</h3></div>
-    <div class="muted">${esc(it.title)}</div>
-    <label class="field"><span>시작</span><input class="input" id="ed-start" type="time" value="${esc(it.start)}"></label>
-    <label class="field"><span>종료</span><input class="input" id="ed-end" type="time" value="${esc(it.end || '')}"></label>
-    ${'alarm' in it ? '<div class="small muted alarm-note">캘린더 알림은 자동으로 바뀌지 않아요.</div>' : ''}
-    ${it.hard ? '<div class="small muted alarm-note">예약·탑승 시간이 정해진 일정이에요. 예약 시간도 확인하세요.</div>' : ''}
-    <div class="btns">
-      <button class="btn primary" data-edit-save="${esc(id)}">저장</button>
-      <button class="btn" data-edit-reset="${esc(id)}">원래대로</button>
-    </div>`;
+    <div class="sheet-head"><h3>${it ? '일정 수정' : '일정 추가'}</h3></div>
+    ${opt.catch ? `<div class="small muted">${started ? '이 일정을 15분 늘리고' : '이 일정을 지금 시작으로 바꾸고'} 뒤 일정을 미뤄요. 아래 변경 내용을 확인하고 저장하세요.</div>` : ''}
+    <form class="item-form" autocomplete="off">
+      <label class="row-field"><span>제목</span><input class="input" id="f-title" value="${esc(it?.title || '')}" placeholder="예: 편의점 들르기" maxlength="60"></label>
+      <div class="row-field top"><span>종류</span><div class="kind-row">${KINDS.map(([e, label]) => `<button type="button" class="kind ${glyph(state.form.kind)[0] === glyph(e)[0] && state.form.kind ? 'on' : ''}" data-f-kind="${e}">${itemIcon(e)}${label}</button>`).join('')}</div></div>
+      <label class="row-field"><span>날짜</span><select class="input" id="f-date">${state.trip.days.map((d, i) => `<option value="${d.date}" ${d.date === date ? 'selected' : ''}>${i + 1}일차 · ${esc(dayLabel(d.date))}</option>`).join('')}</select></label>
+      <div class="row-field top"><span>시작</span><div>
+        <input class="input" id="f-start" type="time" value="${clock(s)}" aria-label="시작">
+        <div class="quick-row">
+          ${now.date === date ? '<button type="button" data-f-adj="now">지금</button>' : ''}
+          <button type="button" data-f-adj="-10">−10분</button><button type="button" data-f-adj="10">+10분</button><button type="button" data-f-adj="30">+30분</button>
+        </div>
+      </div></div>
+      <div class="row-field top"><span>소요</span><div class="quick-row dur-row">${DURS.map((m) => `<button type="button" data-f-dur="${m}">${m === 90 ? '1시간 반' : formatLeft(m)}</button>`).join('')}</div></div>
+      <label class="row-field"><span>종료</span><input class="input" id="f-end" type="time" value="${clock(Math.min(1439, s + dur))}"></label>
+      <div class="f-sum" id="f-sum"></div>
+      ${state.form.mine ? `
+        <label class="row-field"><span>장소</span><input class="input" id="f-place" list="f-places" value="${esc(place)}" placeholder="선택 · 탐색 장소나 검색어"></label>
+        <datalist id="f-places">${allPlaces().map((p) => `<option value="${esc(p.name)}">`).join('')}</datalist>`
+    : place ? `<div class="row-field"><span>장소</span><div class="small">${esc(place)}</div></div>` : ''}
+      <label class="row-field"><span>메모</span><input class="input" id="f-note" value="${esc(it?.note || '')}" maxlength="200" placeholder="선택"></label>
+      <label class="lock-row"><input type="checkbox" id="f-lock" ${it && isFixed(it) ? 'checked' : ''}><span class="grow"><b>${icon('lock')}시간 고정</b><small>예약했거나 시간을 바꿀 수 없는 일정. 앞 일정이 늦어져도 밀리지 않아요.</small></span></label>
+      <div id="f-ripple"></div>
+      ${it && 'alarm' in it ? '<div class="small muted alarm-note">캘린더 알림은 자동으로 바뀌지 않아요.</div>' : ''}
+      <div class="btns">
+        <button class="btn primary" type="submit" id="f-save">${it ? '저장' : '일정에 추가'}</button>
+        ${it ? `<button class="btn" type="button" data-edit-reset="${esc(id)}">원래대로</button>` : '<button class="btn" type="button" data-close>취소</button>'}
+      </div>
+      ${it ? `<button class="btn ghost wide f-del" type="button" data-item-del="${esc(id)}">${icon('x')}이 일정 삭제</button>` : ''}
+    </form>`;
   $('#sheet').hidden = false;
+  updateForm();
 }
-function saveEdit(id) {
-  const start = $('#ed-start').value;
-  const end = $('#ed-end').value;
-  if (!start) return toast('시작 시간을 입력해 주세요.');
-  if (end && end <= start) return toast('종료는 시작보다 늦어야 해요.');
-  const old = store.get('edit:' + id, null) || {};
-  store.set('edit:' + id, { ...old, start, ...(end ? { end } : {}) });
+
+// The form's times as minutes; the summary line, the warnings and the knock-on preview follow every change.
+// Moved to another day, the stop goes in there like a new one.
+function formPlan() {
+  const f = state.form;
+  const date = $('#f-date').value;
+  const same = f.id && findItem(f.id).date === date;
+  const list = dayItems(dayOf(date)).filter((x) => !x.skip && (same || x.id !== f.id));
+  const idx = same ? list.findIndex((x) => x.id === f.id) : -1;
+  const e = Math.min(1439, f.s + f.dur);
+  const base = ripple(list, idx, f.s, e);
+  const cut = f.fit === 'cut' && base.walls.length ? fitCuts(list, idx, f.s, e) : null;
+  return { date, list, idx, e, base, plan: cut ? ripple(list, idx, f.s, e, cut) : base };
+}
+function updateForm() {
+  const f = state.form;
+  const { date, idx, list, e, base, plan } = formPlan();
+  const warn = [];
+  if (e <= f.s) warn.push(['bad', '끝나는 시간이 시작보다 빨라요.']);
+  if (f.s < 300) warn.push(['bad', `새벽 ${clock(f.s)}으로 되어 있어요. 낮이면 <button type="button" data-f-pm>${clock(f.s + 720)}으로 고치기</button>`]);
+  const p = f.id ? placeOfItem(f.id) : null;
+  const named = f.mine && allPlaces().find((x) => x.name === $('#f-place')?.value.trim());
+  const spot = named || p;
+  if (spot?.o && openNow(spot, { date, min: f.s }) === false) warn.push(['', `${esc(spot.name)} 영업시간이 아니에요 (${esc(placeHours(spot))}).`]);
+  const it = f.id && list[idx];
+  if (it?.closedDays?.includes(dowOf(date))) warn.push(['', '이 날은 휴무예요.']);
+  if (it?.hard) warn.push(['', '예약·탑승 시간이 정해진 일정이에요. 예약 시간도 확인하세요.']);
+  // A new stop or a changed time that lands on top of other stops says which.
+  const overlaps = list.filter((x, i) => i !== idx && !isDone(x.id) && x.startMin < e && f.s < x.endMin && x.endMin - x.startMin > 0);
+  $('#f-sum').innerHTML = `<b>${clock(f.s)} 시작 · ${clock(e)} 종료</b> <span>(${formatLeft(Math.max(0, e - f.s))})</span>
+    ${warn.map(([c, t]) => `<div class="f-warn ${c}">${t}</div>`).join('')}`;
+  $('#f-save').disabled = e <= f.s;
+  document.querySelectorAll('[data-f-dur]').forEach((b) => b.classList.toggle('on', Number(b.dataset.fDur) === e - f.s));
+  // What happens to the stops after it.
+  const moving = plan.changes;
+  const pull = plan.push < 0;
+  const box = $('#f-ripple');
+  if (!moving.length && !base.walls.length) {
+    box.innerHTML = overlaps.length ? `<div class="f-warn">${esc(overlaps.map((x) => x.title).join(', '))}와 시간이 겹쳐요.</div>` : '';
+    return;
+  }
+  // Pushing later is on by default; pulling earlier is offered but off.
+  if (f.ripSign !== plan.push > 0) { f.ripSign = plan.push > 0; f.rip = !pull; }
+  const wall = base.walls[0];
+  const left = plan.walls[0]?.over || 0;
+  const cut = moving.some((c) => c.cut);
+  box.innerHTML = `
+    <div class="rp">
+      <label class="rp-toggle"><input type="checkbox" id="f-rip" ${f.rip ? 'checked' : ''}><b>뒤 일정 ${moving.length}개도 같이 ${pull ? '당기기' : '밀기'}</b></label>
+      ${f.rip ? `
+        <div class="rp-list">${moving.map((c) => `
+          <div class="rp-row"><span class="grow">${esc(c.it.title)}</span>
+            <span class="rp-t"><s>${clock(c.it.startMin)}</s> → <b>${clock(c.start)}</b>${c.cut ? ` <em>${formatLeft(c.it.endMin - c.it.startMin)} → ${formatLeft(c.end - c.start)}</em>` : ''}</span></div>`).join('')}
+        </div>
+        ${wall ? `
+          <div class="rp-wall">${icon('lock')}<span><b>${esc(wall.it.start)} ${esc(wall.it.title)}</b>은 시간 고정이라 움직이지 않아요. 그대로 밀면 ${formatLeft(wall.over)} 겹쳐요.</span></div>
+          <div class="rp-fit">
+            <label><input type="radio" name="f-fit" value="cut" ${f.fit === 'cut' ? 'checked' : ''}><span>앞 일정을 줄여서 맞추기${f.fit !== 'cut' ? '' : !cut ? ' · 줄일 수 있는 일정이 없어요' : left ? ` · 그래도 ${formatLeft(left)} 겹쳐요` : ' · 딱 맞췄어요'}</span></label>
+            <label><input type="radio" name="f-fit" value="keep" ${f.fit === 'keep' ? 'checked' : ''}><span>겹친 채로 두기</span></label>
+          </div>
+          ${!cut && f.dur - wall.over >= 10 && !(tokyoNow().date === date && f.s + f.dur - wall.over <= tokyoNow().min) ? `<button type="button" class="rp-short" data-f-dur="${f.dur - wall.over}">${icon('clock')}이 일정을 ${formatLeft(f.dur - wall.over)}만 하면 딱 맞아요</button>` : ''}` : ''}` : ''}
+    </div>`;
+}
+
+function saveItemForm() {
+  const f = state.form;
+  const { date, idx, e, plan } = formPlan();
+  const title = $('#f-title').value.trim() || $('#f-place')?.value.trim();
+  if (!title) return toast('제목을 입력해 주세요.');
+  if (e <= f.s) return toast('끝나는 시간이 시작보다 늦어야 해요.');
+  if (f.s < 300 && !confirm(`새벽 ${clock(f.s)}이 맞나요?`)) return;
+  const note = $('#f-note').value.trim();
+  const lock = $('#f-lock').checked;
+  const undo = {};
+  const keep = (id) => { if (!(id in undo)) undo[id] = store.get('edit:' + id, null); };
+  let id = f.id;
+  if (id) {
+    const raw = rawItem(id);
+    const old = store.get('edit:' + id, null) || {};
+    keep(id);
+    const next = { ...old, date, start: clock(f.s), end: clock(e), title, note, icon: f.kind || raw.icon, lock };
+    // Only what differs from the plan is kept, so "원래대로" and the trip file stay in step.
+    for (const k of ['date', 'title', 'note', 'icon', 'start', 'end']) if ((raw[k] || '') === (next[k] || '')) delete next[k];
+    if (lock === !!raw.hard) delete next.lock;
+    if (f.mine) {
+      const q = $('#f-place').value.trim();
+      const p = allPlaces().find((x) => x.name === q);
+      next.place = q ? { nameJa: p?.verified?.name || q, query: p?.verified?.name || q } : null;
+      next.placeId = p?.id || null;
+    }
+    delete next.auto;
+    store.set('edit:' + id, Object.keys(next).length ? next : null);
+  } else {
+    const q = $('#f-place').value.trim();
+    const p = allPlaces().find((x) => x.name === q);
+    id = uid('my-it');
+    undo[id] = 'new';
+    store.set('myitems', [...store.get('myitems', []), {
+      id, date, start: clock(f.s), end: clock(e), title, icon: f.kind || (p ? CAT_ICON[p.cat] : '📍'), ...(note ? { note } : {}),
+      ...(q ? { place: { nameJa: p?.verified?.name || q, query: p?.verified?.name || q } } : {}), ...(p ? { placeId: p.id } : {}), ...(lock ? { lock: true } : {}),
+    }]);
+  }
+  let moved = 0;
+  if (f.rip && (plan.changes.length)) {
+    for (const c of plan.changes) {
+      keep(c.it.id);
+      const old = store.get('edit:' + c.it.id, null) || {};
+      store.set('edit:' + c.it.id, { ...old, start: clock(c.start), ...(c.it.end || c.cut || old.end ? { end: clock(c.end) } : {}), auto: true });
+      moved += 1;
+    }
+  }
+  if (f.catch) store.set('start:' + id, true);
   closeSheet();
   render();
-  toast('일정을 바꿨어요');
+  toast(`${f.id ? '일정을 바꿨어요' : '일정을 넣었어요'}${moved ? ` · 뒤 일정 ${moved}개 ${plan.push < 0 ? '당김' : '밀림'}` : ''}`, () => {
+    for (const [k, v] of Object.entries(undo)) {
+      if (v === 'new') { forget('myitems:' + k); store.set('myitems', store.get('myitems', []).filter((x) => x.id !== k)); }
+      else store.set('edit:' + k, v);
+    }
+    if (f.catch) store.set('start:' + id, false);
+    render();
+  }, '되돌리기');
 }
+
 function toggleSkip(id) {
   if (isDone(id)) completeItem(id);
   const old = store.get('edit:' + id, null) || {};
@@ -1993,12 +2517,31 @@ function toggleSkip(id) {
   closeSheet();
   render();
 }
+// Deleting only hides the stop, so it can come back from the day's edit mode.
 function deleteItem(id) {
-  if (!confirm('추가한 일정을 삭제할까요?')) return;
-  forget('myitems:' + id);
-  store.set('myitems', store.get('myitems', []).filter((x) => x.id !== id));
+  const old = store.get('edit:' + id, null);
+  store.set('edit:' + id, { ...old, del: true });
   closeSheet();
   render();
+  toast('일정을 삭제했어요', () => { store.set('edit:' + id, old); render(); }, '되돌리기');
+}
+function restoreItem(id) {
+  const { del, ...rest } = store.get('edit:' + id, null) || {};
+  store.set('edit:' + id, Object.keys(rest).length ? rest : null);
+  render();
+}
+// Back to the trip file's times for one day: stops the app moved and times changed by hand.
+function resetDay(date) {
+  const list = effectiveItems(dayOf(date));
+  if (!confirm(`이날 일정 시간을 모두 원래 계획으로 되돌릴까요?`)) return;
+  for (const it of list) {
+    const edit = store.get('edit:' + it.id, null);
+    if (!edit) continue;
+    const { start, end, auto, ...rest } = edit;
+    store.set('edit:' + it.id, Object.keys(rest).length ? rest : null);
+  }
+  render();
+  toast('원래 계획 시간으로 되돌렸어요');
 }
 
 function toggleSave(id) {
@@ -2006,7 +2549,7 @@ function toggleSave(id) {
   render();
   if (!$('#sheet').hidden) openPlace(id);
 }
-const rateBtns = (id, again, from) => Object.entries(AGAIN).map(([k, label]) => `<button type="button" class="btn ${again === k ? 'primary' : ''}" data-rate="${esc(id)}" data-again="${k}" data-from="${from}">${label}</button>`).join('');
+const rateBtns = (id, again, from) => Object.entries(AGAIN).map(([k, label]) => `<button type="button" class="btn rate-${k} ${again === k ? 'primary' : ''}" data-rate="${esc(id)}" data-again="${k}" data-from="${from}">${againIcon(k)}${label}</button>`).join('');
 
 // Done is saved on the first tap, so closing the sheet midway never loses the visit.
 function completeItem(id) {
@@ -2043,7 +2586,7 @@ function openFinish(id) {
         <div class="finish-pay">${expPick()}</div>
         ${spent.map(expRow).join('')}` : ''}
       ${p ? `
-        <div class="finish-label">또 갈래요?</div>
+        <div class="finish-label">다시 갈 만한가요?</div>
         <div class="rate-row">${rateBtns(p.id, v?.again, 'finish')}</div>
         <label class="finish-label" for="finish-memo">한 줄 메모</label>
         <input class="input" id="finish-memo" data-place-memo="${esc(p.id)}" maxlength="300" placeholder="선택 입력" value="${esc(v?.memo || '')}" autocomplete="off">` : ''}
@@ -2100,7 +2643,9 @@ const allDocs = () => [
 // Place photos use the same store under a per-place slot, so they sync like any other photo.
 const docSlot = (id) => {
   const place = id?.startsWith?.('place-') && placeById(id.slice(6));
-  return place ? { id, label: place.name, icon: '📎', max: 20 } : allDocs().find((s) => s.id === id);
+  if (place) return { id, label: place.name, icon: '📎', max: 20 };
+  const e = id?.startsWith?.('rcpt-') && expenses().find((x) => x.id === id.slice(5));
+  return e ? { id, label: `영수증 · ${e.memo || e.cat}`, icon: '📎', max: 5, receipt: true } : allDocs().find((s) => s.id === id);
 };
 
 // Store a picked photo: single-photo slots replace, others append up to their limit.
@@ -2179,7 +2724,7 @@ function viewerIndex() {
 function updateViewerCap() {
   const slot = docSlot(state.viewer.slot);
   const n = state.viewer.keys.length;
-  $('#viewer-cap').textContent = `${slot?.label || ''}${n > 1 ? ` · ${viewerIndex() + 1} / ${n}` : ''} · QR은 화면 밝기를 올려 보여주세요`;
+  $('#viewer-cap').textContent = `${slot?.label || ''}${n > 1 ? ` · ${viewerIndex() + 1} / ${n}` : ''}${slot?.receipt ? '' : ' · QR은 화면 밝기를 올려 보여주세요'}`;
 }
 
 // ---------- sheet & big japanese ----------
@@ -2226,7 +2771,6 @@ function openItem(id) {
   const place = placeOfItem(it.id);
   const next = nextStop(it);
   const pending = !done && !it.skip;
-  const mine = String(it.id).startsWith('my-it');
   const spent = expenses().filter((e) => e.item === it.id).reduce((a, e) => a + e.amount, 0);
   const v = place && visitOf(place.id);
   const hasAlts = altPlaces(it).length > 0;
@@ -2255,9 +2799,8 @@ function openItem(id) {
     ${sceneOf(it) ? talkCard(sceneOf(it), it.id) : ''}
     <div class="state-seg" role="group" aria-label="일정 상태">
       <button class="seg ${done ? 'on' : ''}" data-done="${esc(it.id)}" aria-pressed="${done}"><i class="check-box"></i>${doneLabel(it)}</button>
-      ${mine ? '' : `<button class="seg ${it.skip ? 'on' : ''}" data-item-skip="${esc(it.id)}" aria-pressed="${!!it.skip}">${icon('skip')}건너뛰기</button>`}
-      <button class="seg" data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button>
-      ${mine ? `<button class="seg" data-item-del="${esc(it.id)}">${icon('x')}일정 삭제</button>` : ''}
+      <button class="seg ${it.skip ? 'on' : ''}" data-item-skip="${esc(it.id)}" aria-pressed="${!!it.skip}">${icon('skip')}건너뛰기</button>
+      <button class="seg" data-item-edit="${esc(it.id)}">${icon('pen')}수정</button>
     </div>
     <div class="btns">
       ${done && (it.place || place) ? `<button class="finish-sum" data-finish-open="${esc(it.id)}"><b>방문 기록</b><span>${esc(summary || '쓴 돈과 평가 남기기')}</span></button>` : ''}
@@ -2330,7 +2873,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 129;
+const APP_VERSION = 131;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2405,7 +2948,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-edit-save],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-prep-done],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -2478,11 +3021,27 @@ document.addEventListener('click', async (e) => {
   else if (d.placeDel) deletePlace(d.placeDel);
   else if (d.placePlan) openPlan(d.placePlan);
   else if (d.planSave) savePlan(d.planSave);
-  else if (d.itemEdit) openEditItem(d.itemEdit);
-  else if (d.editSave) saveEdit(d.editSave);
+  else if (d.itemEdit) openItemForm(d.itemEdit);
+  else if ('itemNew' in d) openItemForm(null, { date: d.itemNew, after: d.after });
+  else if (d.catch) openItemForm(d.catch, { catch: true });
+  else if ('dayEdit' in d) { const { date } = state.trip.days[state.dayIndex]; state.editDay = state.editDay === date ? null : date; render(); }
+  else if (d.itemRestore) restoreItem(d.itemRestore);
+  else if (d.dayReset) resetDay(d.dayReset);
+  else if (d.fKind) {
+    state.form.kind = state.form.kind === d.fKind ? '' : d.fKind;
+    document.querySelectorAll('[data-f-kind]').forEach((b) => b.classList.toggle('on', b.dataset.fKind === state.form.kind));
+  }
+  else if (d.fAdj) {
+    const f = state.form;
+    f.s = Math.max(0, Math.min(1439 - 5, d.fAdj === 'now' ? tokyoNow().min : f.s + Number(d.fAdj)));
+    $('#f-start').value = clock(f.s); $('#f-end').value = clock(Math.min(1439, f.s + f.dur)); updateForm();
+  }
+  else if (d.fDur) { state.form.dur = Number(d.fDur); $('#f-end').value = clock(Math.min(1439, state.form.s + state.form.dur)); updateForm(); }
+  else if ('fPm' in d) { const f = state.form; f.s += 720; $('#f-start').value = clock(f.s); $('#f-end').value = clock(Math.min(1439, f.s + f.dur)); updateForm(); }
+  // Back to the plan for this stop: times, name, day and lock. A swapped place and a skip stay.
   else if (d.editReset) {
-    const swap = store.get('edit:' + d.editReset, null)?.swap;
-    store.set('edit:' + d.editReset, swap ? { swap } : null);
+    const { swap, skip } = store.get('edit:' + d.editReset, null) || {};
+    store.set('edit:' + d.editReset, swap || skip ? { ...(swap ? { swap } : {}), ...(skip ? { skip } : {}) } : null);
     closeSheet();
     render();
   }
@@ -2581,9 +3140,38 @@ document.addEventListener('click', async (e) => {
   else if (d.jump) $(`#${d.jump}`)?.scrollIntoView({ block: 'start' });
   else if (d.expView) { state.expView = d.expView; render(); }
   else if ('goExp' in d) { state.expView = 'spent'; go('wallet'); $('#exp')?.scrollIntoView({ block: 'start' }); scrollBy(0, -100); }
+  // Saved first, then the camera opens straight from the same tap (iPhone allows the picker only there).
+  else if (d.gear) {
+    const [date, k, v] = d.gear.split('|');
+    const key = `gear:${date}:${who()}`;
+    const g = store.get(key, null) || {};
+    store.set(key, { ...g, [k]: g[k] === v ? '' : v });
+    el.parentElement.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === el && g[k] !== v));
+  }
+  else if (d.prep) {
+    const [date, k] = d.prep.split('|');
+    const st = store.get('prep:' + date, {});
+    store.set('prep:' + date, { ...st, ck: { ...st.ck, [k]: !st.ck?.[k] } });
+    el.classList.toggle('on');
+  }
+  else if (d.prepDone) { store.set('prep:' + d.prepDone, { ...store.get('prep:' + d.prepDone, {}), done: true }); render(); toast('좋은 하루 보내세요'); }
+  else if (d.daySum) {
+    state.dayIndex = Number(d.daySum); store.set('day', state.dayIndex); go('days');
+    $('.day-sum .gear-fb')?.scrollIntoView({ block: 'center' });
+  }
+  else if ('expRcpt' in d) {
+    const form = el.closest('form');
+    const value = expValue(form);
+    if (!value) return toast('금액을 입력한 뒤 누르면 지출과 영수증이 함께 등록돼요.');
+    const f = new FormData(form);
+    const id = addExpense({ value, cur: f.get('cur'), pay: f.get('pay'), memo: String(f.get('memo') || '').trim(), cat: f.get('cat'), date: f.get('date') || undefined });
+    pickPhotos(rcptSlot(id));
+    render();
+  }
   else if (d.expDel) {
     if (!confirm('이 지출 기록을 삭제할까요?')) return;
     forget('exp:' + d.expDel);
+    try { for (const k of await docs.of(rcptSlot(d.expDel))) await docs.del(k); await refreshDocSlots(); } catch { /* ignore */ }
     store.set('exp', expenses().filter((x) => x.id !== d.expDel));
     const finishing = $('#sheet').hidden ? null : $('#sheet-body [data-exp-item]')?.dataset.expItem;
     if ($('.exp-edit')) closeSheet();
@@ -2606,6 +3194,11 @@ document.addEventListener('compositionend', (e) => {
 document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.classList.contains('amount') && !e.isComposing) formatAmount(t);
+  if (t.dataset.gearMemo) {
+    const key = `gear:${t.dataset.gearMemo}:${who()}`;
+    store.set(key, { ...store.get(key, null), memo: t.value.trim() });
+    return;
+  }
   if (t.dataset.placeMemo) {
     const id = t.dataset.placeMemo;
     const v = visitOf(id);
@@ -2622,6 +3215,20 @@ document.addEventListener('input', (e) => {
     $('#ex-list').innerHTML = exploreRows(exploreList(now), now);
     $('[data-ex-clear]').hidden = !t.value;
   }
+  // Changing the start keeps the length, so the end follows; changing the end changes the length.
+  else if (t.id === 'f-start') {
+    const v = fromClock(t.value);
+    if (v === null) return;
+    if (state.form.dur <= 0) state.form.dur = 60;
+    state.form.s = v; $('#f-end').value = clock(Math.min(1439, v + state.form.dur)); updateForm();
+  }
+  else if (t.id === 'f-end') {
+    const v = fromClock(t.value);
+    if (v !== null) { state.form.dur = v - state.form.s; updateForm(); }
+  }
+  else if (['f-date', 'f-place'].includes(t.id)) updateForm();
+  else if (t.id === 'f-rip') { state.form.rip = t.checked; updateForm(); }
+  else if (t.name === 'f-fit') { state.form.fit = t.value; updateForm(); }
   else if (t.id === 'talk-text') { store.set('talkText', t.value); $('.talk-clear').hidden = !t.value; }
 });
 
@@ -2721,13 +3328,14 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('submit', (e) => {
+  if (e.target.classList.contains('item-form')) { e.preventDefault(); return saveItemForm(); }
   if (e.target.classList.contains('exp-edit')) {
     e.preventDefault();
     const value = expValue(e.target);
     if (!value) return toast('금액을 입력해 주세요.');
     const f = new FormData(e.target);
     store.set('exp', expenses().map((x) => (x.id === e.target.dataset.id
-      ? { ...x, ...expAmount(value, f.get('cur')), pay: f.get('pay'), cat: f.get('cat'), memo: String(f.get('memo') || '').trim(), at: Date.now() }
+      ? { ...x, ...expAmount(value, f.get('cur')), pay: f.get('pay'), cat: f.get('cat'), date: f.get('date') || x.date, memo: String(f.get('memo') || '').trim(), at: Date.now() }
       : x)));
     closeSheet();
     render();
@@ -2739,7 +3347,7 @@ document.addEventListener('submit', (e) => {
     const value = expValue(e.target);
     if (!value) return toast('금액을 입력해 주세요.');
     const item = e.target.dataset.expItem || null;
-    addExpense({ value, cur: f.get('cur'), pay: f.get('pay'), memo: String(f.get('memo') || '').trim(), cat: f.get('cat'), item, date: item ? findItem(item)?.date : undefined });
+    addExpense({ value, cur: f.get('cur'), pay: f.get('pay'), memo: String(f.get('memo') || '').trim(), cat: f.get('cat'), item, date: item ? findItem(item)?.date : f.get('date') || undefined });
     toast('지출을 기록했어요');
     render();
     return;
@@ -2789,6 +3397,7 @@ $('#doc-file').addEventListener('change', async (e) => {
   state.pendingDoc = state.pendingTitle = null;
   render();
   if (slotId.startsWith('place-')) openPlace(slotId.slice(6));
+  if (slotId.startsWith('rcpt-') && !$('#sheet').hidden) openExpEdit(slotId.slice(5));
 });
 
 $('#sync-file').addEventListener('change', async (e) => {
@@ -2852,6 +3461,8 @@ async function init() {
   state.tab = TABS.includes(saved) ? saved : saved === 'info' ? 'wallet' : 'today';
   if (todayIdx >= 0) state.tab = 'today';
   state.wx = store.get('wx', null);
+  state.wxlog = store.get('wxlog', null);
+  if (state.wx && !state.wxlog) logWeather(state.wx);
   state.fx = store.get('fx', null);
   await refreshDocSlots();
   render();
