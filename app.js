@@ -2613,7 +2613,7 @@ let aiSdk = null;
 async function aiClient() {
   if (!aiSdk) aiSdk = await import('https://esm.sh/@anthropic-ai/sdk@1.1.0');
   const Anthropic = aiSdk.default;
-  return { Anthropic, client: new Anthropic({ apiKey: aiKey(), dangerouslyAllowBrowser: true, maxRetries: 1 }) };
+  return { Anthropic, client: new Anthropic({ apiKey: aiKey(), dangerouslyAllowBrowser: true, maxRetries: 1, timeout: 120000 }) };
 }
 // What went wrong, in words a traveler can act on.
 function aiError(e, Anthropic) {
@@ -2621,6 +2621,7 @@ function aiError(e, Anthropic) {
   if (Anthropic && e instanceof Anthropic.AuthenticationError) return 'API 키가 맞지 않아요. 예약 탭 AI 도우미에서 키를 다시 확인해 주세요.';
   if (Anthropic && e instanceof Anthropic.PermissionDeniedError) return '이 키로는 쓸 수 없는 기능이에요. 콘솔에서 키 권한을 확인해 주세요.';
   if (Anthropic && e instanceof Anthropic.RateLimitError) return '요청이 많아요. 잠시 뒤 다시 시도해 주세요.';
+  if (Anthropic && e instanceof Anthropic.APIConnectionTimeoutError) return '응답이 너무 늦어요. 인터넷 상태를 확인하고 다시 시도해 주세요.';
   if (Anthropic && e instanceof Anthropic.APIConnectionError) return 'Claude에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.';
   if (Anthropic && e instanceof Anthropic.APIError) {
     const why = e.error?.error?.message || e.message || '';
@@ -2788,17 +2789,20 @@ async function runAiPlace(where, btn) {
   out.innerHTML = pl.ai ? aiPlaceCard(pl) : `<div class="small muted">${esc(place.name)}을(를) 내 장소에 넣었어요. 키를 등록하면 영업시간·팁도 채워요.</div>`;
   updateForm();
 }
-async function aiTest(btn) {
-  btn.disabled = true; btn.textContent = '확인 중…';
+// The result is kept in state, so a redraw (weather, exchange rate) while waiting doesn't wipe it.
+async function aiTest() {
+  if (state.aiTest?.busy) return;
+  state.aiTest = { busy: true };
+  render();
   let msg;
   try {
     const { Anthropic, client } = await aiClient();
     try { await client.messages.create({ model: aiModel().id, max_tokens: 1024, output_config: { effort: 'low' }, messages: [{ role: 'user', content: 'OK라고만 답해 주세요.' }] }); msg = '연결됐어요'; }
     catch (e) { msg = aiError(e, Anthropic); }
   } catch { msg = 'Claude 도구를 불러오지 못했어요. 인터넷을 확인해 주세요.'; }
-  btn.disabled = false; btn.textContent = '연결 확인';
-  const box = $('#ai-msg');
-  if (box) { box.hidden = false; box.className = `ai-msg ${msg === '연결됐어요' ? 'ok' : ''}`; box.textContent = msg; } else toast(msg);
+  state.aiTest = { msg, ok: msg === '연결됐어요' };
+  render();
+  toast(msg);
 }
 
 // Settings card in the 예약 tab.
@@ -2811,8 +2815,8 @@ function aiCard() {
       <div class="small muted">구글지도 링크를 붙여 넣으면 장소 정보를 찾아 일정에 바로 넣어요. 본인 Claude API 키가 필요하고, 키는 이 폰에만 저장돼요 (동기화·GitHub에 안 올라가요).</div>
       ${key ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>키 저장됨</b><small>키 끝자리 ••••${esc(key.slice(-4))}</small></span>
-          <button class="btn" data-ai-test>연결 확인</button></div>
-        <div id="ai-msg" class="ai-msg" hidden></div>` : `
+          <button class="btn" data-ai-test ${state.aiTest?.busy ? 'disabled' : ''}>${state.aiTest?.busy ? '확인 중…' : '연결 확인'}</button></div>
+        ${state.aiTest?.msg ? `<div class="ai-msg ${state.aiTest.ok ? 'ok' : ''}">${esc(state.aiTest.msg)}</div>` : ''}` : `
         <input class="input" id="ai-key" type="password" autocomplete="off" placeholder="sk-ant-로 시작하는 API 키">`}
       <label class="field"><span>모델</span><select class="input" id="ai-model">${Object.entries(AI_MODELS).map(([k, m]) => `<option value="${k}" ${k === pick ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>
       <div class="btns">${key ? '<button class="btn wide" data-ai-forget>키 지우기</button>' : '<button class="btn primary wide" data-ai-save>저장</button>'}</div>
@@ -3460,7 +3464,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 151;
+const APP_VERSION = 152;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -3612,10 +3616,10 @@ document.addEventListener('click', async (e) => {
   else if ('aiSave' in d) {
     const k = $('#ai-key').value.trim();
     if (!/^sk-ant-/.test(k)) return toast('sk-ant-로 시작하는 API 키를 넣어 주세요');
-    store.set('aiKey', k); store.set('aiModel', $('#ai-model').value); render(); toast('AI 도우미를 켰어요');
+    store.set('aiKey', k); store.set('aiModel', $('#ai-model').value); state.aiTest = null; render(); toast('AI 도우미를 켰어요');
   }
   else if ('aiForget' in d) { if (confirm('이 폰에서 API 키를 지울까요?')) { store.set('aiKey', ''); render(); toast('키를 지웠어요'); } }
-  else if ('aiTest' in d) aiTest(el);
+  else if ('aiTest' in d) aiTest();
   else if (d.placeDel) deletePlace(d.placeDel);
   else if (d.placePlan) openPlan(d.placePlan);
   else if (d.planSave) savePlan(d.planSave);
