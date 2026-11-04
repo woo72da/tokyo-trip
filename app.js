@@ -1753,7 +1753,7 @@ function timeline(items, now, edit = false) {
 // A trip between places: a slim row on a dashed stretch of the line, or a boarding pass for a flight.
 function transitRow(it, cls, late, now, edit, tail) {
   const attr = `${edit ? 'data-item-edit' : 'data-item'}="${esc(it.id)}" role="button" tabindex="0"`;
-  const current = cls.includes('current');
+  const current = cls.includes('current') && !late && !cls.includes('behind');
   const f = flightOf(it);
   if (f) {
     return `
@@ -2622,33 +2622,50 @@ function aiError(e, Anthropic) {
   if (Anthropic && e instanceof Anthropic.PermissionDeniedError) return '이 키로는 쓸 수 없는 기능이에요. 콘솔에서 키 권한을 확인해 주세요.';
   if (Anthropic && e instanceof Anthropic.RateLimitError) return '요청이 많아요. 잠시 뒤 다시 시도해 주세요.';
   if (Anthropic && e instanceof Anthropic.APIConnectionError) return 'Claude에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.';
-  if (Anthropic && e instanceof Anthropic.APIError) return `Claude 오류 (${e.status || '?'}) · 잠시 뒤 다시 시도해 주세요.`;
+  if (Anthropic && e instanceof Anthropic.APIError) {
+    const why = e.error?.error?.message || e.message || '';
+    return `Claude 오류 (${e.status || '?'})${why ? ` · ${String(why).slice(0, 160)}` : ''}`;
+  }
   return e?.message || '알 수 없는 오류가 났어요.';
 }
 // One request with the web tools; continues a paused server-tool turn, and stops on a refusal.
+// If the API rejects the request shape (400), it tries again with a plainer one: first without the
+// server-side fallback, then with web fetch only. The API's own reason is kept for the message.
 async function aiRun({ system, tools, text }) {
   const { Anthropic, client } = await aiClient();
   const m = aiModel();
-  const messages = [{ role: 'user', content: text }];
-  try {
-    for (let i = 0; i < 4; i++) {
-      const body = { model: m.id, max_tokens: 8000, system, tools, tool_choice: { type: 'auto' }, output_config: { effort: 'low' }, messages };
-      const res = m.fallback
-        ? await client.beta.messages.create({ ...body, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' })
-        : await client.messages.create(body);
-      if (res.stop_reason === 'refusal') throw new Error('Claude가 이 요청을 처리하지 않았어요. 내용을 바꿔 다시 시도해 주세요.');
-      if (res.stop_reason === 'pause_turn') { messages.push({ role: 'assistant', content: res.content }); continue; }
-      return res;
+  const plans = [
+    { tools, fallback: m.fallback },
+    { tools, fallback: false },
+    { tools: tools.filter((t) => t.name !== 'web_search'), fallback: false },
+  ];
+  let last = null;
+  for (const plan of plans) {
+    const messages = [{ role: 'user', content: text }];
+    try {
+      for (let i = 0; i < 4; i++) {
+        const body = { model: m.id, max_tokens: 8000, system, tools: plan.tools, tool_choice: { type: 'auto' }, output_config: { effort: 'low' }, messages };
+        const res = plan.fallback
+          ? await client.beta.messages.create({ ...body, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' })
+          : await client.messages.create(body);
+        if (res.stop_reason === 'refusal') throw new Error('Claude가 이 요청을 처리하지 않았어요. 내용을 바꿔 다시 시도해 주세요.');
+        if (res.stop_reason === 'pause_turn') { messages.push({ role: 'assistant', content: res.content }); continue; }
+        return res;
+      }
+      throw new Error('찾는 데 너무 오래 걸렸어요. 다시 시도해 주세요.');
+    } catch (e) {
+      last = e;
+      if (!(e instanceof Anthropic.BadRequestError)) break;
+      console.warn('AI 400, trying a plainer request:', e.message);
     }
-    throw new Error('찾는 데 너무 오래 걸렸어요. 다시 시도해 주세요.');
-  } catch (e) { throw new Error(aiError(e, Anthropic)); }
+  }
+  throw new Error(aiError(last, Anthropic));
 }
 
 const PLACE_AREAS = EX_AREAS.filter((a) => a !== '전체' && a !== '내 장소');
 const SAVE_PLACE = {
   name: 'save_place',
   description: 'Save the one place the traveler pasted. Call exactly once, after identifying the place.',
-  strict: true,
   input_schema: {
     type: 'object',
     additionalProperties: false,
@@ -2700,9 +2717,9 @@ async function aiPlace(text) {
     cat: ['eat', 'drink', 'see', 'shop'].includes(v.cat) ? v.cat : 'see',
     addr: String(v.addr || ''), ...(lat !== null && lng !== null && Math.abs(lat - 35.7) < 1.5 && Math.abs(lng - 139.7) < 1.5 ? { lat, lng } : {}),
     o: /^\d{1,2}:\d{2}-\d{1,2}:\d{2}/.test(v.hours || '') ? v.hours : '',
-    off: (v.off || []).filter((d) => d >= 0 && d <= 6),
+    off: (Array.isArray(v.off) ? v.off : []).map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6),
     r: num(v.rating), n: String(v.reviews || ''),
-    memo: String(v.desc || ''), best: (v.best || []).slice(0, 3), tips: (v.tips || []).slice(0, 3),
+    memo: String(v.desc || ''), best: (Array.isArray(v.best) ? v.best : []).map(String).slice(0, 3), tips: (Array.isArray(v.tips) ? v.tips : []).map(String).slice(0, 3),
     stay: Math.min(240, Math.max(15, Math.round((Number(v.stay) || 60) / 15) * 15)),
     note: String(v.note || ''), ai: true,
   };
@@ -3438,7 +3455,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 149;
+const APP_VERSION = 150;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

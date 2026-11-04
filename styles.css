@@ -1270,7 +1270,7 @@ ol.alarm-note { padding-left: 18px; }
 .mv-nav { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 12px; background: transparent; color: var(--accent); }
 .mv-nav .ico { width: 16px; height: 16px; }
 .tl-move .doc-row { margin-top: 6px; }
-.tl-item.move.current .tl-move { background: var(--now-soft); }
+.tl-item.move.current:not(.behind) .tl-move { background: var(--now-soft); }
 .tl-item.move.current .tl-time { color: var(--now); }
 .tl-item.move.behind .mv-title { color: var(--warn); }
 .tl-item.move.done .tl-move, .tl-item.move.past .tl-move, .tl-item.move.skipped .tl-move { opacity: .5; }
