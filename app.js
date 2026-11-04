@@ -1820,7 +1820,7 @@ function renderDays() {
     </div>
     ${edit ? '<div class="small muted edit-hint">일정을 누르면 고치고, ＋를 누르면 그 자리에 넣어요.</div>' : ''}
     ${timeline(items, now, edit)}
-    ${edit ? '' : daySummary(day, items, now)}
+    ${edit ? '' : daySummary(day, items, now) || (expenses().some((e) => e.date === day.date) ? `<div class="day-sum">${dayExpense(day.date, true)}</div>` : '')}
     <button class="btn wide day-add" data-item-new="${esc(day.date)}" data-after="${esc(items[items.length - 1]?.id || '')}">${icon('plus')}일정 추가</button>
     ${edit ? dayEditTools(day) : ''}
     <button class="btn wide alarm-btn" data-alarm-sheet>${icon('ext')}일정 알림 받기</button>
@@ -1828,6 +1828,42 @@ function renderDays() {
 }
 
 // Once a day is over, its record sits under the last stop: the stamp, what we did, what we spent, what we'd go back for.
+const EXP_COLOR = { 식당: 'meal', 카페: 'cafe', 편의점: 'konbini', 교통: 'move', 쇼핑: 'shop', 관광: 'see', 기타: 'etc' };
+// Paid in won: show the won actually paid, with the yen it counts as; in yen: yen, with roughly how much in won.
+const expMain = (e) => (e.orig?.cur === 'KRW' ? `${e.orig.value.toLocaleString('ko-KR')}원` : yen(e.amount));
+const expAlt = (e) => (e.orig?.cur === 'KRW' ? `≈ ${yen(e.amount)}` : `약 ${won(e.amount)}`);
+function dayExpense(date, open) {
+  const list = expenses().filter((e) => e.date === date);
+  if (!list.length) return open ? '' : `<button class="day-sum-row" data-go-exp>${secIcon('money')}<span class="grow"><b>기록한 지출 없음</b><small>예약 탭 경비에서 기록하거나 카드 문자로 등록해요</small></span></button>`;
+  const total = list.reduce((a, e) => a + e.amount, 0);
+  const card = list.filter((e) => e.pay !== 'cash').reduce((a, e) => a + e.amount, 0);
+  const cash = total - card;
+  const cats = Object.entries(list.reduce((m, e) => ({ ...m, [e.cat]: (m[e.cat] || 0) + e.amount }), {})).sort((a, b) => b[1] - a[1]);
+  // Time of each payment: the card message's time, else the stop it was logged at.
+  const rows = list.map((e) => {
+    const m = /\s·\s(\d{1,2}:\d{2})$/.exec(e.memo || '');
+    const it = e.item && findItem(e.item);
+    return { e, time: m ? m[1].padStart(5, '0') : it?.start || '', name: (m ? e.memo.slice(0, m.index) : e.memo) || (it ? stripEmoji(it.title).split(' · ')[0] : e.cat), stop: it && m ? stripEmoji(it.title).split(' · ')[0] : '' };
+  }).sort((a, b) => (a.time || '99') .localeCompare(b.time || '99') || a.e.at - b.e.at);
+  return `
+    <div class="dx">
+      <div class="dx-head">${secIcon('money')}
+        <div class="grow"><small>${open ? '오늘 지출' : '그날 지출'} · ${list.length}건</small><b>${yen(total)}</b>
+          <span>약 ${manwon(total)}${card && cash ? ` · 카드 ${yen(card)} · 현금 ${yen(cash)}` : cash ? ' · 모두 현금' : ' · 모두 카드'}</span></div>
+      </div>
+      <div class="dx-bar" aria-hidden="true">${cats.map(([c, n]) => `<i class="x-${EXP_COLOR[c] || 'etc'}" style="flex:${n}"></i>`).join('')}</div>
+      <div class="dx-cats">${cats.map(([c, n]) => `<span><i class="x-${EXP_COLOR[c] || 'etc'}"></i>${esc(c)} <b>${yen(n)}</b> <em>${Math.round((n / total) * 100)}%</em></span>`).join('')}</div>
+      <div class="dx-list">${rows.map(({ e, time, name, stop }) => `
+        <button class="dx-row" data-exp-edit="${esc(e.id)}">
+          <span class="dx-t">${esc(time || '–')}</span>
+          <span class="grow"><b>${esc(name)}</b><small><i class="x-${EXP_COLOR[e.cat] || 'etc'}"></i>${esc(e.cat)} · ${e.pay === 'cash' ? '현금' : '카드'}${stop ? ` · ${esc(stop)}` : ''}</small></span>
+          <span class="dx-amt"><b>${expMain(e)}</b><small>${expAlt(e)}</small></span>
+        </button>`).join('')}
+      </div>
+      <button class="dx-more" data-go-exp>경비 전체 보기 · 예약 탭</button>
+    </div>`;
+}
+
 function daySummary(day, items, now) {
   const live = items.filter((it) => !it.skip);
   const sealed = store.get('seal:' + day.date, false);
@@ -1837,9 +1873,6 @@ function daySummary(day, items, now) {
   const done = live.filter((it) => isDone(it.id));
   const visited = done.filter((it) => placeOfItem(it.id)).length;
   const skipped = items.filter((it) => it.skip).length;
-  const spent = expenses().filter((e) => e.date === day.date);
-  const total = spent.reduce((a, e) => a + e.amount, 0);
-  const byCat = Object.entries(spent.reduce((m, e) => ({ ...m, [e.cat]: (m[e.cat] || 0) + e.amount }), {})).sort((a, b) => b[1] - a[1]);
   const notes = live.map((it) => [it, placeOfItem(it.id)]).filter(([, p]) => p).map(([it, p]) => ({ it, p, v: visitOf(p.id) }))
     .filter(({ v }) => v && (v.again || v.memo));
   return `
@@ -1852,10 +1885,7 @@ function daySummary(day, items, now) {
         </div>
       </div>
       ${daySumWeather(day.date)}
-      <button class="day-sum-row" data-go-exp>
-        ${secIcon('money')}<span class="grow"><b>${total ? `${yen(total)} 사용` : '기록한 지출 없음'}</b>${total ? `<small>${esc(byCat.slice(0, 3).map(([c, n]) => `${c} ${yen(n)}`).join(' · '))}</small>` : ''}</span>
-        ${total ? `<span class="day-sum-won">${won(total)}</span>` : ''}
-      </button>
+      ${dayExpense(day.date, false)}
       ${notes.map(({ it, p, v }) => `
         <button class="day-sum-row" data-item="${esc(it.id)}">
           ${itemIcon(it.icon)}<span class="grow"><b>${esc(p.name)}${v.again ? `<em class="${v.again}">${againIcon(v.again)}${AGAIN[v.again]}</em>` : ''}</b>${v.memo ? `<small>${esc(v.memo)}</small>` : ''}</span>
@@ -3189,7 +3219,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 144;
+const APP_VERSION = 145;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

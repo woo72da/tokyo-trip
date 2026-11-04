@@ -1321,3 +1321,29 @@ ol.alarm-note { padding-left: 18px; }
 .sms-amt { flex: none; margin-left: auto; font: 700 15px/1.2 var(--mono); white-space: nowrap; }
 .sms-cat { min-height: 38px; padding: 0 8px; font-size: 14px; }
 .sms-add { margin-top: 12px; }
+
+/* The day's spending */
+.dx { padding: 12px 0 4px; border-top: 1px solid var(--line); }
+.day-sum > .dx:first-child { border-top: 0; padding-top: 2px; }
+.dx-head { display: flex; align-items: flex-start; gap: 10px; }
+.dx-head small { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+.dx-head b { display: block; margin-top: 2px; font: 800 24px/1.15 var(--mono); letter-spacing: -.01em; }
+.dx-head span { display: block; margin-top: 3px; font-size: 13px; color: var(--muted); }
+.dx-bar { display: flex; gap: 2px; height: 8px; margin: 12px 0 8px; border-radius: 4px; overflow: hidden; }
+.dx-bar i { min-width: 4px; }
+.dx-cats { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--muted); }
+.dx-cats span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.dx-cats b { color: var(--ink); font-weight: 700; }
+.dx-cats em { font-style: normal; font-size: 11px; }
+.dx-cats i, .dx-row small i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.dx-list { margin-top: 10px; border-top: 1px dashed var(--line); }
+.dx-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 10px 0; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--ink); font: inherit; text-align: left; }
+.dx-t { font: 700 12.5px/1 var(--mono); color: var(--muted); }
+.dx-row b { display: block; font-size: 14.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dx-row small { display: flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.dx-amt { text-align: right; white-space: nowrap; }
+.dx-amt b { font: 700 15px/1.2 var(--mono); }
+.dx-amt small { display: block; margin-top: 2px; font: 500 11.5px/1.2 var(--mono); color: var(--muted); }
+.dx-more { display: block; width: 100%; padding: 12px 0 8px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; font-weight: 700; text-align: center; }
+.x-meal { background: #e07a5f; } .x-cafe { background: #b08968; } .x-konbini { background: #5f9e6e; } .x-move { background: #4a7cb0; }
+.x-shop { background: #8e6bbf; } .x-see { background: #d4a017; } .x-etc { background: #9aa0a6; }
