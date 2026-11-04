@@ -1600,7 +1600,13 @@ function heroWx(it) {
 const formatLeft = (m) => (m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60 ? (m % 60) + '분' : ''}`.trim() : `${m}분`);
 
 // Straight-line distance to the next stop; real travel time comes from the directions button.
+// Getting somewhere (train, subway, bus, walk, flight), as opposed to a place you spend time at.
+const TRANSIT = ['bus', 'plane', 'walk', 'train', 'metro', 'local', 'tram', 'station'];
+const isTransit = (it) => isMove(it) && TRANSIT.includes(glyph(it.icon)[0]);
+const flightOf = (it) => glyph(it.icon)[0] === 'plane' && state.trip.flights.find((f) => f.date === it.date && it.title.includes(f.no));
+
 function gapLabel(it, next) {
+  if (!next || isTransit(it) || isTransit(next)) return '';
   const a = next && !it.skip && !next.skip && placeOfItem(it.id);
   const b = a && placeOfItem(next.id);
   if (!b || a === b || !a.lat || !b.lat) return '';
@@ -1624,6 +1630,8 @@ function timeline(items, now, edit = false) {
       it.priority || '',
     ].join(' ');
     const warn = chipsFor(it, now).filter(([c]) => c === 'warn' || c === 'late');
+    const tail = edit ? `<button class="tl-add" data-item-new="${esc(it.date)}" data-after="${esc(it.id)}">${icon('plus')}여기에 일정 넣기</button>` : gapLabel(it, items[i + 1]);
+    if (isTransit(it)) return transitRow(it, cls, late, now, edit, tail);
     return `
       <div class="tl-item ${cls}">
         <div class="tl-time">${esc(it.start)}${it.auto ? '<i class="tl-moved">조정</i>' : ''}${tlWx(it)}</div>
@@ -1638,9 +1646,51 @@ function timeline(items, now, edit = false) {
           </div>
           ${edit ? `<span class="tl-nav">${icon('pen')}</span>` : it.place ? `<button class="tl-nav" data-nav="${esc(it.id)}" aria-label="구글맵 길찾기">${icon('nav')}</button>` : ''}
         </div>
-        ${edit ? `<button class="tl-add" data-item-new="${esc(it.date)}" data-after="${esc(it.id)}">${icon('plus')}여기에 일정 넣기</button>` : gapLabel(it, items[i + 1])}
+        ${tail}
       </div>`;
   }).join('')}</div>`;
+}
+
+// A trip between places: a slim row on a dashed stretch of the line, or a boarding pass for a flight.
+function transitRow(it, cls, late, now, edit, tail) {
+  const attr = `${edit ? 'data-item-edit' : 'data-item'}="${esc(it.id)}" role="button" tabindex="0"`;
+  const current = cls.includes('current');
+  const f = flightOf(it);
+  if (f) {
+    return `
+      <div class="tl-item move flight ${cls}">
+        <div class="tl-time">${esc(it.start)}${isFixed(it) ? `<i class="tl-lock">${icon('lock')}</i>` : ''}</div>
+        <div class="tl-flight" ${attr}>
+          <div class="fl-main">
+            <small>${esc(f.no)} · ${esc(f.airline)}${current ? ' · 비행 중' : ''}</small>
+            <b>${esc(f.from)} ${icon('plane')} ${esc(f.to)}</b>
+            <span>${esc(f.depart)} → ${esc(f.arrive)} · T${esc(f.fromTerminal)} → T${esc(f.toTerminal)}</span>
+            ${late ? `<em class="mv-late">${esc(delayText(late))}</em>` : ''}
+          </div>
+          <div class="fl-stub">${edit ? icon('pen') : `${icon('ticket')}<span>${esc(f.duration)}</span>`}</div>
+        </div>
+        ${tail}
+      </div>`;
+  }
+  const dur = it.end ? it.endMin - it.startMin : 0;
+  const first = (it.note || '').split(' · ')[0];
+  // A note that is only "약 15분" already says the time, so it replaces the computed length.
+  const about = /^약 \d+분$/.test(first);
+  const sub = [about ? first : dur > 0 ? formatLeft(dur) : '', about ? '' : first].filter(Boolean).join(' · ');
+  return `
+    <div class="tl-item move ${cls}">
+      <div class="tl-time">${esc(it.start)}${isFixed(it) ? `<i class="tl-lock">${icon('lock')}</i>` : ''}${it.auto ? '<i class="tl-moved">조정</i>' : ''}</div>
+      <div class="tl-move" ${attr}>
+        <span class="mv-ico">${icon(glyph(it.icon)[0])}</span>
+        <div class="tl-main">
+          <div class="mv-title">${current ? '<i class="mv-now">이동 중</i>' : ''}${esc(it.title)}</div>
+          ${sub || late ? `<div class="mv-sub">${late ? `<em class="mv-late">${esc(delayText(late))}</em>` : ''}${esc(sub)}</div>` : ''}
+          ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
+        </div>
+        ${edit ? `<span class="mv-nav">${icon('pen')}</span>` : it.place ? `<button class="mv-nav" data-nav="${esc(it.id)}" aria-label="구글맵 길찾기">${icon('nav')}</button>` : ''}
+      </div>
+      ${tail}
+    </div>`;
 }
 
 function tlWx(it) {
@@ -3040,7 +3090,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 140;
+const APP_VERSION = 141;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
