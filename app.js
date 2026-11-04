@@ -2112,6 +2112,7 @@ function renderWallet() {
     ${walletTabs('wallet')}
     <nav class="wallet-nav" aria-label="바로가기">${[['exp', '경비', 'money'], ['w-air', '항공', 'plane'], ['w-road', '공항 가는 길', 'bus'], ['w-stay', '숙소', 'bed'], ['w-secret', '예약번호', 'id'], ['w-docs', '바우처', 'ticket'], ['w-sos', '긴급', 'phone'], ['w-guide', '안내', 'checklist']].map(([k, l, ic]) => `<button data-jump="${k}">${icon(ic)}${l}</button>`).join('')}</nav>
     ${syncCard()}
+    ${aiCard()}
     ${expenseSection()}
     <div class="section-title" id="w-air">${secIcon('plane')}<span>항공</span></div>
     ${flights.map(boardingPass).join('')}
@@ -2598,27 +2599,233 @@ function fillShare(text) {
   if (cat) $('#pn-cat').value = cat;
   $('#pn-found').hidden = !url;
 }
+
+// ---------- AI helper (the traveler's own Claude API key, kept on this phone only) ----------
+// The key lives in localStorage under 'aiKey', which is not a synced key, so it never goes into the sync file or GitHub.
+const AI_MODELS = {
+  opus: { id: 'claude-opus-5-5', label: 'Opus 5.5 · 정확해요 (기본)', search: 'web_search_20260209', fetch: 'web_fetch_20260209', fallback: true },
+  haiku: { id: 'claude-haiku-5-5', label: 'Haiku 5.5 · 빠르고 저렴해요', search: 'web_search_20250305', fetch: 'web_fetch_20250910', fallback: false },
+};
+const aiKey = () => store.get('aiKey', '');
+const aiModel = () => AI_MODELS[store.get('aiModel', 'opus')] || AI_MODELS.opus;
+let aiSdk = null;
+// The official SDK, loaded only when the helper is first used (needs internet anyway).
+async function aiClient() {
+  if (!aiSdk) aiSdk = await import('https://esm.sh/@anthropic-ai/sdk@1.1.0');
+  const Anthropic = aiSdk.default;
+  return { Anthropic, client: new Anthropic({ apiKey: aiKey(), dangerouslyAllowBrowser: true, maxRetries: 1 }) };
+}
+// What went wrong, in words a traveler can act on.
+function aiError(e, Anthropic) {
+  if (!navigator.onLine) return '인터넷이 연결되어 있지 않아요.';
+  if (Anthropic && e instanceof Anthropic.AuthenticationError) return 'API 키가 맞지 않아요. 예약 탭 AI 도우미에서 키를 다시 확인해 주세요.';
+  if (Anthropic && e instanceof Anthropic.PermissionDeniedError) return '이 키로는 쓸 수 없는 기능이에요. 콘솔에서 키 권한을 확인해 주세요.';
+  if (Anthropic && e instanceof Anthropic.RateLimitError) return '요청이 많아요. 잠시 뒤 다시 시도해 주세요.';
+  if (Anthropic && e instanceof Anthropic.APIConnectionError) return 'Claude에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.';
+  if (Anthropic && e instanceof Anthropic.APIError) return `Claude 오류 (${e.status || '?'}) · 잠시 뒤 다시 시도해 주세요.`;
+  return e?.message || '알 수 없는 오류가 났어요.';
+}
+// One request with the web tools; continues a paused server-tool turn, and stops on a refusal.
+async function aiRun({ system, tools, text }) {
+  const { Anthropic, client } = await aiClient();
+  const m = aiModel();
+  const messages = [{ role: 'user', content: text }];
+  try {
+    for (let i = 0; i < 4; i++) {
+      const body = { model: m.id, max_tokens: 8000, system, tools, tool_choice: { type: 'auto' }, output_config: { effort: 'low' }, messages };
+      const res = m.fallback
+        ? await client.beta.messages.create({ ...body, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' })
+        : await client.messages.create(body);
+      if (res.stop_reason === 'refusal') throw new Error('Claude가 이 요청을 처리하지 않았어요. 내용을 바꿔 다시 시도해 주세요.');
+      if (res.stop_reason === 'pause_turn') { messages.push({ role: 'assistant', content: res.content }); continue; }
+      return res;
+    }
+    throw new Error('찾는 데 너무 오래 걸렸어요. 다시 시도해 주세요.');
+  } catch (e) { throw new Error(aiError(e, Anthropic)); }
+}
+
+const PLACE_AREAS = EX_AREAS.filter((a) => a !== '전체' && a !== '내 장소');
+const SAVE_PLACE = {
+  name: 'save_place',
+  description: 'Save the one place the traveler pasted. Call exactly once, after identifying the place.',
+  strict: true,
+  input_schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['found', 'name', 'nameJa', 'cat', 'area', 'addr', 'lat', 'lng', 'hours', 'off', 'rating', 'reviews', 'desc', 'best', 'tips', 'stay', 'note'],
+    properties: {
+      found: { type: 'boolean', description: 'false if the place could not be identified' },
+      name: { type: 'string', description: 'Korean name a Korean traveler would use' },
+      nameJa: { type: 'string', description: 'Name as shown on the map in Japan (Japanese or original)' },
+      cat: { type: 'string', enum: ['eat', 'drink', 'see', 'shop'] },
+      area: { type: 'string', enum: PLACE_AREAS },
+      addr: { type: 'string', description: 'Address, or empty' },
+      lat: { type: ['number', 'null'] },
+      lng: { type: ['number', 'null'] },
+      hours: { type: 'string', description: 'Opening hours as HH:MM-HH:MM, comma-separated for breaks, 25:00 style past midnight; empty if unknown' },
+      off: { type: 'array', items: { type: 'integer', enum: [0, 1, 2, 3, 4, 5, 6] }, description: 'Regular closing weekdays, 0 = Sunday' },
+      rating: { type: ['number', 'null'], description: 'Google rating only if a source shows it' },
+      reviews: { type: 'string', description: 'Review count like "3,830", or empty' },
+      desc: { type: 'string', description: 'One line in Korean: what it is and why go' },
+      best: { type: 'array', items: { type: 'string' }, description: 'Up to 3 dishes or highlights, Korean' },
+      tips: { type: 'array', items: { type: 'string' }, description: '2-3 practical visitor tips in your own words, Korean' },
+      stay: { type: 'integer', description: 'Typical visit length in minutes' },
+      note: { type: 'string', description: 'Korean: what could not be confirmed, or empty' },
+    },
+  },
+};
+const PLACE_SYSTEM = `You help a Korean couple on a Tokyo trip (2026-11-02 to 11-06, hotel near Ueno) add a place to their travel app.
+The user pastes a Google Maps share link and/or the text Google Maps copies with it.
+Identify that exact place: fetch the pasted URL first; if that doesn't show the place, search the web with the name or address. Prefer the official site, Tabelog or Google Maps listings as sources.
+Then call save_place once. Write Korean for name, desc, best, tips and note; nameJa as it appears on the map.
+Only fill rating, reviews and hours when a source shows them; leave unknown fields empty or null and say what in note. Never copy review sentences; write tips in your own words.
+If you can't tell which place it is, call save_place with found false and explain in note.`;
+
+// Pasted share text → a place record in the app's own format.
+async function aiPlace(text) {
+  const m = aiModel();
+  const res = await aiRun({
+    system: [{ type: 'text', text: PLACE_SYSTEM, cache_control: { type: 'ephemeral' } }],
+    tools: [{ type: m.search, name: 'web_search', max_uses: 3, user_location: { type: 'approximate', city: 'Tokyo', country: 'JP', timezone: 'Asia/Tokyo' } }, { type: m.fetch, name: 'web_fetch', max_uses: 2 }, SAVE_PLACE],
+    text: `오늘은 ${tokyoNow().date}이에요. 이 장소를 앱에 넣어 주세요.\n\n${text}`,
+  });
+  const call = res.content.find((b) => b.type === 'tool_use' && b.name === 'save_place');
+  const v = call?.input;
+  if (!v || !v.found || !v.name) throw new Error(v?.note || '장소를 찾지 못했어요. 링크와 함께 가게 이름도 붙여 넣어 보세요.');
+  const num = (x) => (typeof x === 'number' && Number.isFinite(x) ? x : null);
+  const lat = num(v.lat);
+  const lng = num(v.lng);
+  return {
+    name: String(v.name).slice(0, 60), nameJa: String(v.nameJa || '').slice(0, 80),
+    cat: ['eat', 'drink', 'see', 'shop'].includes(v.cat) ? v.cat : 'see',
+    addr: String(v.addr || ''), ...(lat !== null && lng !== null && Math.abs(lat - 35.7) < 1.5 && Math.abs(lng - 139.7) < 1.5 ? { lat, lng } : {}),
+    o: /^\d{1,2}:\d{2}-\d{1,2}:\d{2}/.test(v.hours || '') ? v.hours : '',
+    off: (v.off || []).filter((d) => d >= 0 && d <= 6),
+    r: num(v.rating), n: String(v.reviews || ''),
+    memo: String(v.desc || ''), best: (v.best || []).slice(0, 3), tips: (v.tips || []).slice(0, 3),
+    stay: Math.min(240, Math.max(15, Math.round((Number(v.stay) || 60) / 15) * 15)),
+    note: String(v.note || ''), ai: true,
+  };
+}
+// A found place, as a small card to check before saving.
+const aiPlaceCard = (pl) => `
+  <div class="ai-card">
+    <div class="ai-tag">${icon('check')}AI가 찾은 정보 · 확인 필요</div>
+    <b>${esc(pl.name)}${pl.nameJa ? ` <small>${esc(pl.nameJa)}</small>` : ''}</b>
+    <div class="ai-facts">${[pl.r ? `★${pl.r.toFixed(1)}${pl.n ? ` (${esc(pl.n)})` : ''}` : '', pl.o ? `영업 ${esc(pl.o)}` : '', pl.off.length ? `휴무 ${pl.off.map((d) => WEEKDAYS[d]).join('·')}` : '', `머무는 시간 약 ${formatLeft(pl.stay)}`, pl.lat ? '위치 확인' : '위치 미확인'].filter(Boolean).join(' · ')}</div>
+    ${pl.memo ? `<div class="ai-desc">${esc(pl.memo)}</div>` : ''}
+    ${pl.best.length ? `<div class="ai-row"><span>추천</span>${esc(pl.best.join(', '))}</div>` : ''}
+    ${pl.tips.length ? `<ul class="info-tips">${pl.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
+    ${pl.note ? `<div class="ai-note">${esc(pl.note)}</div>` : ''}
+  </div>`;
+// Save as one of "내 장소"; returns the stored place.
+function saveAiPlace(pl, url) {
+  const { stay, note, ...rest } = pl;
+  const place = { id: uid('my'), ...rest, ...(/^https?:/.test(url || '') ? { url } : {}) };
+  if (!place.o) delete place.o;
+  if (!place.off?.length) delete place.off;
+  if (!place.r) { delete place.r; delete place.n; }
+  store.set('myplaces', [...store.get('myplaces', []), place]);
+  return place;
+}
+
+// Runs the place lookup for the 탐색 sheet ('pn') or a new stop ('form'). Without a key, the share text alone fills what it can.
+async function runAiPlace(where, btn) {
+  const text = (where === 'pn' ? $('#pn-paste') : $('#f-link')).value.trim();
+  if (!text) return toast('구글지도 공유 내용을 먼저 붙여 넣어 주세요');
+  const out = where === 'pn' ? $('#pn-ai') : $('#f-ai');
+  const { url, name: shareName, addr } = parseShare(text);
+  let pl = null;
+  if (aiKey()) {
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = '찾는 중… 10~30초';
+    out.innerHTML = '';
+    try { pl = await aiPlace(text); } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+    btn.disabled = false; btn.textContent = label;
+    if (!pl) return;
+  } else {
+    if (!shareName) return toast('공유 내용에서 이름을 찾지 못했어요');
+    const hit = url.match(/!3d(-?[\d.]+)!4d(-?[\d.]+)/) || url.match(/@(-?[\d.]+),(-?[\d.]+)/);
+    pl = { name: shareName, nameJa: '', cat: CAT_WORDS.find(([, re]) => re.test(shareName))?.[0] || 'see', addr, o: '', off: [], r: null, n: '', memo: '', best: [], tips: [], stay: 60, note: '', ...(hit ? { lat: Number(hit[1]), lng: Number(hit[2]) } : {}) };
+  }
+  if (where === 'pn') {
+    state.aiFound = pl;
+    $('#pn-name').value = pl.name; $('#pn-addr').value = pl.addr || ''; $('#pn-cat').value = pl.cat; $('#pn-memo').value = pl.memo;
+    $('#pn-url').value = url;
+    out.innerHTML = pl.ai ? aiPlaceCard(pl) : '';
+    return;
+  }
+  // New stop: keep the place, then fill title, kind, place and length; the form re-checks hours and overlaps.
+  const place = pl.ai ? saveAiPlace(pl, url) : saveAiPlace({ ...pl, ai: undefined }, url);
+  const kind = CAT_ICON[place.cat] || '📍';
+  state.form.kind = kind;
+  document.querySelectorAll('[data-f-kind]').forEach((b) => b.classList.toggle('on', glyph(b.dataset.fKind)[0] === glyph(kind)[0]));
+  $('#f-title').value = place.name;
+  if ($('#f-place')) $('#f-place').value = place.name;
+  if (place.memo && !$('#f-note').value) $('#f-note').value = place.memo;
+  state.form.dur = pl.stay;
+  $('#f-end').value = clock(Math.min(1439, state.form.s + pl.stay));
+  out.innerHTML = pl.ai ? aiPlaceCard(pl) : `<div class="small muted">${esc(place.name)}을(를) 내 장소에 넣었어요. 키를 등록하면 영업시간·팁도 채워요.</div>`;
+  updateForm();
+}
+async function aiTest(btn) {
+  btn.disabled = true; btn.textContent = '확인 중…';
+  let msg;
+  try {
+    const { Anthropic, client } = await aiClient();
+    try { await client.messages.create({ model: aiModel().id, max_tokens: 16, output_config: { effort: 'low' }, messages: [{ role: 'user', content: 'OK라고만 답해 주세요.' }] }); msg = '연결됐어요'; }
+    catch (e) { msg = aiError(e, Anthropic); }
+  } catch { msg = 'Claude 도구를 불러오지 못했어요. 인터넷을 확인해 주세요.'; }
+  btn.disabled = false; btn.textContent = '연결 확인';
+  toast(msg);
+}
+
+// Settings card in the 예약 tab.
+function aiCard() {
+  const key = aiKey();
+  const pick = store.get('aiModel', 'opus');
+  return `
+    <div class="section-title" id="w-ai">${secIcon('pen')}<span>AI 도우미</span></div>
+    <div class="card ai-set">
+      <div class="small muted">구글지도 링크를 붙여 넣으면 장소 정보를 찾아 일정에 바로 넣어요. 본인 Claude API 키가 필요하고, 키는 이 폰에만 저장돼요 (동기화·GitHub에 안 올라가요).</div>
+      ${key ? `
+        <div class="ai-on">${icon('check')}<span class="grow"><b>연결됨</b><small>키 끝자리 ••••${esc(key.slice(-4))}</small></span>
+          <button class="btn" data-ai-test>연결 확인</button></div>` : `
+        <input class="input" id="ai-key" type="password" autocomplete="off" placeholder="sk-ant-로 시작하는 API 키">`}
+      <label class="field"><span>모델</span><select class="input" id="ai-model">${Object.entries(AI_MODELS).map(([k, m]) => `<option value="${k}" ${k === pick ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>
+      <div class="btns">${key ? '<button class="btn wide" data-ai-forget>키 지우기</button>' : '<button class="btn primary wide" data-ai-save>저장</button>'}</div>
+      <div class="small muted ai-cost">요청 한 번에 보통 수십 원 정도 들어요. Claude 콘솔에서 월 사용 한도를 걸어 두면 안심이에요.</div>
+    </div>`;
+}
+
 function openPlaceNew() {
   $('#sheet-body').innerHTML = `
     <div class="sheet-head"><h3>내 장소 추가</h3></div>
     <label class="field"><span>구글지도 공유 내용</span><textarea class="input" id="pn-paste" rows="3" autocomplete="off" placeholder="구글지도에서 공유 → 복사한 내용을 붙여넣으세요"></textarea></label>
     <div class="pn-found" id="pn-found" hidden>${icon('check')}지도 연결됨</div>
+    ${aiKey() ? `<button class="btn wide ai-go" data-ai-place="pn">${icon('pen')}AI로 장소 정보 채우기</button><div id="pn-ai"></div>` : '<div class="small muted ai-hint">예약 탭 AI 도우미에 키를 등록하면 링크만으로 정보를 채워요.</div>'}
     <input type="hidden" id="pn-url">
     <label class="field"><span>이름</span><input class="input" id="pn-name" maxlength="60" placeholder="예: 친구가 추천한 라멘집"></label>
     <label class="field"><span>주소 (선택)</span><input class="input" id="pn-addr" maxlength="120" autocomplete="off"></label>
     <label class="field"><span>분류</span><select class="input" id="pn-cat">${EX_CATS.filter(([k]) => k !== 'log').map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
     <label class="field"><span>메모 (선택)</span><input class="input" id="pn-memo" maxlength="80" placeholder="추천 메뉴, 이유"></label>
-    <button class="btn primary wide doc-pick" data-place-create>저장</button>`;
+    <div class="btns"><button class="btn doc-pick" data-place-create>장소만 저장</button><button class="btn primary" data-place-create="plan">저장하고 일정에 넣기</button></div>`;
+  state.aiFound = null;
   $('#sheet').hidden = false;
 }
-function createPlace() {
+function createPlace(plan) {
   const name = $('#pn-name').value.trim();
   if (!name) return toast('이름을 입력해 주세요.');
   const url = $('#pn-url').value.trim();
   const hit = url.match(/!3d(-?[\d.]+)!4d(-?[\d.]+)/) || url.match(/@(-?[\d.]+),(-?[\d.]+)/);
   const addr = $('#pn-addr').value.trim();
-  const place = { id: uid('my'), name, cat: $('#pn-cat').value, memo: $('#pn-memo').value.trim(), ...(addr ? { addr } : {}), ...(/^https?:/.test(url) ? { url } : {}), ...(hit ? { lat: Number(hit[1]), lng: Number(hit[2]) } : {}) };
-  store.set('myplaces', [...store.get('myplaces', []), place]);
+  const ai = state.aiFound;
+  const place = ai
+    ? saveAiPlace({ ...ai, name, cat: $('#pn-cat').value, memo: $('#pn-memo').value.trim() || ai.memo, addr: addr || ai.addr }, url)
+    : { id: uid('my'), name, cat: $('#pn-cat').value, memo: $('#pn-memo').value.trim(), ...(addr ? { addr } : {}), ...(/^https?:/.test(url) ? { url } : {}), ...(hit ? { lat: Number(hit[1]), lng: Number(hit[2]) } : {}) };
+  if (!ai) store.set('myplaces', [...store.get('myplaces', []), place]);
+  state.aiFound = null;
+  if (plan) { closeSheet(); render(); return openPlan(place.id); }
   state.ex.cat = place.cat;
   state.ex.area = '내 장소';
   closeSheet();
@@ -2694,6 +2901,11 @@ function openItemForm(id, opt = {}) {
     ${between ? `<div class="f-between ${gap < 5 && after ? 'tight' : ''}">${icon('clock')}<span>${esc(between)}</span></div>` : ''}
     ${opt.catch ? `<div class="small muted">${started ? '이 일정을 15분 늘리고' : '이 일정을 지금 시작으로 바꾸고'} 뒤 일정을 미뤄요. 아래 변경 내용을 확인하고 저장하세요.</div>` : ''}
     <form class="item-form" autocomplete="off">
+      ${!it ? `<div class="f-link">
+        <textarea class="input" id="f-link" rows="2" placeholder="구글지도 공유 링크를 붙여 넣으면 장소·제목·시간을 채워요"></textarea>
+        <button type="button" class="btn ${aiKey() ? 'primary' : ''}" data-ai-place="form">${aiKey() ? 'AI로 채우기' : '링크로 채우기'}</button>
+        <div id="f-ai"></div>
+      </div>` : ''}
       <label class="row-field"><span>제목</span><input class="input" id="f-title" value="${esc(it?.title || '')}" placeholder="예: 편의점 들르기" maxlength="60"></label>
       <div class="row-field top"><span>종류</span><div class="kind-row">${KINDS.map(([e, label]) => `<button type="button" class="kind ${glyph(state.form.kind)[0] === glyph(e)[0] && state.form.kind ? 'on' : ''}" data-f-kind="${e}">${itemIcon(e)}${label}</button>`).join('')}</div></div>
       <label class="row-field"><span>날짜</span><select class="input" id="f-date">${state.trip.days.map((d, i) => `<option value="${d.date}" ${d.date === date ? 'selected' : ''}>${i + 1}일차 · ${esc(dayLabel(d.date))}</option>`).join('')}</select></label>
@@ -3226,7 +3438,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 148;
+const APP_VERSION = 149;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -3301,7 +3513,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-ai-place],[data-ai-save],[data-ai-forget],[data-ai-test],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -3373,7 +3585,15 @@ document.addEventListener('click', async (e) => {
   }
   else if ('alarmSheet' in d) openAlarms();
   else if ('placeNew' in d) openPlaceNew();
-  else if ('placeCreate' in d) createPlace();
+  else if ('placeCreate' in d) createPlace(d.placeCreate === 'plan');
+  else if ('aiPlace' in d) runAiPlace(d.aiPlace, el);
+  else if ('aiSave' in d) {
+    const k = $('#ai-key').value.trim();
+    if (!/^sk-ant-/.test(k)) return toast('sk-ant-로 시작하는 API 키를 넣어 주세요');
+    store.set('aiKey', k); store.set('aiModel', $('#ai-model').value); render(); toast('AI 도우미를 켰어요');
+  }
+  else if ('aiForget' in d) { if (confirm('이 폰에서 API 키를 지울까요?')) { store.set('aiKey', ''); render(); toast('키를 지웠어요'); } }
+  else if ('aiTest' in d) aiTest(el);
   else if (d.placeDel) deletePlace(d.placeDel);
   else if (d.placePlan) openPlan(d.placePlan);
   else if (d.planSave) savePlan(d.planSave);
@@ -3597,6 +3817,7 @@ document.addEventListener('input', (e) => {
   else if (t.id === 'fx-in') { state.fxCalc.value = t.value; updateFx(); }
   else if (t.id === 'fx-tax') { state.fxCalc.tax = t.checked; updateFx(); }
   else if (t.id === 'pn-paste') fillShare(t.value);
+  else if (t.id === 'ai-model') store.set('aiModel', t.value);
   else if (t.id === 'ex-q') {
     state.ex.q = t.value;
     const now = tokyoNow();
