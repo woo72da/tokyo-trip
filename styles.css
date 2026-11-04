@@ -1039,8 +1039,10 @@ ol.alarm-note { padding-left: 18px; }
 .gone-row .btn { min-height: 40px; font-size: 13px; }
 
 /* The add / change form. */
-.item-form input[type="time"] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; text-align: left; }
-.item-form input[type="time"]::-webkit-date-and-time-value { text-align: left; }
+/* iPhone draws time inputs taller with the value at the top; pin the height and center the value like the text fields. */
+.item-form input[type="time"] { -webkit-appearance: none; appearance: none; display: flex; align-items: center; min-width: 0; height: 46px; min-height: 46px; padding-top: 0; padding-bottom: 0; line-height: 46px; text-align: left; }
+.item-form input[type="time"]::-webkit-date-and-time-value { margin: 0; padding: 0; text-align: left; line-height: 43px; min-height: 43px; }
+.item-form input[type="time"]::-webkit-datetime-edit { padding: 0; line-height: 43px; }
 .kind-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .kind { display: flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 8px; border-radius: 12px; border: 0; background: var(--soft); color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; }
 .kind .ii { width: 24px; height: 24px; border-radius: 7px; }
