@@ -1718,6 +1718,43 @@ function tomorrowCard(tday, idx) {
     </button>`;
 }
 
+// What this phone calls its person: a nickname they set, else the name with 님.
+const nickOf = (name) => store.get('nick:' + name, '');
+const callOf = (name) => nickOf(name) || `${name}님`;
+const hasBatchim = (w) => { const c = w.charCodeAt(w.length - 1) - 0xac00; return c >= 0 && c < 11172 && c % 28 > 0; };
+const eulReul = (w) => (hasBatchim(w) ? '을' : '를');
+// A small stable pick per date, so the greeting changes day to day but not on every redraw.
+const pickFor = (key, list) => list[[...key].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 9973, 7) % list.length];
+
+// The assistant-style hello at the top of the morning card: name, the day's shape, the one fixed time, the weather in a word.
+function greeting(day, items, g, now) {
+  const me = who();
+  const call = callOf(me);
+  const days = state.trip.days;
+  const idx = days.indexOf(day);
+  const last = idx === days.length - 1;
+  const hello = idx === 0 ? `${call}, 드디어 도쿄 가는 날이에요`
+    : last ? `${call}, 벌써 마지막 날이에요`
+    : now.min < 360 ? `${call}, 일찍 일어나셨네요`
+    : pickFor(day.date + me, [`${call}, 좋은 아침이에요`, `${call}, 잘 주무셨어요?`, `${call}, 도쿄 ${idx + 1}일째 아침이에요`]);
+  const spots = stripEmoji(day.title).split(' · ').filter((t) => !/도착|귀국|문화의 날/.test(t));
+  const say = [];
+  if (last) say.push(`${spots.join('·')} 들렀다가 귀국하는 날이에요. 마지막까지 알차게 챙겨 드릴게요.`);
+  else if (idx === 0) say.push(`${spots.join('·')}에서 첫날을 보내요. 오늘 일정은 제가 하나씩 알려 드릴게요.`);
+  else if (spots.length >= 2) say.push(`오늘은 ${spots[0]}에서 시작해 ${spots[spots.length - 1]}까지 가는 날이에요.`);
+  else if (spots.length) say.push(`오늘은 ${spots[0]}에서 보내는 날이에요.`);
+  const fixed = items.find((it) => isFixed(it) && !isMove(it) && it.startMin > now.min);
+  if (fixed) { const t = stripEmoji(fixed.title).split(' · ')[0]; say.push(`${fixed.start} ${t}${eunNeun(t)} 시간이 정해져 있으니 제가 잊지 않게 챙길게요.`); }
+  const um = g.need.find((n) => n.key === 'umbrella');
+  const sp = rainSpan(day.date);
+  const coat = g.need.find((n) => n.key === 'coat');
+  if (um && sp) say.push(`${sp.when} 비 소식이 있어서 ${um.label}${eulReul(um.label)} ${um.label === '튼튼한 우산' ? '꼭 챙겨 주세요' : '챙겨 두면 든든해요'}.`);
+  else if (um) say.push(`비가 올 수도 있으니 ${um.label}${eulReul(um.label)} 챙겨 두면 든든해요.`);
+  else if (coat?.label === '따뜻한 겉옷') say.push('쌀쌀한 날이라 따뜻하게 입고 나가세요.');
+  else say.push(pickFor(day.date, ['비 소식 없이 걷기 좋은 날씨예요.', '우산 걱정 없는 하루예요. 가볍게 나가셔도 돼요.']));
+  return { hello, say: say.join(' ') };
+}
+
 // Before the first stop: yesterday against today, and what to bring, tuned by what this person said about yesterday.
 function prepCard(day, items, now) {
   const first = items.find((it) => !it.skip);
@@ -1727,6 +1764,7 @@ function prepCard(day, items, now) {
   const g = gearFor(day.date, items, me);
   const today = wxDay(day.date);
   if (!g || !today) return '';
+  const hi = greeting(day, items, g, now);
   const yd = wxDay(addDays(day.date, -1));
   const story = wxStory(day.date);
   const diff = yd ? today.max - yd.max : 0;
@@ -1736,7 +1774,9 @@ function prepCard(day, items, now) {
   const theirs = gearText(lastGear(day.date, other));
   return `
     <div class="prep">
-      <div class="prep-head">${wxIcon(today.icon)}<div class="grow"><b>오늘 아침 준비</b><span>${esc(me)} · ${esc(dayLabel(day.date))}</span></div></div>
+      <div class="prep-head">${wxIcon(today.icon)}<div class="grow"><span>오늘 아침 준비 · ${esc(dayLabel(day.date))}</span><b>${esc(hi.hello)}</b></div>
+        <button type="button" class="prep-nick" data-nick="${esc(me)}" aria-label="부르는 이름 바꾸기">${icon('pen')}</button></div>
+      <p class="prep-hi">${esc(hi.say)}</p>
       <div class="prep-cmp"><b>${esc([cmp, story?.head].filter(Boolean).join(' '))}</b>
         ${yd ? `<small>어제 ${yd.min}~${yd.max}° ${esc(wxStory(addDays(day.date, -1))?.sky || yd.label)} → 오늘 ${today.min}~${today.max}° ${esc(story?.sky || today.label)}</small>` : ''}</div>
       <div class="prep-list">${g.need.map((n) => `
@@ -2945,7 +2985,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 135;
+const APP_VERSION = 136;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -3020,7 +3060,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -3242,7 +3282,11 @@ document.addEventListener('click', async (e) => {
   else if (d.prepDone) {
     const key = 'prep:' + d.prepDone;
     store.set(key, { ...store.get(key, {}), done: true }); render();
-    toast('좋은 하루 보내세요', () => { store.set(key, { ...store.get(key, {}), done: false }); render(); }, '다시 보기');
+    toast(`${callOf(who())}, 좋은 하루 보내세요`, () => { store.set(key, { ...store.get(key, {}), done: false }); render(); }, '다시 보기');
+  }
+  else if (d.nick) {
+    const v = prompt('어떻게 불러 드릴까요? (비우면 이름으로 불러요)', nickOf(d.nick) || `${d.nick}님`);
+    if (v !== null) { const t = v.trim().slice(0, 12); store.set('nick:' + d.nick, t && t !== `${d.nick}님` ? t : ''); render(); toast(`앞으로 ${callOf(d.nick)}${hasBatchim(callOf(d.nick)) ? '이라고' : '라고'} 부를게요`); }
   }
   else if (d.tomorrow) { state.dayIndex = Number(d.tomorrow); store.set('day', state.dayIndex); go('days'); }
   else if (d.daySum) {
