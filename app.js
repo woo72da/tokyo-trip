@@ -3219,7 +3219,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 146;
+const APP_VERSION = 147;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -3624,6 +3624,14 @@ document.addEventListener('touchstart', (e) => {
     || !e.target.closest('main') || e.target.closest('.ex-row, .ex-cats, .daypick, .wx-strip, .doc-row, input, textarea, select');
   swipe = off ? null : { x: t.clientX, y: t.clientY, at: Date.now() };
 }, { passive: true });
+// Once a swipe is clearly sideways, stop the page from being dragged along with the finger (iPhone pans it otherwise).
+document.addEventListener('touchmove', (e) => {
+  if (!swipe || state.tab !== 'days') return;
+  const t = e.touches[0];
+  const dx = t.clientX - swipe.x;
+  const dy = t.clientY - swipe.y;
+  if (swipe.side || (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5)) { swipe.side = true; e.preventDefault(); }
+}, { passive: false });
 document.addEventListener('touchend', (e) => {
   if (!swipe) return;
   const t = e.changedTouches[0];
