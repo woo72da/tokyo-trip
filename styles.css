@@ -1381,3 +1381,6 @@ ol.alarm-note { padding-left: 18px; }
 .ai-row { margin-top: 4px; font-size: 13px; } .ai-row span { font-weight: 700; margin-right: 6px; color: var(--muted); }
 .ai-card .info-tips { margin: 6px 0 0; }
 .ai-note { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); font-size: 12.5px; line-height: 1.45; }
+
+.ai-msg { margin-top: 8px; padding: 9px 12px; border-radius: 12px; background: var(--warn-soft); color: var(--warn); font-size: 13px; line-height: 1.5; }
+.ai-msg.ok { background: var(--now-soft); color: var(--now); }

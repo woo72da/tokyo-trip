@@ -2624,6 +2624,9 @@ function aiError(e, Anthropic) {
   if (Anthropic && e instanceof Anthropic.APIConnectionError) return 'Claude에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.';
   if (Anthropic && e instanceof Anthropic.APIError) {
     const why = e.error?.error?.message || e.message || '';
+    // The usual reasons a new key gets a 400, in plain words.
+    if (/credit balance/i.test(why)) return 'API 크레딧이 없어요. console.anthropic.com → Billing(결제)에서 크레딧을 충전하면 바로 쓸 수 있어요.';
+    if (/model/i.test(why) && /not (found|available|supported)|does not exist|access/i.test(why)) return `이 키로는 ${aiModel().id} 모델을 쓸 수 없어요. 모델을 Haiku로 바꾸거나 콘솔에서 권한을 확인해 주세요. (${String(why).slice(0, 80)})`;
     return `Claude 오류 (${e.status || '?'})${why ? ` · ${String(why).slice(0, 160)}` : ''}`;
   }
   return e?.message || '알 수 없는 오류가 났어요.';
@@ -2790,11 +2793,12 @@ async function aiTest(btn) {
   let msg;
   try {
     const { Anthropic, client } = await aiClient();
-    try { await client.messages.create({ model: aiModel().id, max_tokens: 16, output_config: { effort: 'low' }, messages: [{ role: 'user', content: 'OK라고만 답해 주세요.' }] }); msg = '연결됐어요'; }
+    try { await client.messages.create({ model: aiModel().id, max_tokens: 1024, output_config: { effort: 'low' }, messages: [{ role: 'user', content: 'OK라고만 답해 주세요.' }] }); msg = '연결됐어요'; }
     catch (e) { msg = aiError(e, Anthropic); }
   } catch { msg = 'Claude 도구를 불러오지 못했어요. 인터넷을 확인해 주세요.'; }
   btn.disabled = false; btn.textContent = '연결 확인';
-  toast(msg);
+  const box = $('#ai-msg');
+  if (box) { box.hidden = false; box.className = `ai-msg ${msg === '연결됐어요' ? 'ok' : ''}`; box.textContent = msg; } else toast(msg);
 }
 
 // Settings card in the 예약 tab.
@@ -2806,8 +2810,9 @@ function aiCard() {
     <div class="card ai-set">
       <div class="small muted">구글지도 링크를 붙여 넣으면 장소 정보를 찾아 일정에 바로 넣어요. 본인 Claude API 키가 필요하고, 키는 이 폰에만 저장돼요 (동기화·GitHub에 안 올라가요).</div>
       ${key ? `
-        <div class="ai-on">${icon('check')}<span class="grow"><b>연결됨</b><small>키 끝자리 ••••${esc(key.slice(-4))}</small></span>
-          <button class="btn" data-ai-test>연결 확인</button></div>` : `
+        <div class="ai-on">${icon('check')}<span class="grow"><b>키 저장됨</b><small>키 끝자리 ••••${esc(key.slice(-4))}</small></span>
+          <button class="btn" data-ai-test>연결 확인</button></div>
+        <div id="ai-msg" class="ai-msg" hidden></div>` : `
         <input class="input" id="ai-key" type="password" autocomplete="off" placeholder="sk-ant-로 시작하는 API 키">`}
       <label class="field"><span>모델</span><select class="input" id="ai-model">${Object.entries(AI_MODELS).map(([k, m]) => `<option value="${k}" ${k === pick ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>
       <div class="btns">${key ? '<button class="btn wide" data-ai-forget>키 지우기</button>' : '<button class="btn primary wide" data-ai-save>저장</button>'}</div>
@@ -3455,7 +3460,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 150;
+const APP_VERSION = 151;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
