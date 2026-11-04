@@ -799,6 +799,90 @@ const expForm = (item = null, memo = '', cat = '식당') => `
     <button class="btn primary" type="submit">${icon('plus')}기록</button>
   </form>`;
 
+// ---------- card SMS → expenses (read on the phone only; card number and name are never kept) ----------
+// Shop names in card messages are short Latin words; these pick a category, else the stop on the schedule at that time does.
+const SMS_CAT = [
+  [/FAMILY ?MART|LAWSON|SEVEN|7-?ELEVEN|MINISTOP|NEWDAYS|ファミリーマート|ローソン|セブン|세븐일레븐|GS25|\bCU\b|이마트24|편의점/i, '편의점'],
+  [/\bJR\b|METRO|SUICA|PASMO|KEISEI|SKYLINER|TAXI|RAILWAY|YURIKAMOME|メトロ|鉄道|タクシー/i, '교통'],
+  [/STARBUCKS|COFFEE|CAFE|CAFFE|DOUTOR|TULLY|BLUE ?BOTTLE|MAMEYA|喫茶|珈琲|カフェ/i, '카페'],
+  [/RAMEN|SUSHI|UDON|SOBA|TONKATSU|MAISEN|YAKINIKU|IZAKAYA|RESTAURANT|DINING|KITCHEN|GRILL|BURGER|MCDONALD|ICHIRAN|食堂|ラーメン|寿司/i, '식당'],
+  [/TEAMLAB|SHIBUYA ?SKY|MUSEUM|TICKET|SKYTREE/i, '관광'],
+  [/DON ?QUIJOTE|DONKI|UNIQLO|BEAMS|GINZA.*SIX|PARCO|LOFT|MUJI|BIC ?CAMERA|YODOBASHI|MITSUKOSHI|ISETAN|MATSUYA|DAIMARU|TAKASHIMAYA|STORE|SHOP|MALL|ドン・キホーテ/i, '쇼핑'],
+];
+// One approval per "MM/DD HH:MM shop" line; the amount is the last one written before it.
+// Works for 삼성 해외승인 (JPY 2,860 / 11/04 12:06 GINZASIX) and the usual 국내 form (12,300원 … 11/04 14:23 가맹점).
+function parseSms(text) {
+  const t = String(text || '').replace(/\r/g, '').replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0));
+  const year = state.trip.trip.start.slice(0, 4);
+  const re = /(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})[ \t]+([^\n]+)/g;
+  const rows = [];
+  let m;
+  let last = 0;
+  while ((m = re.exec(t))) {
+    const seg = t.slice(last, m.index);
+    last = re.lastIndex;
+    const a = [...seg.matchAll(/(JPY|KRW|USD|EUR|円|엔)\s*([\d,]+(?:\.\d+)?)|([\d,]+(?:\.\d+)?)\s*(원|円|엔)/g)].pop();
+    if (!a) continue;
+    const unit = a[1] || a[4];
+    const cur = /KRW|원/.test(unit) ? 'KRW' : /JPY|円|엔/.test(unit) ? 'JPY' : unit;
+    const value = Number((a[2] || a[3]).replace(/,/g, ''));
+    const date = `${year}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+    const time = `${m[3].padStart(2, '0')}:${m[4]}`;
+    const shop = m[5].replace(/\s*(누적|잔액|일시불|할부|체크).*$/, '').trim() || '카드 결제';
+    const min = toMin(time);
+    const day = state.trip.days.find((d) => d.date === date);
+    const byName = (SMS_CAT.find(([r]) => r.test(shop)) || [])[1];
+    // Tie it to the stop at that time only where money is spent (meal, café, shop, sight) and the shop fits that stop.
+    const near = day && dayItems(day).find((it) => !it.skip && !isMove(it) && it.startMin - 10 <= min && min <= (it.endMin || it.startMin + 60) + 15);
+    const nearCat = near && SCENE_CAT[sceneOf(near)];
+    const item = near && ['식당', '카페', '쇼핑', '관광'].includes(nearCat) && (!byName || byName === nearCat) ? near : null;
+    const cat = byName || (item && nearCat) || '기타';
+    const dup = expenses().some((e) => e.date === date && (cur === 'KRW' ? e.orig?.value === value : !e.orig && Math.round(e.amount) === value));
+    rows.push({ date, time, shop, cur, value, cat, item: item?.id || null, itemTitle: item ? stripEmoji(item.title).split(' · ')[0] : '', dup, cancel: /취소/.test(seg), ok: cur === 'JPY' || cur === 'KRW' });
+  }
+  return rows;
+}
+function openSmsSheet() {
+  $('#sheet-body').innerHTML = `
+    <div class="eyebrow dark">경비</div>
+    <h3 class="sms-h">카드 문자로 지출 등록</h3>
+    <p class="small muted sms-help">카드 승인 문자를 길게 눌러 복사하거나, 카드 앱 화면을 캡처한 사진에서 글자를 길게 눌러 복사해 붙여 넣으세요. 여러 건을 한 번에 넣어도 돼요. 카드 번호와 이름은 저장하지 않아요.</p>
+    <textarea class="input sms-box" id="sms-text" placeholder="[Web발신]&#10;삼성1234해외승인 김*철&#10;JPY 2,860&#10;11/04 12:06 GINZASIX"></textarea>
+    <div class="btns"><button class="btn" data-sms-paste>${icon('copy')}붙여넣기</button><button class="btn primary" data-sms-read>읽기</button></div>
+    <div id="sms-out"></div>`;
+  $('#sheet').hidden = false;
+}
+function showSms() {
+  const rows = parseSms($('#sms-text').value);
+  state.sms = rows;
+  if (!rows.length) { $('#sms-out').innerHTML = '<div class="small muted sms-none">찾은 결제가 없어요. 금액과 "11/04 12:06 가게" 같은 날짜·시간 줄이 함께 들어 있는지 확인해 주세요.</div>'; return; }
+  const on = (r) => r.ok && !r.dup && !r.cancel;
+  $('#sms-out').innerHTML = `
+    <div class="sms-list">${rows.map((r, i) => `
+      <div class="sms-row ${on(r) ? '' : 'off'}">
+        <label class="sms-pick"><input type="checkbox" data-sms-i="${i}" ${on(r) ? 'checked' : ''} ${r.ok ? '' : 'disabled'}>
+          <span class="grow"><b>${esc(r.shop)}</b><small>${esc(expDateLabel(r.date))} ${esc(r.time)}${r.itemTitle ? ` · ${esc(r.itemTitle)} 일정` : ''}</small>
+            ${r.dup ? '<em>같은 날 같은 금액이 이미 있어요</em>' : r.cancel ? '<em>취소 문자예요</em>' : r.ok ? '' : `<em>${esc(r.cur)}는 엔·원으로 바꿔 직접 입력해 주세요</em>`}</span>
+          <span class="sms-amt">${r.cur === 'KRW' ? `${r.value.toLocaleString('ko-KR')}원` : r.cur === 'JPY' ? yen(r.value) : `${esc(r.cur)} ${r.value}`}</span></label>
+        <select class="input sms-cat" data-sms-cat="${i}" aria-label="분류">${EXP_CATS.map((c) => `<option ${c === r.cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
+      </div>`).join('')}</div>
+    <button class="btn primary wide sms-add" data-sms-add>${icon('plus')}고른 결제 등록</button>`;
+}
+function addSms() {
+  let n = 0;
+  (state.sms || []).forEach((r, i) => {
+    if (!r.ok || !$(`[data-sms-i="${i}"]`)?.checked) return;
+    addExpense({ value: r.value, cur: r.cur, pay: 'card', memo: `${r.shop} · ${r.time}`, cat: $(`[data-sms-cat="${i}"]`)?.value || r.cat, item: r.item, date: r.date });
+    n++;
+  });
+  if (!n) return toast('등록할 결제를 골라 주세요');
+  state.sms = null;
+  state.expView = 'spent';
+  closeSheet();
+  render();
+  toast(`카드 결제 ${n}건을 등록했어요`);
+}
+
 function expenseSection() {
   const list = expenses().sort((a, b) => (a.date === b.date ? b.id.localeCompare(a.id) : b.date.localeCompare(a.date)));
   const total = list.reduce((a, e) => a + e.amount, 0);
@@ -826,6 +910,7 @@ function expenseSection() {
       <div class="small muted exp-budget">현지 예상 ${span(costLocal(guide), yen)} 중 ${yen(used)} 사용</div>
       <div class="cash-left"><span>엔화 현금 남음</span><b>${yen(Math.max(0, cashTotal() - cashSpent()))}</b><small>환전 ${yen(cashTotal())} 중 ${yen(cashSpent())} 사용</small><button class="link" data-cash>환전액 바꾸기</button></div>
       ${expForm()}
+      <button class="btn wide sms-open" data-sms-open>${icon('copy')}카드 문자로 등록 · 여러 건 한 번에</button>
       ${list.length ? `<div class="exp-list">${list.map(expRow).join('')}</div>` : '<div class="small muted exp-empty">아직 기록이 없어요. 일정을 눌러서도 기록할 수 있어요.</div>'}`}
     </div>`;
 }
@@ -3104,7 +3189,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 143;
+const APP_VERSION = 144;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -3179,7 +3264,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -3408,6 +3493,14 @@ document.addEventListener('click', async (e) => {
     toast(`${callOf(who())}, 좋은 하루 보내세요`, () => { store.set(key, { ...store.get(key, {}), done: false }); render(); }, '다시 보기');
   }
   else if ('brief' in d) briefPlay(state.brief || '');
+  else if ('smsOpen' in d) openSmsSheet();
+  else if ('smsPaste' in d) {
+    const manual = () => { $('#sms-text').focus(); toast('입력칸을 길게 눌러 붙여넣기 해 주세요'); };
+    if (!navigator.clipboard?.readText) manual();
+    else navigator.clipboard.readText().then((t) => { $('#sms-text').value = t; showSms(); }).catch(manual);
+  }
+  else if ('smsRead' in d) showSms();
+  else if ('smsAdd' in d) addSms();
   else if (d.nick) {
     const v = prompt('어떻게 불러 드릴까요? (비우면 이름으로 불러요)', nickOf(d.nick) || `${d.nick}님`);
     if (v !== null) { const t = v.trim().slice(0, 12); store.set('nick:' + d.nick, t && t !== `${d.nick}님` ? t : ''); render(); toast(`앞으로 ${callOf(d.nick)}${hasBatchim(callOf(d.nick)) ? '이라고' : '라고'} 부를게요`); }
