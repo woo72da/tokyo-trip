@@ -3040,7 +3040,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 139;
+const APP_VERSION = 140;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -3137,7 +3137,10 @@ document.addEventListener('click', async (e) => {
     render();
   }
   else if (d.del) { forget('custom:' + d.del); store.set('custom', store.get('custom', []).filter((c) => c.id !== d.del)); render(); }
-  else if (d.done) completeItem(d.done);
+  else if (d.done) {
+    if (el.classList.contains('act-done') && !el.classList.contains('on')) { el.classList.add('pop'); setTimeout(() => completeItem(d.done), 260); }
+    else completeItem(d.done);
+  }
   else if (d.rate) setAgain(d.rate, d.again, d.from);
   else if (d.finishOpen) openFinish(d.finishOpen);
   else if ('close' in d) closeSheet();

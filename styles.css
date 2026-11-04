@@ -1223,8 +1223,15 @@ ol.alarm-note { padding-left: 18px; }
 .act { margin-top: 14px; padding: 6px; border-radius: 20px; background: var(--soft); }
 .act-done { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 62px; padding: 10px 14px; border: 0; border-radius: 15px; background: var(--paper); color: var(--ink); text-align: left; font: inherit; box-shadow: 0 1px 2px rgba(20, 30, 50, .08); }
 .act-done:active { transform: scale(.985); }
-.act-check { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--accent); color: transparent; }
-.act-check .ico { width: 18px; height: 18px; }
+/* Not done yet: a dashed, half-strength ring with a faint check, an empty place waiting for the tick. */
+.act-check { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: 2px dashed var(--accent); border: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent); color: var(--accent); transition: background .2s, border-color .2s; }
+.act-check .ico { width: 18px; height: 18px; opacity: .25; transition: opacity .2s; }
+.act-done.on .act-check .ico { opacity: 1; }
+/* The tap: the ring turns solid and fills before the visit form opens. */
+.act-done.pop .act-check { border-style: solid; border-color: var(--now); background: var(--now); color: var(--on-now); animation: act-pop .26s ease-out; }
+.act-done.pop .act-check .ico { opacity: 1; }
+@keyframes act-pop { 0% { transform: scale(.8); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .act-done.pop .act-check { animation: none; } }
 .act-done b { display: block; font-size: 16px; font-weight: 800; }
 .act-done small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
 .act-done.on { background: var(--now); color: var(--on-now); }
@@ -1238,3 +1245,6 @@ ol.alarm-note { padding-left: 18px; }
 .act-sub button.on { background: var(--paper); color: var(--alert); }
 .act-sub button.on .ico { color: var(--alert); }
 .act + .talk-card, .act + .card { margin-top: 14px; }
+
+.prep-item .check-box { border-style: dashed; border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.prep-item.on .check-box { border-style: solid; }
