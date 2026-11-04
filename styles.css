@@ -486,6 +486,13 @@ ul.plain li + li { margin-top: 4px; }
 .wx-strip span .ico, .wx-days span .ico { width: 22px; height: 22px; }
 .wx-strip b { font-size: 14px; font-weight: 700; }
 .wx-strip i, .wx-days i { font-style: normal; font-size: 12px; font-weight: 700; color: #4a7cb0; min-height: 13px; }
+.wx-strip em { font-style: normal; font-size: 10px; font-weight: 600; color: var(--muted); margin-top: -2px; }
+.wx-strip > div.now em { color: var(--sel-muted); }
+.tmr { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; margin-bottom: 12px; padding: 14px 16px; border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow); color: var(--ink); }
+.tmr > .ico { flex: none; width: 34px; height: 34px; }
+.tmr small { display: block; font-size: 12px; font-weight: 700; color: var(--now); }
+.tmr b { display: block; font-size: 15px; margin: 2px 0; }
+.tmr .grow > span { display: block; font-size: 13px; color: var(--muted); line-height: 1.45; }
 .wx-days { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .wx-days > div { min-width: 0; }
 .wx-days b { font-size: 15px; font-weight: 800; }

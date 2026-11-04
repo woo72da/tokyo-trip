@@ -303,7 +303,7 @@ const WX_URL = 'https://api.open-meteo.com/v1/forecast?latitude=35.69&longitude=
 const WX_V = 2;
 const WX_TTL = 30 * 60 * 1000;
 // WMO weather codes: each entry covers codes from its number up to the next entry.
-const WMO = [[0, 'wx-sun', '맑음'], [1, 'wx-partly', '대체로 맑음'], [2, 'wx-partly', '구름 조금'], [3, 'wx-cloud', '흐림'], [45, 'wx-fog', '안개'],
+const WMO = [[0, 'wx-sun', '맑음'], [1, 'wx-partly', '대체로 맑음'], [2, 'wx-partly', '구름 많음'], [3, 'wx-cloud', '흐림'], [45, 'wx-fog', '안개'],
   [51, 'wx-rain', '이슬비'], [61, 'wx-rain', '비'], [66, 'wx-rain', '어는 비'], [71, 'wx-snow', '눈'], [80, 'wx-rain', '소나기'], [85, 'wx-snow', '눈 소나기'], [95, 'wx-storm', '뇌우']];
 const wmo = (code) => {
   const hit = WMO.filter(([c]) => code >= c).pop() || WMO[0];
@@ -341,10 +341,15 @@ function logWeather({ hourly: h, daily: d }) {
   store.set('wxlog', log);
 }
 
+// Dry hours get their sky from the cloud cover: under 25% clear, under 50% mostly clear, under 80% cloudy, else overcast.
+const skyCode = (code, cloud) => (code > 3 || cloud == null ? code : cloud < 25 ? 0 : cloud < 50 ? 1 : cloud < 80 ? 2 : 3);
 function wxDay(date) {
   const e = state.wxlog?.[date];
   if (!e) return null;
-  const [code, max, min, pop, uv, rain, sun] = e.d;
+  const [raw, max, min, pop, uv, rain, sun] = e.d;
+  // A dry day takes the daylight hours' average cloud.
+  const lit = Object.entries(e.h).filter(([h, r]) => h >= 8 && h <= 17 && r[6] != null).map(([, r]) => r[6]);
+  const code = skyCode(raw, lit.length ? lit.reduce((a, b) => a + b, 0) / lit.length : null);
   return { ...wmo(code), code, max: Math.round(max), min: Math.round(min), pop: pop ?? 0, uv: uv ?? 0, rain: rain ?? 0, sun: sun ?? 0 };
 }
 
@@ -352,7 +357,8 @@ function wxHour(date, min) {
   const hour = Math.floor(min / 60);
   const r = state.wxlog?.[date]?.h[hour];
   if (!r || r[1] == null) return null;
-  const [code, temp, feels, pop, rain, uv, cloud, wind] = r;
+  const [raw, temp, feels, pop, rain, uv, cloud, wind] = r;
+  const code = skyCode(raw, cloud);
   return { ...wmo(code), code, hour, temp: Math.round(temp), feels: Math.round(feels), pop: pop ?? 0, rain: rain ?? 0, uv: uv ?? 0, cloud: cloud ?? 0, wind: wind ?? 0 };
 }
 const wxHours = (date, fromH, toH) =>
@@ -366,14 +372,13 @@ function wxTips(date) {
   const hrs = wxHours(date, 8, 22);
   if (!hrs.length) return [];
   const tips = [];
-  const wet = hrs.reduce((a, b) => (b.pop > a.pop ? b : a));
-  const wetHours = hrs.filter((h) => h.pop >= 50).length;
+  const top = hrs.reduce((a, b) => (b.pop > a.pop ? b : a));
+  const sp = rainSpan(date);
   // Drizzle under 0.5mm an hour only needs a folding umbrella.
-  const light = hrs.filter((h) => h.pop >= 50 || isWet(h)).every((h) => h.rain < 0.5);
-  if (light && wet.pop >= 30) tips.push(['', `접이식 우산 · ${wet.hour}시쯤 약한 비 ${wet.pop}%`, 'umbrella']);
-  else if (wetHours >= 6) tips.push(['warn', `우산 필수 · 낮 내내 비 최대 ${wet.pop}%`, 'umbrella']);
-  else if (wet.pop >= 50) tips.push(['warn', `우산 필수 · ${wet.hour}시쯤 비 ${wet.pop}%`, 'umbrella']);
-  else if (wet.pop >= 30) tips.push(['', `접이식 우산 · ${wet.hour}시쯤 비 ${wet.pop}%`, 'umbrella']);
+  if (sp?.light) { if (sp.max >= 30) tips.push(['', `접이식 우산 · ${sp.when} 약한 비 ${sp.max}%`, 'umbrella']); }
+  else if (sp && (sp.n >= 3 || sp.max >= 50)) tips.push(['warn', `우산 필수 · ${sp.when} 비 최대 ${sp.max}%`, 'umbrella']);
+  else if (sp) tips.push(['', `접이식 우산 · ${sp.when} 비 ${sp.max}%`, 'umbrella']);
+  else if (top.pop >= 30) tips.push(['', `접이식 우산 · ${top.hour}시쯤 비 ${top.pop}%`, 'umbrella']);
   const lo = Math.min(...hrs.map((h) => h.feels));
   const hi = Math.max(...hrs.map((h) => h.temp));
   if (lo <= 10) tips.push(['', `체감 ${lo}°까지 · 따뜻한 겉옷`, 'coat']);
@@ -385,14 +390,26 @@ function wxTips(date) {
 
 // ---------- the day's weather in words, and what to bring ----------
 const isWet = (h) => h.code >= 51 || h.rain >= 0.3;
+// For today and later, an hour with a 50%+ chance counts as rain too, the same hours the strip marks blue.
+// A past day goes by what the model says fell.
+const rainyAt = (date) => (date >= tokyoNow().date ? (h) => isWet(h) || h.pop >= 50 : isWet);
+// The rain while out (08–22h) in one phrase, shared by the weather card and the morning prep card.
+function rainSpan(date) {
+  const wet = wxHours(date, 8, 22).filter(rainyAt(date));
+  if (!wet.length) return null;
+  const from = wet[0].hour;
+  const to = wet[wet.length - 1].hour;
+  const when = from <= 9 && to >= 20 ? '하루 종일' : to >= 21 ? `${from}시부터` : from === to ? `${from}시쯤` : `${from}~${to + 1}시`;
+  return { wet, from, to, when, n: wet.length, max: Math.max(...wet.map((h) => h.pop)), light: wet.every((h) => h.rain < 0.5) };
+}
 // Sky over the given hours, judged on daylight hours only.
 const skyOf = (hrs) => {
   const lit = hrs.filter((h) => h.hour >= 8 && h.hour <= 17);
   const list = lit.length ? lit : hrs;
   if (!list.length) return '';
   const clear = list.filter((h) => h.code <= 1).length / list.length;
-  const fair = list.filter((h) => h.code <= 2).length / list.length;
-  return clear >= 0.5 || fair >= 0.8 ? '맑음' : fair >= 0.4 ? '구름 조금' : '흐림';
+  const grey = list.filter((h) => h.code === 3 || h.code >= 45).length / list.length;
+  return clear >= 0.6 ? '맑음' : grey >= 0.5 ? '흐림' : '구름 많음';
 };
 const uvWord = (uv) => (uv >= 8 ? '매우 강함' : uv >= 6 ? '강함' : uv >= 3 ? '보통' : '약함');
 // When it rained, when it cleared, and how warm and bright the day was. Rain before dawn counts as "cleared".
@@ -401,14 +418,16 @@ function wxStory(date) {
   const all = wxHours(date, 0, 22);
   const hrs = all.filter((h) => h.hour >= 5);
   if (!day || hrs.length < 6) return null;
+  const rainy = rainyAt(date);
   const runs = [];
   for (const h of hrs) {
-    if (!isWet(h)) continue;
+    if (!rainy(h)) continue;
     const r = runs[runs.length - 1];
     if (r && r[1] === h.hour - 1) r[1] = h.hour; else runs.push([h.hour, h.hour]);
   }
   const wetN = runs.reduce((a, [f, t]) => a + t - f + 1, 0);
-  const light = hrs.filter(isWet).every((h) => h.rain < 0.5);
+  // Strength is judged while out (from 8h), so heavy rain before dawn doesn't make the day's rain read heavy.
+  const light = hrs.filter((h) => h.hour >= 8 && rainy(h)).every((h) => h.rain < 0.5);
   const rainWord = light ? '약한 비' : '비';
   // Sunny most of the day by the hours of sunshine, even if a few hours read as cloud.
   const sky = (list) => (day.sun >= 6 * 3600 && list.length >= 8 ? '맑음' : skyOf(list));
@@ -416,7 +435,7 @@ function wxStory(date) {
   if (!runs.length) {
     const s0 = sky(hrs);
     const dawn = all.some((h) => h.hour < 5 && isWet(h));
-    head = dawn ? `새벽 비 그친 뒤 ${s0}` : { 맑음: '하루 종일 맑음', '구름 조금': '구름 조금, 비 없음', 흐림: '대체로 흐림, 비 없음' }[s0];
+    head = dawn ? `새벽 비 그친 뒤 ${s0}` : { 맑음: '하루 종일 맑음', '구름 많음': '구름 많고 비 없음', 흐림: '대체로 흐림, 비 없음' }[s0];
   } else if (wetN >= 12) head = `하루 종일 ${rainWord}`;
   else {
     const f = runs[0][0];
@@ -431,7 +450,7 @@ function wxStory(date) {
   const wind = Math.max(...hrs.map((h) => h.wind));
   const sunH = Math.round(day.sun / 3600);
   const facts = [`${day.min}~${day.max}°`, `자외선 ${uvWord(uv)} (${uv.toFixed(0)})`, sunH ? `해 ${sunH}시간` : '', day.rain >= 1 ? `비 ${day.rain.toFixed(0)}mm` : '', wind >= 25 ? '바람 강함' : ''];
-  const icon = runs.length ? 'wx-rain' : { 맑음: 'wx-sun', '구름 조금': 'wx-partly', 흐림: 'wx-cloud' }[sky(hrs)];
+  const icon = runs.length ? 'wx-rain' : { 맑음: 'wx-sun', '구름 많음': 'wx-partly', 흐림: 'wx-cloud' }[sky(hrs)];
   return { head, line: facts.filter(Boolean).join(' · '), icon, sky: runs.length ? rainWord : sky(hrs) };
 }
 
@@ -449,12 +468,12 @@ const gearText = (g) => (g ? GEAR.map(([k, , label, opts]) => g[k] && `${label} 
 function gearBias(date, name) {
   const g = lastGear(date, name) || {};
   const notes = [];
-  if (g.umbrella === 'unused') notes.push('어제 우산을 안 썼다고 남겨서, 비 확률만 조금 있는 날은 우산을 빼요.');
-  if (g.umbrella === 'missed') notes.push('어제 우산이 아쉬웠다고 남겨서, 비가 조금만 와도 챙기게 했어요.');
-  if (g.sun === 'missed') notes.push('어제 선글라스가 없어서 아쉬웠다고 남겨서, 조금만 맑아도 챙기게 했어요.');
-  if (g.sun === 'unused') notes.push('어제 선글라스를 안 썼다고 남겨서, 아주 맑을 때만 챙기게 했어요.');
-  if (g.coat === 'cold') notes.push('어제 추웠다고 남겨서, 겉옷을 한 단계 두껍게 추천해요.');
-  if (g.coat === 'hot') notes.push('어제 더웠다고 남겨서, 겉옷을 한 단계 얇게 추천해요.');
+  if (g.umbrella === 'unused') notes.push(['umbrella', '지난번에 우산을 안 썼다고 남겨서, 비 확률이 낮은 오늘은 우산을 뺐어요.']);
+  if (g.umbrella === 'missed') notes.push(['umbrella', '지난번에 우산이 아쉬웠다고 남겨서, 비가 조금 와도 챙기게 했어요.']);
+  if (g.sun === 'missed') notes.push(['sun', '지난번에 선글라스가 아쉬웠다고 남겨서, 오늘은 챙기게 했어요.']);
+  if (g.sun === 'unused') notes.push(['sun', '지난번에 선글라스를 안 썼다고 남겨서, 오늘은 뺐어요.']);
+  if (g.coat === 'cold') notes.push(['coat', '지난번에 추웠다고 남겨서, 겉옷을 한 단계 두껍게 골랐어요.']);
+  if (g.coat === 'hot') notes.push(['coat', '지난번에 더웠다고 남겨서, 겉옷을 한 단계 얇게 골랐어요.']);
   return {
     u: g.umbrella === 'unused' ? 15 : g.umbrella === 'missed' ? -15 : 0,
     s: g.sun === 'missed' ? -1.5 : g.sun === 'unused' ? 1.5 : 0,
@@ -468,38 +487,50 @@ const OUT_ICONS = ['park', 'torii', 'bridge', 'sunset', 'flower', 'walk', 'lante
 const isOutdoor = (it) => !it.skip && (OUT_ICONS.includes(glyph(it.icon)[0]) || /공원|해변|시장|산책|신궁|스트리트|교차로|외관|나카미세|상점가|센소지/.test(it.title));
 
 // What to bring today, and what can stay at the hotel, for one person; each with the reason, tied to a stop when it can be.
-function gearFor(date, items, name) {
+const NO_BIAS = { u: 0, s: 0, c: 0, notes: [], memo: '' };
+function gearFor(date, items, name, bias) {
   const hrs = wxHours(date, 8, 22);
   if (hrs.length < 6) return null;
-  const b = gearBias(date, name);
+  const b = bias || gearBias(date, name);
   const outs = items.filter(isOutdoor);
   const outAt = (h) => outs.find((it) => it.startMin < (h.hour + 1) * 60 && it.endMin > h.hour * 60);
   const why = (h, what) => { const it = outAt(h); return it ? `${it.start} ${stripEmoji(it.title).split(' · ')[0]} · ${what}` : `${h.hour}시쯤 ${what}`; };
   const need = [];
   const skip = [];
-  const wet = hrs.filter((h) => h.pop >= 50 || h.code >= 61);
   const top = hrs.reduce((a, c) => (c.pop > a.pop ? c : a));
+  const sp = rainSpan(date);
+  const wet = sp?.wet || [];
+  const light = !sp || sp.light;
+  // The outdoor stop the rain reaches first, with the chance at that hour (not the day's peak).
+  const hit = wet.find(outAt);
+  const atStop = hit ? ` · ${stripEmoji(outAt(hit).title).split(' · ')[0]} ${outAt(hit).start}쯤 ${hit.pop}%` : '';
   // Drizzle (under 0.5mm an hour) needs a folding umbrella at most, never boots.
-  const light = hrs.filter((h) => h.pop >= 50 || isWet(h)).every((h) => h.rain < 0.5);
-  if (wet.length >= 3 && !light) need.push({ key: 'umbrella', icon: 'umbrella', label: '튼튼한 우산', why: why(wet.find(outAt) || wet[0], `비 ${Math.max(...wet.map((h) => h.pop))}% · ${wet.length}시간`) });
-  else if (top.pop >= 30 + b.u || wet.length) { const at = wet.find(outAt) || wet[0] || top; need.push({ key: 'umbrella', icon: 'umbrella', label: '접이식 우산', why: why(at, `${light ? '약한 비' : '비'} ${at.pop}%`) }); }
-  else skip.push(`우산 (비 최대 ${top.pop}%)`);
+  if (sp && !light && sp.n >= 3) need.push({ key: 'umbrella', icon: 'umbrella', label: '튼튼한 우산', why: `${sp.when} 비 최대 ${sp.max}%${atStop}` });
+  else if ((sp && (!light || sp.max >= 30 + b.u)) || top.pop >= 30 + b.u) need.push({ key: 'umbrella', icon: 'umbrella', label: '접이식 우산', why: sp ? `${sp.when} ${light ? '약한 비' : '비'} ${sp.max}%${atStop}` : `${top.hour}시쯤 비 ${top.pop}%` });
+  else skip.push(['우산', `비 최대 ${top.pop}%`]);
   const uv = Math.max(...hrs.map((h) => h.uv));
   const bright = hrs.filter((h) => h.code <= 1 && h.hour >= 9 && h.hour <= 16);
   if (uv >= 4 + b.s || bright.length >= 4 + (b.s > 0 ? 2 : b.s < 0 ? -1 : 0)) need.push({ key: 'sun', icon: 'wx-sun', label: '선글라스·모자', why: `${bright[0] ? why(bright.find(outAt) || bright[0], '맑음') + ' · ' : ''}자외선 ${uvWord(uv)} (${uv.toFixed(0)})` });
-  else skip.push(`선글라스 (${skyOf(hrs.filter((h) => h.hour >= 9 && h.hour <= 16))})`);
+  else skip.push(['선글라스', `자외선 ${uvWord(uv)} (${uv.toFixed(0)})`]);
   const lo = Math.min(...hrs.map((h) => h.feels));
   const hi = Math.max(...hrs.map((h) => h.temp));
   const felt = lo - b.c;
   const cold = hrs.find((h) => h.feels === lo);
   if (felt <= 10) need.push({ key: 'coat', icon: 'coat', label: '따뜻한 겉옷', why: `${cold.hour}시쯤 체감 ${lo}°까지` });
   else if (felt <= 15) need.push({ key: 'coat', icon: 'coat', label: '가벼운 겉옷', why: `${cold.hour}시쯤 체감 ${lo}°까지` });
-  else skip.push(`겉옷 (체감 ${lo}° 이상)`);
+  else skip.push(['겉옷', `체감 ${lo}° 이상`]);
   if (hi - lo >= 8) need.push({ key: 'layer', icon: 'temp', label: '겹쳐 입기', why: `일교차 ${hi - lo}° · 낮 ${hi}°` });
   const rain = hrs.reduce((a, h) => a + h.rain, 0);
   if (rain >= 5 || (wet.length >= 4 && !light)) need.push({ key: 'shoes', icon: 'walk', label: '젖어도 되는 신발', why: `비 ${rain >= 1 ? `${rain.toFixed(0)}mm` : `${wet.length}시간`} · 걷는 일정` });
-  return { need, skip, bias: b };
+  if (bias) return { need, skip };
+  // Say what last time's record changed only where it actually changed today's list.
+  const base = gearFor(date, items, name, NO_BIAS);
+  const pick = (r, k) => r.need.find((n) => n.key === k)?.label || '';
+  const notes = b.notes.filter(([k]) => pick({ need }, k) !== pick(base, k)).map(([, t]) => t);
+  return { need, skip, bias: { ...b, notes } };
 }
+
+const mm = (v) => `${v < 1 ? v.toFixed(1) : Math.round(v)}mm`;
 
 function wxAge() {
   const m = Math.round((Date.now() - state.wx.at) / 60000);
@@ -523,13 +554,13 @@ function wxCard(date, now) {
         <div class="wx-big">${wxIcon((cur || day).icon)}</div>
         <div class="grow">
           <div class="wx-temp">${cur ? cur.temp : day.max}°<span>${esc((cur || day).label)}${cur ? '' : ' · 낮 최고'}</span></div>
-          <div class="wx-sub">최고 ${day.max}° · 최저 ${day.min}° · 비 ${day.pop}%${cur ? ` · 체감 ${cur.feels}°` : ''}</div>
+          <div class="wx-sub">최고 ${day.max}° · 최저 ${day.min}° · 비 ${day.pop}%${day.rain >= 1 ? ` · ${day.rain.toFixed(0)}mm` : ''}${cur ? ` · 체감 ${cur.feels}°` : ''}</div>
         </div>
         <button class="wx-refresh" data-wx-refresh aria-label="날씨 새로고침">${icon('refresh')}${wxAge()}</button>
       </div>
       ${chipsHtml(tips)}
       ${strip.length ? `<div class="wx-strip">${strip.map((h) => `
-        <div class="${[h.pop >= 50 ? 'wet' : '', cur && h.hour === cur.hour ? 'now' : ''].join(' ')}"><small>${cur && h.hour === cur.hour ? '지금' : h.hour + '시'}</small><span>${wxIcon(h.icon)}</span><b>${h.temp}°</b><i>${h.pop >= 10 ? h.pop + '%' : ''}</i></div>`).join('')}
+        <div class="${[h.pop >= 50 ? 'wet' : '', cur && h.hour === cur.hour ? 'now' : ''].join(' ')}"><small>${cur && h.hour === cur.hour ? '지금' : h.hour + '시'}</small><span>${wxIcon(h.icon)}</span><b>${h.temp}°</b><i>${h.pop >= 10 ? h.pop + '%' : ''}</i>${h.rain >= 0.1 ? `<em>${mm(h.rain)}</em>` : ''}</div>`).join('')}
       </div>` : ''}
     </div>`;
 }
@@ -1368,6 +1399,7 @@ function renderToday() {
       <div class="hero-meta">${esc(f.no)} · ${esc(f.depart)} 출발 · ${esc(f.arrive)} 도착</div>
     </div>`;
   html += wxCard(day.date, now);
+  if (now.min >= 18 * 60 && days[dayIdx + 1]) html += tomorrowCard(days[dayIdx + 1], dayIdx + 1);
   html += todoCard(now.date, '오늘 할 일', 3);
   if (queue.length === 1 && started) html += heroCard(current, 'now', now, true);
   if (next) html += heroCard(next, 'next', now);
@@ -1665,6 +1697,27 @@ function daySumWeather(date) {
     </div>`;
 }
 
+// "우산·선글라스는 두고 가도 돼요 · 비 최대 20%, 자외선 약함 (1)": the topic particle follows the last word.
+const eunNeun = (w) => { const c = w.charCodeAt(w.length - 1) - 0xac00; return c >= 0 && c < 11172 && c % 28 ? '은' : '는'; };
+const skipLine = (skip) => { const names = skip.map(([n]) => n); return `${names.join('·')}${eunNeun(names[names.length - 1])} 두고 가도 돼요 · ${skip.map(([, w]) => w).join(', ')}`; };
+
+// Evening look at tomorrow's weather and what to bring, opening that day in the 일정 tab.
+function tomorrowCard(tday, idx) {
+  const w = wxDay(tday.date);
+  if (!w) return '';
+  const st = wxStory(tday.date);
+  const g = gearFor(tday.date, dayItems(tday).filter((it) => !it.skip), who());
+  const bring = g?.need.map((n) => n.label) || [];
+  const out = wxHours(tday.date, 8, 22).reduce((a, h) => a + h.rain, 0);
+  const rain = w.rain < 1 ? (w.pop >= 30 ? `비 ${w.pop}%` : '') : out < w.rain / 3 ? `비 ${w.rain.toFixed(0)}mm (대부분 새벽·밤, 낮 ${mm(out)})` : `비 ${w.rain.toFixed(0)}mm`;
+  const facts = [`${w.min}~${w.max}°`, rain].filter(Boolean);
+  return `
+    <button class="tmr" data-tomorrow="${idx}">
+      ${wxIcon(st?.icon || w.icon)}<span class="grow"><small>내일 · ${esc(dayLabel(tday.date))}</small><b>${esc(st?.head || w.label)}</b>
+        <span>${esc(facts.join(' · '))}${bring.length ? ` · 챙길 것 ${esc(bring.join(', '))}` : ''}</span></span>
+    </button>`;
+}
+
 // Before the first stop: yesterday against today, and what to bring, tuned by what this person said about yesterday.
 function prepCard(day, items, now) {
   const first = items.find((it) => !it.skip);
@@ -1690,8 +1743,8 @@ function prepCard(day, items, now) {
         <button type="button" class="prep-item ${ck[n.key] ? 'on' : ''}" data-prep="${esc(day.date)}|${n.key}">
           <i class="check-box"></i>${icon(n.icon)}<span class="grow"><b>${esc(n.label)}</b><small>${esc(n.why)}</small></span>
         </button>`).join('') || '<div class="small muted">오늘은 따로 챙길 게 없어요.</div>'}</div>
-      ${g.skip.length ? `<div class="prep-skip">필요 없어요 · ${esc(g.skip.join(' · '))}</div>` : ''}
-      ${g.bias.notes.length ? `<div class="prep-note">${icon('heart')}<span>${esc(g.bias.notes.join(' '))}${g.bias.memo ? ` <q>${esc(g.bias.memo)}</q>` : ''}</span></div>` : ''}
+      ${g.skip.length ? `<div class="prep-skip">${esc(skipLine(g.skip))}</div>` : ''}
+      ${g.bias.notes.length || g.bias.memo ? `<div class="prep-note">${icon('heart')}<span>${esc(g.bias.notes.join(' '))}${g.bias.memo ? ` <q>${esc(g.bias.memo)}</q>` : ''}</span></div>` : ''}
       ${theirs.length ? `<div class="prep-skip">${esc(other)}의 지난 기록 · ${esc(theirs.join(' · '))}</div>` : ''}
       <button class="btn primary wide prep-done" data-prep-done="${esc(day.date)}">${icon('check')}준비 완료</button>
     </div>`;
@@ -2892,7 +2945,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 132;
+const APP_VERSION = 134;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -2967,7 +3020,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -3186,7 +3239,12 @@ document.addEventListener('click', async (e) => {
     store.set('prep:' + date, { ...st, ck: { ...st.ck, [k]: !st.ck?.[k] } });
     el.classList.toggle('on');
   }
-  else if (d.prepDone) { store.set('prep:' + d.prepDone, { ...store.get('prep:' + d.prepDone, {}), done: true }); render(); toast('좋은 하루 보내세요'); }
+  else if (d.prepDone) {
+    const key = 'prep:' + d.prepDone;
+    store.set(key, { ...store.get(key, {}), done: true }); render();
+    toast('좋은 하루 보내세요', () => { store.set(key, { ...store.get(key, {}), done: false }); render(); }, '다시 보기');
+  }
+  else if (d.tomorrow) { state.dayIndex = Number(d.tomorrow); store.set('day', state.dayIndex); go('days'); }
   else if (d.daySum) {
     state.dayIndex = Number(d.daySum); store.set('day', state.dayIndex); go('days');
     $('.day-sum .gear-fb')?.scrollIntoView({ block: 'center' });
