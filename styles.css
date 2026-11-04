@@ -1347,3 +1347,10 @@ ol.alarm-note { padding-left: 18px; }
 .dx-more { display: block; width: 100%; padding: 12px 0 8px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; font-weight: 700; text-align: center; }
 .x-meal { background: #e07a5f; } .x-cafe { background: #b08968; } .x-konbini { background: #5f9e6e; } .x-move { background: #4a7cb0; }
 .x-shop { background: #8e6bbf; } .x-see { background: #d4a017; } .x-etc { background: #9aa0a6; }
+
+/* Day change by swipe in the 일정 tab */
+#view.slide-l { animation: day-in-l .22s ease-out; }
+#view.slide-r { animation: day-in-r .22s ease-out; }
+@keyframes day-in-l { from { transform: translateX(28px); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes day-in-r { from { transform: translateX(-28px); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #view.slide-l, #view.slide-r { animation: none; } }

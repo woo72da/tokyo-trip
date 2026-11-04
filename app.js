@@ -3219,7 +3219,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 145;
+const APP_VERSION = 146;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -3613,15 +3613,15 @@ document.addEventListener('input', (e) => {
   else if (t.id === 'talk-text') { store.set('talkText', t.value); $('.talk-clear').hidden = !t.value; }
 });
 
-// Swiping the explore list moves between its categories. Edge starts stay the system's back gesture;
-// the chip rows scroll sideways on their own.
+// Swiping the explore list moves between its categories, and the 일정 tab between days. Edge starts stay
+// the system's back gesture; rows that scroll sideways (chips, day picker, hourly weather) keep their own scroll.
 let swipe = null;
 document.addEventListener('touchstart', (e) => {
   const t = e.touches[0];
   const open = !$('#sheet').hidden || !$('#bigja').hidden;
   const edge = t.clientX < 24 || t.clientX > innerWidth - 24;
-  const off = state.tab !== 'explore' || open || edge || e.touches.length > 1
-    || !e.target.closest('main') || e.target.closest('.ex-row, .ex-cats, input, textarea, select');
+  const off = !['explore', 'days'].includes(state.tab) || open || edge || e.touches.length > 1
+    || !e.target.closest('main') || e.target.closest('.ex-row, .ex-cats, .daypick, .wx-strip, .doc-row, input, textarea, select');
   swipe = off ? null : { x: t.clientX, y: t.clientY, at: Date.now() };
 }, { passive: true });
 document.addEventListener('touchend', (e) => {
@@ -3632,6 +3632,20 @@ document.addEventListener('touchend', (e) => {
   const quick = Date.now() - swipe.at < 800;
   swipe = null;
   if (!quick || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
+  if (state.tab === 'days') {
+    const to = state.dayIndex + (dx < 0 ? 1 : -1);
+    if (to < 0 || to >= state.trip.days.length) return toast(to < 0 ? '첫날이에요' : '마지막 날이에요');
+    state.dayIndex = to;
+    store.set('day', to);
+    render();
+    window.scrollTo(0, 0);
+    // A short slide from the side the next day comes from.
+    const v = $('#view');
+    v.classList.remove('slide-l', 'slide-r');
+    void v.offsetWidth;
+    v.classList.add(dx < 0 ? 'slide-l' : 'slide-r');
+    return;
+  }
   const next = EX_CATS[EX_CATS.findIndex(([k]) => k === state.ex.cat) + (dx < 0 ? 1 : -1)];
   if (!next) return;
   state.ex.cat = next[0];
