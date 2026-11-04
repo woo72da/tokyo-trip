@@ -2697,7 +2697,7 @@ const SAVE_PLACE = {
 };
 const PLACE_SYSTEM = `You help a Korean couple on a Tokyo trip (2026-11-02 to 11-06, hotel near Ueno) add a place to their travel app.
 The user pastes a Google Maps share link and/or the text Google Maps copies with it.
-Identify that exact place: fetch the pasted URL first; if that doesn't show the place, search the web with the name or address. Prefer the official site, Tabelog or Google Maps listings as sources.
+Identify that exact place: fetch the pasted URL first; short maps.app.goo.gl links usually can't be opened, so then search the web with the place name or address given (add 東京 or the area to the query). Prefer the official site, Tabelog or Google Maps listings as sources.
 Then call save_place once. Write Korean for name, desc, best, tips and note; nameJa as it appears on the map.
 Only fill rating, reviews and hours when a source shows them; leave unknown fields empty or null and say what in note. Never copy review sentences; write tips in your own words.
 If you can't tell which place it is, call save_place with found false and explain in note.`;
@@ -2751,10 +2751,20 @@ function saveAiPlace(pl, url) {
 }
 
 // Runs the place lookup for the 탐색 sheet ('pn') or a new stop ('form'). Without a key, the share text alone fills what it can.
+// A short maps.app.goo.gl link can't be opened from outside Google, so with a bare link the place name is asked for and used to search.
+const bareLink = (text) => { const { url, name } = parseShare(text); return !!url && !name; };
 async function runAiPlace(where, btn) {
-  const text = (where === 'pn' ? $('#pn-paste') : $('#f-link')).value.trim();
-  if (!text) return toast('구글지도 공유 내용을 먼저 붙여 넣어 주세요');
+  const pasted = (where === 'pn' ? $('#pn-paste') : $('#f-link')).value.trim();
+  if (!pasted) return toast('구글지도 공유 내용을 먼저 붙여 넣어 주세요');
   const out = where === 'pn' ? $('#pn-ai') : $('#f-ai');
+  const nameBox = where === 'pn' ? $('#pn-name') : $('#f-link-name');
+  const given = nameBox?.value.trim() || '';
+  if (bareLink(pasted) && !given) {
+    if (nameBox) { nameBox.hidden = false; nameBox.focus(); }
+    out.innerHTML = '<div class="ai-note">구글지도 짧은 링크는 밖에서 열리지 않아요. 지도에 보이는 가게 이름을 함께 적어 주세요. 일본어나 영어 이름이면 더 정확해요.</div>';
+    return;
+  }
+  const text = given && !pasted.includes(given) ? `${given}\n${pasted}` : pasted;
   const { url, name: shareName, addr } = parseShare(text);
   let pl = null;
   if (aiKey()) {
@@ -2929,6 +2939,7 @@ function openItemForm(id, opt = {}) {
     <form class="item-form" autocomplete="off">
       ${!it ? `<div class="f-link">
         <textarea class="input" id="f-link" rows="2" placeholder="구글지도 공유 링크를 붙여 넣으면 장소·제목·시간을 채워요"></textarea>
+        <input class="input" id="f-link-name" hidden maxlength="60" autocomplete="off" placeholder="가게 이름 · 지도에 보이는 이름 (예: AFURI 原宿)">
         <button type="button" class="btn ${aiKey() ? 'primary' : ''}" data-ai-place="form">${aiKey() ? 'AI로 채우기' : '링크로 채우기'}</button>
         <div id="f-ai"></div>
       </div>` : ''}
@@ -3464,7 +3475,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 152;
+const APP_VERSION = 153;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -3843,6 +3854,7 @@ document.addEventListener('input', (e) => {
   else if (t.id === 'fx-in') { state.fxCalc.value = t.value; updateFx(); }
   else if (t.id === 'fx-tax') { state.fxCalc.tax = t.checked; updateFx(); }
   else if (t.id === 'pn-paste') fillShare(t.value);
+  else if (t.id === 'f-link' && $('#f-link-name')) $('#f-link-name').hidden = !bareLink(t.value) && !$('#f-link-name').value;
   else if (t.id === 'ai-model') store.set('aiModel', t.value);
   else if (t.id === 'ex-q') {
     state.ex.q = t.value;
