@@ -1610,7 +1610,21 @@ function gapLabel(it, next) {
   const a = next && !it.skip && !next.skip && placeOfItem(it.id);
   const b = a && placeOfItem(next.id);
   if (!b || a === b || !a.lat || !b.lat) return '';
-  return `<div class="tl-gap">${icon('route')}다음 장소까지 ${distLabel(kmBetween(a, b))}</div>`;
+  // Straight-line distance, so the walk adds a third for corners; about 75m a minute.
+  const km = kmBetween(a, b);
+  const walk = km <= 1.2;
+  const mins = Math.max(1, Math.ceil((km * 1000 * 1.3) / 75));
+  const spare = it.end ? next.startMin - it.endMin : null;
+  const tight = walk && spare != null && mins > spare;
+  const spareText = spare == null ? '' : spare <= 0 ? '여유 없음' : `여유 ${formatLeft(spare)}`;
+  const text = [walk ? `걸어서 약 ${mins}분` : '지하철·택시로 이동', distLabel(km), spareText].filter(Boolean).join(' · ');
+  const href = `https://www.google.com/maps/dir/?api=1&origin=${a.lat},${a.lng}&destination=${b.lat},${b.lng}&travelmode=${walk ? 'walking' : 'transit'}`;
+  return `
+    <div class="tl-walk ${tight ? 'tight' : ''}">
+      <span class="wk-ico">${icon(tight ? 'warn' : walk ? 'walk' : 'metro')}</span>
+      <span class="grow">${esc(text)}</span>
+      <a class="wk-nav" href="${esc(href)}" target="_blank" rel="noopener" aria-label="${walk ? '도보' : '대중교통'} 길찾기">${icon('nav')}</a>
+    </div>`;
 }
 
 // In edit mode a tap opens the change form, and a "put a stop here" row sits under each stop.
@@ -3090,7 +3104,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 141;
+const APP_VERSION = 142;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

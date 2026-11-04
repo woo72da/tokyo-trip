@@ -1290,3 +1290,13 @@ ol.alarm-note { padding-left: 18px; }
 .fl-stub .ico { width: 18px; height: 18px; color: var(--on-night); }
 .tl-item.flight.done .tl-flight, .tl-item.flight.past .tl-flight { opacity: .55; }
 @media (prefers-color-scheme: dark) { .tl-flight { box-shadow: inset 0 0 0 1.5px rgba(127, 159, 196, .4); } }
+
+/* The walk between two places nobody planned a move for: quieter than a planned move (gray, no time). */
+.tl-walk { grid-column: 2; position: relative; display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 2px 0 0 4px; font-size: 12.5px; color: var(--muted); }
+.tl-walk::before { content: ''; position: absolute; left: -14px; top: -8px; bottom: -14px; width: 2px; background: repeating-linear-gradient(to bottom, var(--muted) 0 4px, var(--bg) 4px 9px); opacity: .7; }
+.wk-ico { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--soft); color: var(--muted); }
+.wk-ico .ico { width: 14px; height: 14px; }
+.wk-nav { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; color: var(--muted); }
+.wk-nav .ico { width: 15px; height: 15px; }
+.tl-walk.tight { color: var(--warn); font-weight: 700; }
+.tl-walk.tight .wk-ico { background: var(--warn-soft); color: var(--warn); }
