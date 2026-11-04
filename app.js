@@ -2958,12 +2958,17 @@ function openItem(id) {
         ${mapBtn(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}`)}
         <button class="tool" data-ja="${esc(it.id)}">${icon('ja')}보여주기</button>
       </div>` : ''}
-    ${sceneOf(it) ? talkCard(sceneOf(it), it.id) : ''}
-    <div class="state-seg" role="group" aria-label="일정 상태">
-      <button class="seg ${done ? 'on' : ''}" data-done="${esc(it.id)}" aria-pressed="${done}"><i class="check-box"></i>${doneLabel(it)}</button>
-      <button class="seg ${it.skip ? 'on' : ''}" data-item-skip="${esc(it.id)}" aria-pressed="${!!it.skip}">${icon('skip')}건너뛰기</button>
-      <button class="seg" data-item-edit="${esc(it.id)}">${icon('pen')}수정</button>
+    <div class="act" role="group" aria-label="일정 상태">
+      <button class="act-done ${done ? 'on' : ''} ${it.skip ? 'off' : ''}" data-done="${esc(it.id)}" aria-pressed="${done}">
+        <i class="act-check">${icon('check')}</i>
+        <span class="grow"><b>${done ? `${doneLabel(it)}했어요` : doneLabel(it)}</b><small>${done ? '잘못 눌렀다면 한 번 더 누르면 취소돼요' : it.skip ? '건너뛴 일정이에요 · 누르면 완료로 바꿔요' : '누르면 다음 일정으로 넘어가요'}</small></span>
+      </button>
+      <div class="act-sub">
+        <button class="${it.skip ? 'on' : ''}" data-item-skip="${esc(it.id)}" aria-pressed="${!!it.skip}">${icon('skip')}${it.skip ? '건너뛰기 취소' : '건너뛰기'}</button>
+        <button data-item-edit="${esc(it.id)}">${icon('pen')}시간·내용 수정</button>
+      </div>
     </div>
+    ${sceneOf(it) ? talkCard(sceneOf(it), it.id) : ''}
     <div class="btns">
       ${done && (it.place || place) ? `<button class="finish-sum" data-finish-open="${esc(it.id)}"><b>방문 기록</b><span>${esc(summary || '쓴 돈과 평가 남기기')}</span></button>` : ''}
       ${!pending && next ? navBtn(next.id, `다음: ${next.title.split(' · ').pop()}`, 'primary wide') : ''}
@@ -3035,7 +3040,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 138;
+const APP_VERSION = 139;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
