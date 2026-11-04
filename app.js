@@ -2373,8 +2373,8 @@ function openPlace(id) {
     ${p.r || !p.src ? infoCard({ info: placeInfo(p) }) : ''}
     ${state.swapFor ? `<div class="btns"><button class="btn primary wide" data-item-swap="${esc(id)}">이 일정을 여기로 변경</button></div>` : ''}
     <div class="btns">
-      <a class="btn ${p.src && !p.lat ? 'wide' : ''}" href="${esc(mapUrl)}" target="_blank" rel="noopener">${icon('pin')}${p.src && !p.lat ? '구글지도에서 찾기' : '구글지도'}</a>
-      ${p.src && !p.lat ? '' : `<a class="btn primary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat ? `${p.lat},${p.lng}` : q}&travelmode=transit" target="_blank" rel="noopener">${icon('nav')}길찾기</a>`}
+      <div class="wide">${mapBtn(mapUrl, p.src && !p.lat ? '구글지도에서 찾기' : '구글지도에서 보기')}</div>
+      ${p.src && !p.lat ? '' : `<a class="btn primary wide" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat ? `${p.lat},${p.lng}` : q}&travelmode=transit" target="_blank" rel="noopener">${icon('nav')}길찾기</a>`}
       <button class="btn" data-place-save="${esc(id)}">${isSaved(id) ? '♥ 저장됨' : '♡ 저장'}</button>
       <button class="btn" data-place-visit="${esc(id)}">${v ? `${icon('check')}방문함` : '방문 표시'}</button>
       ${item ? `<button class="btn wide" data-item="${esc(item.id)}">${esc(dayLabel(item.date))} ${esc(item.start)} 일정 보기</button>`
@@ -2879,6 +2879,14 @@ function updateViewerCap() {
   $('#viewer-cap').textContent = `${slot?.label || ''}${n > 1 ? ` · ${viewerIndex() + 1} / ${n}` : ''}${slot?.receipt ? '' : ' · QR은 화면 밝기를 올려 보여주세요'}`;
 }
 
+// The most used way out of the app, so it reads at a glance: red pin, bold label, what Google Maps adds.
+const mapBtn = (url, label = '구글지도에서 보기') => `
+  <a class="map-btn" href="${esc(url)}" target="_blank" rel="noopener">
+    <span class="map-pin">${icon('pin')}</span>
+    <span class="grow"><b>${esc(label)}</b><small>리뷰·사진·영업시간·팁</small></span>
+    ${icon('ext')}
+  </a>`;
+
 // ---------- sheet & big japanese ----------
 // Saved Google Maps facts for a stop, so they still open offline.
 const INFO_BEST = { food: '추천 메뉴', cafe: '추천', sight: '볼거리', shop: '볼거리' };
@@ -2902,7 +2910,7 @@ function infoCard(it) {
       ${f.keywords?.length ? `<div class="info-sec"><h4>리뷰에 자주 나온 말</h4><div class="info-tags plain">${f.keywords.map((x) => `<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
       ${f.tips?.length ? `<div class="info-sec"><h4>${f.tipsOf === 'review' ? '리뷰 요약' : '알아둘 점'}</h4><ul class="info-tips">${f.tips.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
       ${f.know?.length ? `<div class="info-sec"><h4>알고 가면 좋은 팁</h4><ul class="info-tips">${f.know.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
-        ${it.place ? `<a class="info-more" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}" target="_blank" rel="noopener">${icon('ext')}구글지도에서 최신 팁 보기</a>` : ''}</div>` : ''}
+        ${it.place ? `<a class="info-more" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}" target="_blank" rel="noopener">${icon('pin')}구글지도에서 최신 팁 보기</a>` : ''}</div>` : ''}
       ${f.memo?.length ? `<div class="info-sec"><h4>일정 메모</h4><ul class="info-tips">${f.memo.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
       ${f.alt ? `<div class="info-sec"><h4>대안</h4><div class="small">${esc(f.alt)}</div></div>` : ''}
       ${f.mine ? '' : `<div class="small muted info-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 · 방문 전 다시 확인</div>`}
@@ -2946,8 +2954,8 @@ function openItem(id) {
       ${it.place && it.place.lang !== 'ko' ? navBtn(it.id, '길찾기', pending ? 'primary wide' : 'wide') : ''}
     </div>
     ${it.place && it.place.lang !== 'ko' ? `
-      <div class="sheet-tools two">
-        <a class="tool" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}" target="_blank" rel="noopener">${icon('pin')}구글지도</a>
+      <div class="map-row">
+        ${mapBtn(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}`)}
         <button class="tool" data-ja="${esc(it.id)}">${icon('ja')}보여주기</button>
       </div>` : ''}
     ${sceneOf(it) ? talkCard(sceneOf(it), it.id) : ''}
@@ -3027,7 +3035,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 137;
+const APP_VERSION = 138;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

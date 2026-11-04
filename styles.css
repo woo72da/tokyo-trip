@@ -1202,3 +1202,19 @@ ol.alarm-note { padding-left: 18px; }
 .wrap-act { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
 .wrap-act .btn { min-height: 44px; font-size: 14px; }
 .wrap-act .ico { width: 16px; height: 16px; }
+
+/* Google Maps button: the stop sheet and place sheet share it. */
+.map-row { display: grid; grid-template-columns: minmax(0, 1fr) 84px; gap: 8px; margin-top: 8px; }
+.map-row .tool { min-height: 60px; flex-direction: column; gap: 3px; }
+.map-btn { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 10px 14px; border-radius: 16px; background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line); color: var(--ink); text-decoration: none; }
+.map-btn:active { background: var(--soft); }
+.map-pin { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: #fbe9e7; }
+.map-pin .ico { width: 20px; height: 20px; color: #d93a2b; }
+.map-btn b { display: block; font-size: 16px; font-weight: 800; line-height: 1.25; }
+.map-btn small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-btn > .ico { flex: none; width: 16px; height: 16px; color: var(--muted); }
+.btns > div.wide { grid-column: 1 / -1; }
+.btns > .wide > .map-btn { width: 100%; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .map-pin { background: #3a2422; } :root:not([data-theme="light"]) .map-pin .ico { color: #ff8a7a; } }
+:root[data-theme="dark"] .map-pin { background: #3a2422; }
+:root[data-theme="dark"] .map-pin .ico { color: #ff8a7a; }
