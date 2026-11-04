@@ -1355,3 +1355,7 @@ ol.alarm-note { padding-left: 18px; }
 @keyframes day-in-l { from { transform: translateX(16px); opacity: .3; } to { transform: none; opacity: 1; } }
 @keyframes day-in-r { from { transform: translateX(-16px); opacity: .3; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { #view.slide-l, #view.slide-r { animation: none; } }
+
+.f-between { display: flex; align-items: center; gap: 8px; margin: 2px 0 10px; padding: 9px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 700; line-height: 1.4; }
+.f-between .ico { flex: none; width: 15px; height: 15px; }
+.f-between.tight { background: var(--warn-soft); color: var(--warn); }

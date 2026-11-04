@@ -2670,11 +2670,17 @@ function openItemForm(id, opt = {}) {
   const now = tokyoNow();
   const date = it?.date || opt.date;
   const list = dayItems(dayOf(date)).filter((x) => !x.skip);
-  const prev = opt.after && list.find((x) => x.id === opt.after);
-  let s = it ? it.startMin : prev ? prev.endMin : 720;
-  // A new stop starts when the one before it ends and fills the free time up to the next, up to an hour.
-  const gap = prev ? (list.find((x) => x.startMin >= prev.endMin && x.id !== prev.id)?.startMin ?? 1440) - prev.endMin : 0;
-  let dur = it ? it.endMin - it.startMin : gap >= 15 ? Math.min(60, gap) : 60;
+  // The stop it goes after may be a skipped one, so look in the whole day.
+  const prev = opt.after && dayItems(dayOf(date)).find((x) => x.id === opt.after);
+  const prevEnd = prev ? prev.endMin ?? prev.startMin + 30 : null;
+  const after = prev && list.find((x) => x.startMin >= prevEnd && x.id !== prev.id);
+  // A new stop starts when the one before it ends and fills the free time up to the next, up to an hour;
+  // with no free time it gets 30 minutes and the later stops move (the preview below shows how).
+  const gap = prev ? (after?.startMin ?? 1440) - prevEnd : 0;
+  const nowStart = now.date === date ? Math.ceil(now.min / 5) * 5 : 720;
+  let s = it ? it.startMin : prev ? prevEnd : nowStart;
+  let dur = it ? it.endMin - it.startMin : !prev ? 60 : gap >= 5 ? Math.min(60, gap) : 30;
+  const between = !it && prev ? `${stripEmoji(prev.title).split(' · ')[0]} 끝 ${clock(prevEnd)} → ${after ? `${stripEmoji(after.title).split(' · ')[0]} 시작 ${clock(after.startMin)}` : '그날 마지막'}${after ? ` · ${gap >= 5 ? `여유 ${formatLeft(gap)}` : '여유 없음, 뒤 일정이 밀려요'}` : ''}` : '';
   let started = false;
   if (it && opt.catch) {
     started = isStarted(it, list);
@@ -2685,6 +2691,7 @@ function openItemForm(id, opt = {}) {
   const place = it?.place && !state.form.mine ? it.place.nameJa : it?.place?.query || '';
   $('#sheet-body').innerHTML = `
     <div class="sheet-head"><h3>${it ? '일정 수정' : '일정 추가'}</h3></div>
+    ${between ? `<div class="f-between ${gap < 5 && after ? 'tight' : ''}">${icon('clock')}<span>${esc(between)}</span></div>` : ''}
     ${opt.catch ? `<div class="small muted">${started ? '이 일정을 15분 늘리고' : '이 일정을 지금 시작으로 바꾸고'} 뒤 일정을 미뤄요. 아래 변경 내용을 확인하고 저장하세요.</div>` : ''}
     <form class="item-form" autocomplete="off">
       <label class="row-field"><span>제목</span><input class="input" id="f-title" value="${esc(it?.title || '')}" placeholder="예: 편의점 들르기" maxlength="60"></label>
@@ -3219,7 +3226,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 147;
+const APP_VERSION = 148;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
