@@ -1148,6 +1148,13 @@ ol.alarm-note { padding-left: 18px; }
 .prep-head b { line-height: 1.3; }
 .prep-nick { flex: none; align-self: flex-start; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--soft); color: var(--muted); }
 .prep-nick .ico { width: 15px; height: 15px; }
+.prep-listen { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; height: 36px; padding: 0 14px; border-radius: 999px; background: var(--now-soft); color: var(--now); font-size: 14px; font-weight: 700; }
+.prep-listen .ico { width: 17px; height: 17px; }
+.prep-listen .stop, .prep-listen.on .play { display: none; }
+.prep-listen.on .stop { display: inline; }
+.prep-listen.on { background: var(--now); color: var(--on-now); }
+.info-more { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 13px; font-weight: 700; color: var(--accent); }
+.info-more .ico { width: 14px; height: 14px; }
 .prep-hi { margin: 10px 0 0; font-size: 14.5px; line-height: 1.6; color: var(--ink); }
 .prep-cmp { margin-top: 12px; padding: 11px 13px; border-radius: 14px; background: var(--accent-soft); }
 .prep-cmp b { display: block; font-size: 15px; line-height: 1.4; color: var(--accent); }

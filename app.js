@@ -1167,6 +1167,43 @@ function speakEngine(text) {
   u.onerror = (e) => { if (e.error !== 'interrupted' && e.error !== 'canceled') speakFallback(text, '음성이 재생되지 않았어요.'); };
   synth.speak(u);
 }
+// ---------- morning briefing read aloud (the phone's own Korean voice) ----------
+// The best Korean voice on the phone: a downloaded enhanced/premium one first (iPhone 유나 향상됨), then 유나, then any.
+const koVoice = () => {
+  const ko = (window.speechSynthesis?.getVoices() || []).filter((v) => /^ko/i.test(v.lang));
+  return ko.find((v) => /향상|Enhanced|Premium|고품질/i.test(v.name)) || ko.find((v) => /Yuna|유나/i.test(v.name)) || ko.find((v) => v.default) || ko[0];
+};
+// Times and units the way a person says them: 17:30 → 오후 5시 반, 8~19시 → 오전 8시부터 저녁 7시까지, 12° → 12도.
+const sayHour = (h) => (h < 12 ? `${h < 6 ? '새벽' : '오전'} ${h || 12}시` : `${h < 18 ? '오후' : '저녁'} ${h === 12 ? 12 : h - 12}시`);
+const spoken = (t) => t
+  .replace(/(\d{1,2}):(\d{2})/g, (m, h, mi) => `${sayHour(Number(h))}${mi === '00' ? '' : mi === '30' ? ' 반' : ` ${Number(mi)}분`}`)
+  .replace(/(\d{1,2})~(\d{1,2})시/g, (m, a, b) => `${sayHour(Number(a))}부터 ${sayHour(Number(b))}까지`)
+  .replace(/(?<![오전후녁벽] |\d)(\d{1,2})시(부터|쯤)/g, (m, h, w) => `${sayHour(Number(h))}${w}`)
+  .replace(/(-?\d+)~(-?\d+)°/g, '$1도에서 $2도').replace(/°/g, '도').replace(/%/g, '퍼센트').replace(/(\d)mm/g, '$1밀리미터')
+  .replace(/[·→]/g, ', ').replace(/\s+/g, ' ');
+function briefStop() { window.speechSynthesis?.cancel(); state.briefing = false; document.querySelectorAll('[data-brief]').forEach((b) => b.classList.remove('on')); }
+function briefPlay(text) {
+  const synth = window.speechSynthesis;
+  if (!synth) return toast('이 기기 브라우저는 음성을 지원하지 않아요');
+  if (state.briefing) return briefStop();
+  synth.cancel(); synth.resume();
+  const voice = koVoice();
+  // One sentence per utterance: iPhone can cut off a long one.
+  const parts = spoken(text).split(/(?<=[.?!])\s+/).filter(Boolean);
+  state.briefing = true;
+  document.querySelectorAll('[data-brief]').forEach((b) => b.classList.add('on'));
+  parts.forEach((t, i) => {
+    const u = new SpeechSynthesisUtterance(t);
+    u.lang = 'ko-KR';
+    if (voice) u.voice = voice;
+    u.rate = 1;
+    if (i === parts.length - 1) u.onend = () => { state.briefing = false; document.querySelectorAll('[data-brief]').forEach((b) => b.classList.remove('on')); };
+    u.onerror = (e) => { if (e.error !== 'interrupted' && e.error !== 'canceled') { briefStop(); toast('음성이 재생되지 않았어요. 무음 모드를 꺼 주세요'); } };
+    synth.speak(u);
+  });
+  toast('소리가 안 나면 무음 모드를 꺼 주세요');
+}
+
 // No usable voice: Google 번역 reads Japanese aloud with its speaker button.
 function speakFallback(text, why) {
   const t = encodeURIComponent(text);
@@ -1766,6 +1803,8 @@ function prepCard(day, items, now) {
   if (!g || !today) return '';
   const hi = greeting(day, items, g, now);
   const yd = wxDay(addDays(day.date, -1));
+  const bring = g.need.map((n) => n.label);
+  state.brief = [`${hi.hello}.`, hi.say, bring.length ? `오늘 챙길 것은 ${bring.join(', ')}이에요.` : '', g.skip.length ? `${skipLine(g.skip).split(' · ')[0]}.` : '', '좋은 하루 보내세요.'].filter(Boolean).join(' ');
   const story = wxStory(day.date);
   const diff = yd ? today.max - yd.max : 0;
   const cmp = !yd ? '' : Math.abs(diff) <= 1 ? '어제와 기온이 비슷하고' : `어제보다 ${Math.abs(diff)}° ${diff > 0 ? '따뜻하고' : '쌀쌀하고'}`;
@@ -1777,6 +1816,7 @@ function prepCard(day, items, now) {
       <div class="prep-head">${wxIcon(today.icon)}<div class="grow"><span>오늘 아침 준비 · ${esc(dayLabel(day.date))}</span><b>${esc(hi.hello)}</b></div>
         <button type="button" class="prep-nick" data-nick="${esc(me)}" aria-label="부르는 이름 바꾸기">${icon('pen')}</button></div>
       <p class="prep-hi">${esc(hi.say)}</p>
+      <button type="button" class="prep-listen ${state.briefing ? 'on' : ''}" data-brief>${icon('sound')}<span class="play">브리핑 듣기</span><span class="stop">멈추기</span></button>
       <div class="prep-cmp"><b>${esc([cmp, story?.head].filter(Boolean).join(' '))}</b>
         ${yd ? `<small>어제 ${yd.min}~${yd.max}° ${esc(wxStory(addDays(day.date, -1))?.sky || yd.label)} → 오늘 ${today.min}~${today.max}° ${esc(story?.sky || today.label)}</small>` : ''}</div>
       <div class="prep-list">${g.need.map((n) => `
@@ -2861,6 +2901,8 @@ function infoCard(it) {
       ${f.maps?.length ? `<div class="info-sec"><h4>구글지도 정보</h4><dl class="info-facts">${f.maps.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></div>` : ''}
       ${f.keywords?.length ? `<div class="info-sec"><h4>리뷰에 자주 나온 말</h4><div class="info-tags plain">${f.keywords.map((x) => `<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
       ${f.tips?.length ? `<div class="info-sec"><h4>${f.tipsOf === 'review' ? '리뷰 요약' : '알아둘 점'}</h4><ul class="info-tips">${f.tips.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+      ${f.know?.length ? `<div class="info-sec"><h4>알고 가면 좋은 팁</h4><ul class="info-tips">${f.know.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+        ${it.place ? `<a class="info-more" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}" target="_blank" rel="noopener">${icon('ext')}구글지도에서 최신 팁 보기</a>` : ''}</div>` : ''}
       ${f.memo?.length ? `<div class="info-sec"><h4>일정 메모</h4><ul class="info-tips">${f.memo.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
       ${f.alt ? `<div class="info-sec"><h4>대안</h4><div class="small">${esc(f.alt)}</div></div>` : ''}
       ${f.mine ? '' : `<div class="small muted info-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 · 방문 전 다시 확인</div>`}
@@ -2985,7 +3027,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 136;
+const APP_VERSION = 137;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -3060,7 +3102,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -3280,10 +3322,12 @@ document.addEventListener('click', async (e) => {
     el.classList.toggle('on');
   }
   else if (d.prepDone) {
+    briefStop();
     const key = 'prep:' + d.prepDone;
     store.set(key, { ...store.get(key, {}), done: true }); render();
     toast(`${callOf(who())}, 좋은 하루 보내세요`, () => { store.set(key, { ...store.get(key, {}), done: false }); render(); }, '다시 보기');
   }
+  else if ('brief' in d) briefPlay(state.brief || '');
   else if (d.nick) {
     const v = prompt('어떻게 불러 드릴까요? (비우면 이름으로 불러요)', nickOf(d.nick) || `${d.nick}님`);
     if (v !== null) { const t = v.trim().slice(0, 12); store.set('nick:' + d.nick, t && t !== `${d.nick}님` ? t : ''); render(); toast(`앞으로 ${callOf(d.nick)}${hasBatchim(callOf(d.nick)) ? '이라고' : '라고'} 부를게요`); }
