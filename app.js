@@ -28,7 +28,7 @@ const store = {
   },
 };
 // What the sync carries: checks, done marks, own checklist items, added document sets, booking numbers, links, expenses, budget.
-const isShared = (key) => /^(ck|done|visit|save|edit|seal|start|gear):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'cashYen', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
+const isShared = (key) => /^(ck|done|visit|save|edit|seal|start|gear|diary):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'cashYen', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
 // Deleted list entries and photos are remembered so a sync doesn't bring them back.
 // Ids stay unique across both phones even when two records are made in the same millisecond.
 const uid = (prefix) => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -829,18 +829,24 @@ function parseSms(text) {
     const date = `${year}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
     const time = `${m[3].padStart(2, '0')}:${m[4]}`;
     const shop = m[5].replace(/\s*(누적|잔액|일시불|할부|체크).*$/, '').trim() || '카드 결제';
-    const min = toMin(time);
+    rows.push(payRow({ date, time, shop, cur, value, cancel: /취소/.test(seg) }));
+  }
+  return rows;
+}
+// One payment as a row to check: category from the shop name or the stop at that time, the stop link, and a duplicate check.
+function payRow({ date, time, shop, cur, value, cancel = false }) {
+  {
+    const min = time ? toMin(time) : -1;
     const day = state.trip.days.find((d) => d.date === date);
     const byName = (SMS_CAT.find(([r]) => r.test(shop)) || [])[1];
     // Tie it to the stop at that time only where money is spent (meal, café, shop, sight) and the shop fits that stop.
-    const near = day && dayItems(day).find((it) => !it.skip && !isMove(it) && it.startMin - 10 <= min && min <= (it.endMin || it.startMin + 60) + 15);
+    const near = day && min >= 0 && dayItems(day).find((it) => !it.skip && !isMove(it) && it.startMin - 10 <= min && min <= (it.endMin || it.startMin + 60) + 15);
     const nearCat = near && SCENE_CAT[sceneOf(near)];
     const item = near && ['식당', '카페', '쇼핑', '관광'].includes(nearCat) && (!byName || byName === nearCat) ? near : null;
     const cat = byName || (item && nearCat) || '기타';
     const dup = expenses().some((e) => e.date === date && (cur === 'KRW' ? e.orig?.value === value : !e.orig && Math.round(e.amount) === value));
-    rows.push({ date, time, shop, cur, value, cat, item: item?.id || null, itemTitle: item ? stripEmoji(item.title).split(' · ')[0] : '', dup, cancel: /취소/.test(seg), ok: cur === 'JPY' || cur === 'KRW' });
+    return { date, time, shop, cur, value, cat, item: item?.id || null, itemTitle: item ? stripEmoji(item.title).split(' · ')[0] : '', dup, cancel, ok: (cur === 'JPY' || cur === 'KRW') && value > 0 };
   }
-  return rows;
 }
 function openSmsSheet() {
   $('#sheet-body').innerHTML = `
@@ -848,12 +854,12 @@ function openSmsSheet() {
     <h3 class="sms-h">카드 문자로 지출 등록</h3>
     <p class="small muted sms-help">카드 승인 문자를 길게 눌러 복사하거나, 카드 앱 화면을 캡처한 사진에서 글자를 길게 눌러 복사해 붙여 넣으세요. 여러 건을 한 번에 넣어도 돼요. 카드 번호와 이름은 저장하지 않아요.</p>
     <textarea class="input sms-box" id="sms-text" placeholder="[Web발신]&#10;삼성1234해외승인 김*철&#10;JPY 2,860&#10;11/04 12:06 GINZASIX"></textarea>
-    <div class="btns"><button class="btn" data-sms-paste>${icon('copy')}붙여넣기</button><button class="btn primary" data-sms-read>읽기</button></div>
+    <div class="btns"><button class="btn" data-sms-paste>${icon('copy')}붙여넣기</button><button class="btn primary" data-sms-read>읽기</button>
+      ${aiKey() ? `<button class="btn wide" data-sms-photo>${icon('camera')}카드 앱 캡처 사진으로 읽기 (AI)</button>` : ''}</div>
     <div id="sms-out"></div>`;
   $('#sheet').hidden = false;
 }
-function showSms() {
-  const rows = parseSms($('#sms-text').value);
+function showSms(rows = parseSms($('#sms-text').value)) {
   state.sms = rows;
   if (!rows.length) { $('#sms-out').innerHTML = '<div class="small muted sms-none">찾은 결제가 없어요. 금액과 "11/04 12:06 가게" 같은 날짜·시간 줄이 함께 들어 있는지 확인해 주세요.</div>'; return; }
   const on = (r) => r.ok && !r.dup && !r.cancel;
@@ -910,7 +916,10 @@ function expenseSection() {
       <div class="small muted exp-budget">현지 예상 ${span(costLocal(guide), yen)} 중 ${yen(used)} 사용</div>
       <div class="cash-left"><span>엔화 현금 남음</span><b>${yen(Math.max(0, cashTotal() - cashSpent()))}</b><small>환전 ${yen(cashTotal())} 중 ${yen(cashSpent())} 사용</small><button class="link" data-cash>환전액 바꾸기</button></div>
       ${expForm()}
-      <button class="btn wide sms-open" data-sms-open>${icon('copy')}카드 문자로 등록 · 여러 건 한 번에</button>
+      <div class="btns exp-quick">
+        ${aiKey() ? `<button class="btn" data-rcpt-ai>${icon('camera')}영수증 사진으로</button>` : ''}
+        <button class="btn ${aiKey() ? '' : 'wide'}" data-sms-open>${icon('copy')}카드 문자로</button>
+      </div>
       ${list.length ? `<div class="exp-list">${list.map(expRow).join('')}</div>` : '<div class="small muted exp-empty">아직 기록이 없어요. 일정을 눌러서도 기록할 수 있어요.</div>'}`}
     </div>`;
 }
@@ -1612,6 +1621,7 @@ function backlogCard(queue, items, now) {
           <button class="btn" data-item-skip="${esc(it.id)}">${icon('skip')}건너뛰기</button>
         </div>`}`).join('')}
       ${catchBtn(head, items, now)}
+      ${aiKey() ? `<button class="btn wide ai-late" data-ai-plan="late">${icon('pen')}AI에게 조정 방법 물어보기</button>` : ''}
     </div>`;
 }
 // Every stop's time has come and some are still open: close the day in one go, so the stamp card can show.
@@ -1818,6 +1828,7 @@ function renderDays() {
       <button class="btn" data-day-share>${icon('ext')}공유</button>
       <button class="btn ${edit ? 'primary' : ''}" data-day-edit>${icon(edit ? 'check' : 'pen')}${edit ? '편집 완료' : '편집'}</button>
     </div>
+    ${!edit && aiKey() ? `<button class="btn wide ai-plan-btn" data-ai-plan>${icon('pen')}말로 일정 바꾸기 (AI)</button>` : ''}
     ${edit ? '<div class="small muted edit-hint">일정을 누르면 고치고, ＋를 누르면 그 자리에 넣어요.</div>' : ''}
     ${timeline(items, now, edit)}
     ${edit ? '' : daySummary(day, items, now) || (expenses().some((e) => e.date === day.date) ? `<div class="day-sum">${dayExpense(day.date, true)}</div>` : '')}
@@ -1885,6 +1896,7 @@ function daySummary(day, items, now) {
         </div>
       </div>
       ${daySumWeather(day.date)}
+      ${diaryCard(day.date)}
       ${dayExpense(day.date, false)}
       ${notes.map(({ it, p, v }) => `
         <button class="day-sum-row" data-item="${esc(it.id)}">
@@ -2236,6 +2248,7 @@ function renderTalk() {
   setHeader('', '번역 · 회화', 'Google 번역 앱 · 파파고 웹');
   const groups = [...new Set(phrases.map((p) => p.group))];
   return `
+    ${aiKey() ? `<button class="btn primary wide menu-go" data-menu-ai>${icon('camera')}메뉴판·안내문 사진 번역 (AI)</button>` : ''}
     <div class="sheet-tools two talk-top">${transTools('카메라 번역')}</div>
     ${talkBox()}
 
@@ -3097,6 +3110,330 @@ async function refreshFromGoogle(id) {
   } catch (e) { toast(e.message); }
 }
 
+
+// ---------- AI with photos and plans (all results go through a check screen before anything is saved) ----------
+// One structured answer from Claude: the given content (text and/or photos) in, JSON matching the schema out.
+async function aiAsk({ system, content, schema, effort = 'low' }) {
+  const { Anthropic, client } = await aiClient();
+  const m = aiModel();
+  const body = { model: m.id, max_tokens: 8000, system, output_config: { effort, format: { type: 'json_schema', schema } }, messages: [{ role: 'user', content }] };
+  try {
+    const res = m.fallback
+      ? await client.beta.messages.create({ ...body, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' })
+      : await client.messages.create(body);
+    if (res.stop_reason === 'refusal') throw new Error('Claude가 이 요청을 처리하지 않았어요.');
+    if (res.stop_reason === 'max_tokens') throw new Error('답이 너무 길어 끊겼어요. 다시 시도해 주세요.');
+    const text = res.content.find((b) => b.type === 'text')?.text;
+    if (!text) throw new Error('답을 받지 못했어요.');
+    return JSON.parse(text);
+  } catch (e) { throw new Error(e instanceof SyntaxError ? '답을 읽지 못했어요. 다시 시도해 주세요.' : aiError(e, Anthropic)); }
+}
+// A photo from the camera or library, made small enough for Claude (long side 1568px).
+function pickImage() {
+  return new Promise((done) => {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*'; inp.hidden = true;
+    inp.onchange = () => { done(inp.files[0] || null); inp.remove(); };
+    document.body.appendChild(inp);
+    inp.click();
+  });
+}
+async function imgBlock(file) {
+  let blob = file;
+  try {
+    const img = await createImageBitmap(file);
+    const k = Math.min(1, 1568 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    blob = await new Promise((r) => c.toBlob((b) => r(b || file), 'image/jpeg', 0.85));
+  } catch { /* send the original */ }
+  const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+  return { type: 'image', source: { type: 'base64', media_type: blob.type === 'image/png' ? 'image/png' : 'image/jpeg', data } };
+}
+const sheetWait = (title, msg, file) => {
+  $('#sheet-body').innerHTML = `<div class="sheet-head"><h3>${esc(title)}</h3></div>
+    ${file ? `<img class="ai-shot" src="${URL.createObjectURL(file)}" alt="">` : ''}
+    <div class="ai-wait big">${icon('refresh')}${esc(msg)}</div><div id="ai-res"></div>`;
+  $('#sheet').hidden = false;
+};
+const sheetFail = (msg) => { const box = $('#ai-res') || $('#sheet-body'); $('.ai-wait')?.remove(); box.insertAdjacentHTML('beforeend', `<div class="ai-note">${esc(msg)}</div>`); };
+
+// ① Receipt photo → one expense, with the photo kept as its receipt.
+const RCPT_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['found', 'shop', 'date', 'time', 'total', 'currency', 'pay', 'cat', 'taxfree', 'items', 'note'],
+  properties: {
+    found: { type: 'boolean' }, shop: { type: 'string' }, date: { type: 'string', description: 'YYYY-MM-DD or empty' }, time: { type: 'string', description: 'HH:MM or empty' },
+    total: { type: 'number' }, currency: { type: 'string', enum: ['JPY', 'KRW'] }, pay: { type: 'string', enum: ['card', 'cash', 'unknown'] },
+    cat: { type: 'string', enum: EXP_CATS }, taxfree: { type: 'boolean' },
+    items: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['name', 'price'], properties: { name: { type: 'string' }, price: { type: ['number', 'null'] } } } },
+    note: { type: 'string' },
+  },
+};
+const RCPT_SYSTEM = `You read a receipt photo for a Korean couple's Tokyo trip (2026-11-02 to 11-06) and return the expense.
+total is the amount actually paid (合計 / お支払い / 総額, tax included); currency JPY unless it is a Korean won receipt.
+pay: card for クレジット / カード / IC / 電子マネー payments, cash for 現金 / お預り, else unknown.
+shop: the store name a Korean traveler would recognise (brand in Korean if common, else as printed). items: up to 8 lines, names in Korean. taxfree: true if it is a tax-free (免税) receipt.
+date and time as printed. cat is one of the given categories. If it is not a receipt, set found false and say why in Korean in note.`;
+async function rcptFromPhoto() {
+  const file = await pickImage();
+  if (!file) return;
+  sheetWait('영수증으로 지출 등록', 'AI가 영수증을 읽는 중… 5~15초', file);
+  try {
+    const r = await aiAsk({ system: RCPT_SYSTEM, schema: RCPT_SCHEMA, content: [await imgBlock(file), { type: 'text', text: '이 영수증을 지출로 정리해 주세요.' }] });
+    if (!r.found) return sheetFail(r.note || '영수증으로 읽지 못했어요.');
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(r.date) ? r.date : tokyoNow().date;
+    const row = payRow({ date: day, time: /^\d{1,2}:\d{2}$/.test(r.time) ? r.time.padStart(5, '0') : '', shop: r.shop || '영수증', cur: r.currency, value: Math.round(r.total) });
+    state.rcptAi = { file, row, pay: r.pay === 'unknown' ? payOf() : r.pay, items: r.items || [], taxfree: !!r.taxfree };
+    $('.ai-wait')?.remove();
+    $('#ai-res').innerHTML = `
+      <form class="exp-form rcpt-ai" data-rcpt-save>
+        <label class="field"><span>가게</span><input class="input" name="shop" value="${esc(row.shop)}" maxlength="60"></label>
+        <div class="rcpt-grid">
+          <input class="input amount" name="amount" inputmode="numeric" value="${row.value}">
+          <select class="input" name="cur"><option value="JPY" ${row.cur === 'JPY' ? 'selected' : ''}>엔</option><option value="KRW" ${row.cur === 'KRW' ? 'selected' : ''}>원</option></select>
+          <select class="input" name="pay"><option value="card" ${state.rcptAi.pay === 'card' ? 'selected' : ''}>카드</option><option value="cash" ${state.rcptAi.pay === 'cash' ? 'selected' : ''}>현금</option></select>
+          <select class="input" name="cat">${EXP_CATS.map((c) => `<option ${c === (r.cat || row.cat) ? 'selected' : ''}>${c}</option>`).join('')}</select>
+        </div>
+        ${expDatePick(row.date)}
+        <div class="small muted">${[row.time ? `${row.time} 결제` : '', row.itemTitle ? `${esc(row.itemTitle)} 일정에 연결` : '', r.taxfree ? '면세 영수증' : ''].filter(Boolean).join(' · ')}</div>
+        ${row.dup ? '<div class="ai-note">같은 날 같은 금액의 지출이 이미 있어요. 중복이 아닌지 확인해 주세요.</div>' : ''}
+        ${(r.items || []).length ? `<ul class="rcpt-items">${r.items.map((x) => `<li><span>${esc(x.name)}</span>${x.price ? `<b>${Math.round(x.price).toLocaleString('ko-KR')}</b>` : ''}</li>`).join('')}</ul>` : ''}
+        <button class="btn primary wide" type="submit">${icon('check')}지출로 등록 (영수증 사진 함께 저장)</button>
+      </form>`;
+  } catch (e) { sheetFail(e.message); }
+}
+async function saveRcptAi(form) {
+  const a = state.rcptAi;
+  if (!a) return;
+  const f = new FormData(form);
+  const value = Number(String(f.get('amount')).replace(/[^\d.]/g, ''));
+  if (!value) return toast('금액을 확인해 주세요');
+  const shop = String(f.get('shop') || '').trim();
+  const items = a.items.map((x) => x.name).slice(0, 4).join(', ');
+  const id = addExpense({ value, cur: f.get('cur'), pay: f.get('pay'), cat: f.get('cat'), date: f.get('date'), item: a.row.item, memo: `${shop}${items ? ` (${items})` : ''}${a.row.time ? ` · ${a.row.time}` : ''}` });
+  try { await addDoc(rcptSlot(id), a.file); await refreshDocSlots(); } catch { toast('지출은 등록했지만 사진은 저장하지 못했어요'); }
+  state.rcptAi = null;
+  state.expView = 'spent';
+  closeSheet(); render();
+  toast(`${shop || '영수증'} 지출을 등록했어요`);
+}
+
+// ⑤ Card app screenshot → several payments into the same check list as card messages.
+const CAP_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['payments', 'note'],
+  properties: {
+    payments: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['date', 'time', 'shop', 'amount', 'currency', 'cancel'],
+      properties: { date: { type: 'string', description: 'YYYY-MM-DD' }, time: { type: 'string', description: 'HH:MM or empty' }, shop: { type: 'string' }, amount: { type: 'number' }, currency: { type: 'string', enum: ['JPY', 'KRW'] }, cancel: { type: 'boolean' } } } },
+    note: { type: 'string' },
+  },
+};
+async function smsFromPhoto() {
+  const file = await pickImage();
+  if (!file) return;
+  $('#sms-out').innerHTML = '<div class="ai-wait">AI가 캡처를 읽는 중… 5~15초</div>';
+  try {
+    const r = await aiAsk({
+      system: `You read a screenshot of a Korean card app or card text messages for a Tokyo trip in ${state.trip.trip.start.slice(0, 4)}. List every payment you can see: date (YYYY-MM-DD; the year is ${state.trip.trip.start.slice(0, 4)} if not shown), time, shop as shown, amount, currency (JPY for 해외/엔 amounts, else KRW), cancel true for 취소. Prefer the foreign-currency amount when both are shown. Skip balances and totals. note: Korean, what you could not read.`,
+      schema: CAP_SCHEMA, content: [await imgBlock(file), { type: 'text', text: '보이는 결제를 모두 정리해 주세요.' }],
+    });
+    const rows = (r.payments || []).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.amount > 0)
+      .map((x) => payRow({ date: x.date, time: /^\d{1,2}:\d{2}$/.test(x.time) ? x.time.padStart(5, '0') : '', shop: x.shop || '카드 결제', cur: x.currency, value: Math.round(x.amount), cancel: !!x.cancel }));
+    if (!rows.length) { $('#sms-out').innerHTML = `<div class="ai-note">${esc(r.note || '결제를 찾지 못했어요.')}</div>`; return; }
+    showSms(rows);
+  } catch (e) { $('#sms-out').innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+}
+
+// ② Menu, sign or ticket machine photo → Korean, with prices in won and one phrase to say.
+const MENU_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['kind', 'title', 'summary', 'items', 'ask'],
+  properties: {
+    kind: { type: 'string', enum: ['menu', 'sign', 'ticket', 'other'] }, title: { type: 'string' }, summary: { type: 'string' },
+    items: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['ja', 'ko', 'price', 'note'], properties: { ja: { type: 'string' }, ko: { type: 'string' }, price: { type: ['number', 'null'] }, note: { type: 'string' } } } },
+    ask: { type: 'object', additionalProperties: false, required: ['ja', 'read', 'ko'], properties: { ja: { type: 'string' }, read: { type: 'string' }, ko: { type: 'string' } } },
+  },
+};
+async function menuFromPhoto() {
+  const file = await pickImage();
+  if (!file) return;
+  sheetWait('사진 번역', 'AI가 사진을 읽는 중… 5~15초', file);
+  try {
+    const r = await aiAsk({
+      system: `You help a Korean traveler in Japan understand a photo of a menu, sign, notice or ticket machine. Reply in Korean.
+title: what this is. summary: 1-2 lines of what matters (how to order, rules, warnings). items: each menu item or important line (up to 20): ja as printed, ko natural Korean, price in yen if shown (number), note for spicy / popular / set contents / allergens / limits.
+ask: one useful Japanese sentence the traveler may want to say here (ja), its Korean-letter pronunciation (read), and meaning (ko).`,
+      schema: MENU_SCHEMA, content: [await imgBlock(file), { type: 'text', text: '이 사진을 한국어로 정리해 주세요.' }],
+    });
+    $('.ai-wait')?.remove();
+    const rate = fxRate();
+    $('#ai-res').innerHTML = `
+      <div class="menu-ai">
+        <b class="menu-t">${esc(r.title)}</b>
+        ${r.summary ? `<div class="menu-s">${esc(r.summary)}</div>` : ''}
+        ${(r.items || []).length ? `<div class="menu-list">${r.items.map((x) => `
+          <div class="menu-row"><span class="grow"><b>${esc(x.ko)}</b><small class="ja">${esc(x.ja)}</small>${x.note ? `<small>${esc(x.note)}</small>` : ''}</span>
+            ${x.price ? `<span class="menu-p"><b>${Math.round(x.price).toLocaleString('ko-KR')}엔</b><small>약 ${(Math.round((x.price * rate) / 100) * 100).toLocaleString('ko-KR')}원</small></span>` : ''}</div>`).join('')}</div>` : ''}
+        ${r.ask?.ja ? `<div class="menu-ask"><small>여기서 쓸 말</small><b class="ja">${esc(r.ask.ja)}</b><span>${esc(r.ask.read)} · ${esc(r.ask.ko)}</span>
+          <button class="btn primary" data-speak-text="${esc(r.ask.ja)}">${icon('sound')}발음 듣기</button></div>` : ''}
+      </div>`;
+  } catch (e) { sheetFail(e.message); }
+}
+
+// ③ Change the day's plan in words; ④ the same engine asked for ways to catch up when running late.
+const PLAN_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['reply', 'options'],
+  properties: {
+    reply: { type: 'string', description: 'Korean, one or two lines to the traveler' },
+    options: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['title', 'summary', 'ops'], properties: {
+      title: { type: 'string' }, summary: { type: 'string' },
+      ops: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['op', 'id', 'start', 'end', 'title', 'kind', 'place'], properties: {
+        op: { type: 'string', enum: ['move', 'skip', 'unskip', 'add', 'rename'] },
+        id: { type: 'string', description: 'stop id for move/skip/unskip/rename, empty for add' },
+        start: { type: 'string', description: 'HH:MM for move/add, else empty' }, end: { type: 'string', description: 'HH:MM or empty' },
+        title: { type: 'string', description: 'for add/rename, else empty' }, kind: { type: 'string', enum: ['eat', 'drink', 'see', 'shop', 'move', 'rest', ''] },
+        place: { type: 'string', description: 'for add: a place name from the known places list if it fits, else empty' },
+      } } },
+    } } },
+  },
+};
+const PLAN_SYSTEM = `You adjust one day of a Korean couple's Tokyo trip plan. You get the day's stops (id, times, title, fixed, done, skipped), the time now if it is that day, and what the traveler asks.
+Return 1 option for a clear request, or 2-3 options when asked for suggestions. Each option is a list of ops on stop ids from the list:
+move (new start, and end if the length changes), skip, unskip, rename, add (new stop with start, end, title, kind, and place if one of the known places fits).
+Rules: never move or skip a fixed stop unless the traveler names it; keep stops in a sensible order without overlaps; travel stops (kind move) usually shift with what they connect; don't touch stops that are done; prefer shortening or skipping optional stops over moving fixed ones.
+Write title, summary and reply in natural Korean. If the request can't be done, return no options and explain in reply.`;
+const PLAN_KIND = { eat: '🍽', drink: '☕', see: '🏛', shop: '🛍', move: '🚇', rest: '🏨', '': '📍' };
+function openAiPlan(preset = '') {
+  const day = state.trip.days[state.dayIndex] || state.trip.days.find((d) => d.date === tokyoNow().date);
+  state.aiPlanDate = day.date;
+  $('#sheet-body').innerHTML = `
+    <div class="sheet-head"><h3>말로 일정 바꾸기</h3></div>
+    <div class="small muted">${esc(dayLabel(day.date))} 일정 · 바꾸고 싶은 걸 그대로 적거나 🎤로 말해 주세요. 바뀌는 내용을 먼저 보여 드려요.</div>
+    <textarea class="input ai-ask" id="ai-plan-q" rows="3" placeholder="예: 마이센 줄 길어서 근처 라멘집으로 바꾸고, 뒤 일정 30분 미뤄줘">${esc(preset)}</textarea>
+    <div class="chips ai-eg">${['비 와서 밖 일정 빼고 실내로', '30분 늦게 시작할래', '점심 1시간 늦춰줘', '저녁 전에 1시간 쉬고 싶어'].map((t) => `<button type="button" class="chip" data-ai-eg="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+    <button class="btn primary wide" data-ai-plan-go>${icon('check')}바뀔 내용 보기</button>
+    <div id="ai-res"></div>`;
+  $('#sheet').hidden = false;
+  if (preset) aiPlanGo();
+}
+async function aiPlanGo() {
+  const q = $('#ai-plan-q').value.trim();
+  if (!q) return toast('바꾸고 싶은 내용을 적어 주세요');
+  const date = state.aiPlanDate;
+  const day = dayOf(date);
+  const now = tokyoNow();
+  const items = dayItems(day);
+  const stops = items.map((it) => ({ id: it.id, start: it.start, end: it.end || '', title: stripEmoji(it.title), kind: isMove(it) ? 'move' : '', fixed: isFixed(it), done: isDone(it.id), skipped: !!it.skip, place: placeOfItem(it.id)?.name || '' }));
+  const known = allPlaces().filter((x) => x.lat).map((x) => `${x.name}|${x.area}|${x.cat}`).join('\n');
+  $('#ai-res').innerHTML = '<div class="ai-wait">AI가 일정을 맞춰 보는 중… 5~20초</div>';
+  try {
+    const r = await aiAsk({
+      system: [{ type: 'text', text: PLAN_SYSTEM }, { type: 'text', text: `Known places (name|area|category):\n${known}`, cache_control: { type: 'ephemeral' } }],
+      schema: PLAN_SCHEMA, effort: 'medium',
+      content: [{ type: 'text', text: JSON.stringify({ date, now: now.date === date ? clock(now.min) : null, stops, ask: q }) }],
+    });
+    state.aiPlan = { date, options: (r.options || []).map((o) => ({ ...o, ops: cleanOps(o.ops, items) })).filter((o) => o.ops.length) };
+    $('#ai-res').innerHTML = `
+      ${r.reply ? `<div class="ai-reply">${esc(r.reply)}</div>` : ''}
+      ${state.aiPlan.options.map((o, i) => `
+        <div class="ai-opt">
+          <b>${esc(o.title)}</b>${o.summary ? `<small>${esc(o.summary)}</small>` : ''}
+          <ul class="ai-diff">${o.ops.map((op) => `<li class="${op.warn ? 'warn' : ''}">${esc(op.text)}</li>`).join('')}</ul>
+          <button class="btn primary wide" data-ai-plan-apply="${i}">${icon('check')}이대로 적용</button>
+        </div>`).join('') || (r.reply ? '' : '<div class="ai-note">바꿀 내용을 찾지 못했어요. 조금 더 구체적으로 적어 주세요.</div>')}`;
+  } catch (e) { $('#ai-res').innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+}
+// Keep only ops on real stops with valid times, and describe each in words for the preview.
+function cleanOps(ops = [], items) {
+  const hm = (t) => /^\d{1,2}:\d{2}$/.test(t || '') && toMin(t) < 1440;
+  const byId = Object.fromEntries(items.map((it) => [it.id, it]));
+  return ops.map((op) => {
+    const it = byId[op.id];
+    const name = it ? stripEmoji(it.title).split(' · ')[0] : '';
+    if (op.op === 'add') {
+      if (!hm(op.start) || !op.title) return null;
+      const end = hm(op.end) && toMin(op.end) > toMin(op.start) ? op.end : clock(Math.min(1439, toMin(op.start) + 60));
+      return { ...op, end, text: `추가 · ${op.start}~${end} ${op.title}` };
+    }
+    if (!it || isDone(it.id)) return null;
+    const warn = isFixed(it) && op.op !== 'rename';
+    if (op.op === 'move') {
+      if (!hm(op.start)) return null;
+      const len = (it.endMin || it.startMin) - it.startMin;
+      const end = hm(op.end) && toMin(op.end) > toMin(op.start) ? op.end : it.end ? clock(Math.min(1439, toMin(op.start) + len)) : '';
+      const d = toMin(op.start) - it.startMin;
+      return { ...op, end, warn, text: `${it.start} ${name} → ${op.start}${end ? `~${end}` : ''}${d ? ` (${d > 0 ? `${formatLeft(d)} 늦게` : `${formatLeft(-d)} 일찍`})` : ''}${warn ? ' · 고정 일정' : ''}` };
+    }
+    if (op.op === 'skip') return { ...op, warn, text: `건너뛰기 · ${it.start} ${name}${warn ? ' · 고정 일정' : ''}` };
+    if (op.op === 'unskip') return { ...op, text: `다시 넣기 · ${it.start} ${name}` };
+    if (op.op === 'rename' && op.title) return { ...op, text: `이름 바꾸기 · ${name} → ${op.title}` };
+    return null;
+  }).filter(Boolean);
+}
+// Apply an option through the same records the edit form writes, with one undo for all of it.
+function aiPlanApply(i) {
+  const o = state.aiPlan?.options[i];
+  if (!o) return;
+  const date = state.aiPlan.date;
+  const undo = {};
+  const keep = (id) => { if (!(id in undo)) undo[id] = store.get('edit:' + id, null); };
+  for (const op of o.ops) {
+    if (op.op === 'add') {
+      const id = uid('my-it');
+      const p = op.place && allPlaces().find((x) => x.name === op.place);
+      undo[id] = 'new';
+      store.set('myitems', [...store.get('myitems', []), { id, date, start: op.start, end: op.end, title: op.title, icon: p ? CAT_ICON[p.cat] : PLAN_KIND[op.kind] || '📍', ...(p ? { placeId: p.id, place: { nameJa: p.name, query: p.name } } : {}) }]);
+      continue;
+    }
+    keep(op.id);
+    const old = store.get('edit:' + op.id, null) || {};
+    if (op.op === 'move') store.set('edit:' + op.id, { ...old, start: op.start, ...(op.end ? { end: op.end } : {}), auto: true });
+    if (op.op === 'skip') store.set('edit:' + op.id, { ...old, skip: true });
+    if (op.op === 'unskip') store.set('edit:' + op.id, { ...old, skip: false });
+    if (op.op === 'rename') store.set('edit:' + op.id, { ...old, title: op.title });
+  }
+  state.aiPlan = null;
+  closeSheet(); render();
+  toast(`${o.title} · 적용했어요`, () => {
+    for (const [k, v] of Object.entries(undo)) {
+      if (v === 'new') { forget('myitems:' + k); store.set('myitems', store.get('myitems', []).filter((x) => x.id !== k)); }
+      else store.set('edit:' + k, v);
+    }
+    render();
+  }, '되돌리기');
+}
+
+// ⑥ The day in a few warm lines: where we went, what we thought, what we spent, the weather.
+const DIARY_SCHEMA = { type: 'object', additionalProperties: false, required: ['title', 'text'], properties: { title: { type: 'string' }, text: { type: 'string' } } };
+async function aiDiary(date, btn) {
+  const day = dayOf(date);
+  const items = dayItems(day);
+  const visits = items.map((it) => [it, placeOfItem(it.id)]).filter(([, pl]) => pl).map(([it, pl]) => { const v = visitOf(pl.id); return { name: pl.name, time: it.start, done: isDone(it.id), skipped: !!it.skip, rating: v?.again ? AGAIN[v.again] : '', memo: v?.memo || '' }; });
+  const spent = expenses().filter((e) => e.date === date);
+  const facts = {
+    date: dayLabel(date), title: stripEmoji(day.title), weather: wxStory(date)?.head || '',
+    stops: items.filter((it) => !isMove(it)).map((it) => ({ time: it.start, title: stripEmoji(it.title), done: isDone(it.id), skipped: !!it.skip })),
+    visits, spent: { total: Math.round(spent.reduce((a, e) => a + e.amount, 0)), by: Object.entries(spent.reduce((m, e) => ({ ...m, [e.cat]: (m[e.cat] || 0) + e.amount }), {})).map(([c, n]) => `${c} ${Math.round(n)}엔`) },
+    gear: gearText(gearLog(date, who())),
+  };
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = '정리하는 중…';
+  try {
+    const r = await aiAsk({
+      system: 'Write a short, warm Korean travel diary entry (5-8 sentences, plain prose, no emoji, no lists) for a couple\'s day in Tokyo from the given facts. Mention the places they actually went, their ratings and memos, the weather in a phrase, and spending in one light sentence. Don\'t invent events. title: a short Korean title for the day.',
+      schema: DIARY_SCHEMA, content: [{ type: 'text', text: JSON.stringify(facts) }],
+    });
+    store.set('diary:' + date, { title: r.title, text: r.text, at: Date.now() });
+    render();
+  } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = label; }
+}
+const diaryCard = (date) => {
+  const d = store.get('diary:' + date, null);
+  if (!d) return aiKey() ? `<button class="day-sum-row" data-ai-diary="${esc(date)}">${icon('pen')}<span class="grow"><b>오늘 기록 정리하기</b><small>방문·평가·지출·날씨로 짧은 여행 일기를 만들어요 (AI)</small></span></button>` : '';
+  return `<div class="diary"><b>${esc(d.title)}</b><p>${esc(d.text)}</p>
+    <div class="btns"><button class="btn" data-diary-share="${esc(date)}">${icon('ext')}공유·복사</button><button class="btn" data-ai-diary="${esc(date)}">${icon('refresh')}다시 쓰기</button></div></div>`;
+};
+
 // Settings card in the 예약 tab.
 function aiCard() {
   const key = aiKey();
@@ -3760,7 +4097,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 156;
+const APP_VERSION = 157;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -3835,7 +4172,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -4084,6 +4421,30 @@ document.addEventListener('click', async (e) => {
   }
   else if ('brief' in d) briefPlay(state.brief || '');
   else if ('smsOpen' in d) openSmsSheet();
+  else if ('smsPhoto' in d) smsFromPhoto();
+  else if ('rcptAi' in d) rcptFromPhoto();
+  else if ('menuAi' in d) menuFromPhoto();
+  else if ('aiPlan' in d) {
+    if (d.aiPlan === 'late') {
+      const now = tokyoNow();
+      state.dayIndex = Math.max(0, state.trip.days.findIndex((x) => x.date === now.date));
+      const late = dueQueue(dayItems(state.trip.days[state.dayIndex]).filter((it) => !it.skip), now)[0];
+      const fixed = dayItems(state.trip.days[state.dayIndex]).filter((it) => isFixed(it) && it.startMin > now.min).map((it) => `${it.start} ${stripEmoji(it.title).split(' · ')[0]}`);
+      openAiPlan(`지금 ${clock(now.min)}인데 ${late ? `${stripEmoji(late.title).split(' · ')[0]}부터` : ''} 일정이 밀렸어요. ${fixed.length ? `${fixed.join(', ')}은(는) 꼭 지키면서 ` : ''}남은 일정을 맞출 방법 2~3가지를 제안해 줘.`);
+    } else openAiPlan();
+  }
+  else if ('aiPlanGo' in d) aiPlanGo();
+  else if ('aiPlanApply' in d) aiPlanApply(Number(d.aiPlanApply));
+  else if (d.aiEg) { $('#ai-plan-q').value = d.aiEg; $('#ai-plan-q').focus(); }
+  else if (d.aiDiary) aiDiary(d.aiDiary, el);
+  else if (d.diaryShare) {
+    const x = store.get('diary:' + d.diaryShare, null);
+    if (x) {
+      const text = `${x.title}\n\n${x.text}`;
+      if (navigator.share) navigator.share({ text }).catch(() => {});
+      else navigator.clipboard?.writeText(text).then(() => toast('복사했어요'));
+    }
+  }
   else if ('smsPaste' in d) {
     const manual = () => { $('#sms-text').focus(); toast('입력칸을 길게 눌러 붙여넣기 해 주세요'); };
     if (!navigator.clipboard?.readText) manual();
@@ -4306,6 +4667,7 @@ document.addEventListener('submit', (e) => {
     render();
     return toast('수정했어요');
   }
+  if (e.target.hasAttribute('data-rcpt-save')) { e.preventDefault(); return saveRcptAi(e.target); }
   if (e.target.classList.contains('exp-form')) {
     e.preventDefault();
     const f = new FormData(e.target);
