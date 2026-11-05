@@ -130,11 +130,17 @@ const $ = (sel) => document.querySelector(sel);
 // skip or delete laid over the trip file. The trip file itself never changes, so each edit can be undone.
 function planItems() {
   const base = [...state.trip.days.flatMap((d) => d.items.map((it) => ({ ...it, date: d.date }))), ...store.get('myitems', [])];
-  const list = base.map((it) => {
+  let list = base.map((it) => {
     const edit = store.get('edit:' + it.id, null);
     if (!edit) return it;
     const swapped = edit.swap && placeById(edit.swap);
     return swapped ? { ...it, ...swappedStop(it, swapped), ...edit } : { ...it, ...edit };
+  });
+  // A train added without line details takes them from its name.
+  list = list.map((it) => {
+    if (it.line || glyph(it.icon)[1] !== 'move') return it;
+    const f = lineFromTitle(it.title);
+    return f ? { ...it, line: [f.leg], place: it.place || { nameJa: `${f.ja}駅`, query: `${f.ja}駅` } } : it;
   });
   // A move renamed to '이동 → 시부야 스카이' goes there: directions follow the name, not the old place.
   // Renamed off its train ('도보 → 숙소'), the old line and its '약 35분' go too; '숙소'/'호텔' is the hotel.
@@ -153,6 +159,33 @@ function planItems() {
     const dest = list.find((x) => x !== it && x.date === it.date && x.place && stripEmoji(x.title).startsWith(to));
     return dest ? { ...out, place: dest.place, placeId: dest.placeId } : out;
   });
+}
+// Lines the trip rides, station by station (official numbers and colours), so a move added later by hand
+// or by AI — '히비야선 에비스 → 우에노' — gets the same station boxes and line card as the planned ones.
+const LINES = [
+  { code: 'H', name: '히비야선', alias: ['히비야'], color: '#B5B5AC', up: '기타센주 방면', down: '나카메구로 방면',
+    st: '나카메구로 中目黒|에비스 恵比寿|히로오 広尾|롯폰기 六本木|가미야초 神谷町|도라노몬힐스 虎ノ門ヒルズ|가스미가세키 霞ケ関|히비야 日比谷|긴자 銀座|히가시긴자 東銀座|쓰키지 築地|핫초보리 八丁堀|가야바초 茅場町|닌교초 人形町|고덴마초 小伝馬町|아키하바라 秋葉原|나카오카치마치 仲御徒町|우에노 上野|이리야 入谷|미노와 三ノ輪|미나미센주 南千住|기타센주 北千住' },
+  { code: 'G', name: '긴자선', alias: ['긴자선'], color: '#F39700', up: '아사쿠사 방면', down: '시부야 방면',
+    st: '시부야 渋谷|오모테산도 表参道|가이엔마에 外苑前|아오야마잇초메 青山一丁目|아카사카미쓰케 赤坂見附|다메이케산노 溜池山王|도라노몬 虎ノ門|신바시 新橋|긴자 銀座|교바시 京橋|니혼바시 日本橋|미쓰코시마에 三越前|간다 神田|스에히로초 末広町|우에노히로코지 上野広小路|우에노 上野|이나리초 稲荷町|다와라마치 田原町|아사쿠사 浅草' },
+  { code: 'JY', name: 'JR 야마노테선', alias: ['야마노테'], color: '#80C241', up: '우에노·이케부쿠로 방면 (내선순환)', down: '시나가와·시부야 방면 (외선순환)', loop: true,
+    st: '도쿄 東京|간다 神田|아키하바라 秋葉原|오카치마치 御徒町|우에노 上野|우구이스다니 鶯谷|닛포리 日暮里|니시닛포리 西日暮里|다바타 田端|고마고메 駒込|스가모 巣鴨|오쓰카 大塚|이케부쿠로 池袋|메지로 目白|다카다노바바 高田馬場|신오쿠보 新大久保|신주쿠 新宿|요요기 代々木|하라주쿠 原宿|시부야 渋谷|에비스 恵比寿|메구로 目黒|고탄다 五反田|오사키 大崎|시나가와 品川|다카나와게이트웨이 高輪ゲートウェイ|다마치 田町|하마마쓰초 浜松町|신바시 新橋|유라쿠초 有楽町' },
+  { code: 'TY', name: '도큐 도요코선', alias: ['도요코'], color: '#DA0442', up: '요코하마 방면', down: '시부야 방면',
+    st: '시부야 渋谷|다이칸야마 代官山|나카메구로 中目黒|유텐지 祐天寺|가쿠게이다이가쿠 学芸大学|도리쓰다이가쿠 都立大学|지유가오카 自由が丘' },
+].map((l) => ({ ...l, st: l.st.split('|').map((x, i) => { const [ko, ja] = x.split(' '); return { no: `${l.code}${String(i + 1).padStart(2, '0')}`, name: ko, ja }; }) }));
+function lineFromTitle(title) {
+  const t = stripEmoji(title || '').replace(/\s+/g, ' ');
+  const m = /^(.*?)\s*(?:→|->)\s*(.+)$/.exec(t);
+  if (!m) return null;
+  const l = LINES.find((x) => [x.name, ...x.alias].some((a) => m[1].includes(a)));
+  if (!l) return null;
+  // The longest station name in each half wins ('우에노히로코지' over '우에노'); the line's own name doesn't count.
+  const pick = (text) => l.st.filter((s) => text.replace(l.name, ' ').replace(/히비야선|긴자선/g, ' ').includes(s.name)).sort((a, b) => b.name.length - a.name.length)[0];
+  const a = pick(m[1].replace(/역/g, ''));
+  const b = pick(m[2].replace(/역/g, ''));
+  if (!a || !b || a === b) return null;
+  const ia = l.st.indexOf(a), ib = l.st.indexOf(b);
+  const fwd = l.loop ? (ib - ia + l.st.length) % l.st.length <= l.st.length / 2 : ib > ia;
+  return { leg: { code: l.code, name: l.name, color: l.color, from: { no: a.no, name: a.name }, to: { no: b.no, name: b.name }, dir: fwd ? l.up : l.down }, ja: b.ja };
 }
 const effectiveItems = (day, withDeleted = false) => planItems().filter((it) => it.date === day.date && (withDeleted || !it.del));
 const rawItem = (id) => state.trip.days.flatMap((d) => d.items.map((it) => ({ ...it, date: d.date }))).find((x) => x.id === id)
@@ -3667,7 +3700,7 @@ const PLAN_SCHEMA = {
 const PLAN_SYSTEM = `You adjust one day of a Korean couple's Tokyo trip plan. You get the day's stops (id, times, title, fixed, done, skipped), the time now if it is that day, and what the traveler asks.
 Return 1 option for a clear request, or 2-3 options when asked for suggestions. Each option is a list of ops on stop ids from the list:
 move (new start, and end if the length changes), skip, unskip, rename, add (new stop with start, end, title, kind, and place if one of the known places fits).
-Rules: never move or skip a fixed stop unless the traveler names it; keep stops in a sensible order without overlaps; travel stops (kind move) usually shift with what they connect; don't touch stops that are done; prefer shortening or skipping optional stops over moving fixed ones.
+Rules: never move or skip a fixed stop unless the traveler names it; keep stops in a sensible order without overlaps; travel stops (kind move) usually shift with what they connect; title an added train ride "<노선명> <타는 역> → <내리는 역>" in Korean (e.g. "히비야선 에비스 → 우에노", "JR 야마노테선 시부야 → 우에노", "긴자선 시부야 → 아사쿠사") and a walk "도보 → <곳>"; don't touch stops that are done; prefer shortening or skipping optional stops over moving fixed ones.
 Write title, summary and reply in natural Korean. If the request can't be done, return no options and explain in reply.`;
 const PLAN_KIND = { eat: '🍽', drink: '☕', see: '🏛', shop: '🛍', move: '🚇', rest: '🏨', '': '📍' };
 function openAiPlan(preset = '') {
@@ -4616,7 +4649,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 172;
+const APP_VERSION = 173;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
