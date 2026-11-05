@@ -2525,7 +2525,6 @@ function renderWallet() {
   return `
     ${walletTabs('wallet')}
     <nav class="wallet-nav" aria-label="바로가기">${[['exp', '경비', 'money'], ['w-air', '항공', 'plane'], ['w-road', '공항 가는 길', 'bus'], ['w-stay', '숙소', 'bed'], ['w-secret', '예약번호', 'id'], ['w-docs', '바우처', 'ticket'], ['w-sos', '긴급', 'phone'], ['w-guide', '안내', 'checklist']].map(([k, l, ic]) => `<button data-jump="${k}">${icon(ic)}${l}</button>`).join('')}</nav>
-    <button class="card set-link" data-settings="sync">${secIcon('refresh')}<span class="grow"><b>동기화 · AI 키</b><small>두 폰 합치기와 Claude·구글 키는 설정에서 해요</small></span><i class="chev"></i></button>
     ${expenseSection()}
     <div class="section-title" id="w-air">${secIcon('plane')}<span>항공</span></div>
     ${flights.map(boardingPass).join('')}
@@ -4707,7 +4706,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 193;
+const APP_VERSION = 194;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
