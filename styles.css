@@ -1473,9 +1473,6 @@ ol.alarm-note { padding-left: 18px; }
 .diary p { margin: 6px 0 4px; font-size: 14.5px; line-height: 1.7; }
 
 /* 개선 요청 */
-.req-fab { position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom) + 84px); z-index: 30; width: 52px; height: 52px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--ai); color: var(--ai-ink); box-shadow: 0 6px 18px rgba(60, 40, 120, .3); }
-.req-fab .ico { width: 24px; height: 24px; }
-#sheet:not([hidden]) ~ .req-fab { display: none; }
 .req-tabs { margin-bottom: 10px; }
 .req-files { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .req-files:empty { display: none; }
@@ -1518,8 +1515,6 @@ ol.alarm-note { padding-left: 18px; }
 .diary .ai-tag { justify-self: start; margin-bottom: 0; }
 .day-sum-row.ai > .ico { width: 22px; height: 22px; padding: 3px; border-radius: 8px; background: var(--ai-soft); color: var(--ai); box-sizing: content-box; }
 .ii.sec.ai { background: var(--ai-soft); color: var(--ai); }
-.req-fab-spark { position: absolute; top: 6px; right: 6px; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; background: var(--ai-ink); color: var(--ai); }
-.req-fab-spark .ico { width: 11px; height: 11px; }
 .ai-reply { background: var(--ai-soft); }
 
 /* AI loading (DESIGN.md › AI): pulsing sparkle, moving bar, seconds, current step; photos get a scan line */
@@ -1769,7 +1764,7 @@ ol.alarm-note { padding-left: 18px; }
 .ai-tag { gap: 5px; padding: 3px 9px 3px 4px; }
 .rcpt-ai > .ai-tag, .menu-ai > .ai-tag { justify-self: start; margin-bottom: -4px; }
 
-/* 앱 개선 요청: a labelled pill instead of a bare speech bubble */
-.req-fab { width: auto; height: 44px; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px 0 8px; border-radius: 999px; font: 700 14px/1 var(--sans); }
-.req-fab .ai-mark { width: 28px; height: 28px; border-radius: 9px; background: color-mix(in srgb, var(--ai-ink) 22%, transparent); color: var(--ai-ink); }
-.req-fab .ai-mark .ico { width: 17px; height: 17px; }
+/* 앱 개선 요청: beside the version line at the bottom of 오늘 */
+.ver-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 22px; flex-wrap: wrap; }
+.ver-row .app-ver { width: auto; margin-top: 0; }
+.req-btn { min-height: 44px; padding: 0 14px 0 8px; gap: 7px; font-size: 14px; }

@@ -4042,19 +4042,8 @@ async function replyReq(n, text) {
   try { await ghApi(`repos/${DESK}/issues/${n}/comments`, { method: 'POST', body: { body: text } }); toast('답을 보냈어요. 이어서 처리해요'); openReqOne(n); }
   catch (e) { toast(e.message); }
 }
-// The round button that opens the request sheet, shown once a token is saved.
-function syncReqFab() {
-  let fab = $('#req-fab');
-  if (!deskKey()) { fab?.remove(); return; }
-  if (!fab) {
-    fab = document.createElement('button');
-    fab.id = 'req-fab'; fab.className = 'req-fab'; fab.setAttribute('aria-label', '개선 요청');
-    fab.dataset.reqOpen = '';
-    // Says what it is: a request to change the app, which Claude picks up (so it wears the AI badge).
-    fab.innerHTML = `${aiBadge()}<span>앱 개선 요청</span>`;
-    document.body.appendChild(fab);
-  }
-}
+// The request button now sits beside the version line at the bottom of 오늘; drop the old floating one.
+function syncReqFab() { $('#req-fab')?.remove(); }
 
 // 설정 › AI 도우미: Claude key and model, and the Google Places key.
 function aiSettings() {
@@ -4086,7 +4075,7 @@ function aiSettings() {
 function deskSettings() {
   return `
     <div class="card ai-set">
-            <div class="small muted">넣으면 화면 오른쪽 아래에 '앱 개선 요청' 버튼이 생겨요. 캡처·영상과 함께 요청하면 클라우드의 Claude가 검토해서 고치고 배포해요. tokyo-trip-desk 저장소에만 Contents·Issues 쓰기 권한을 준 토큰을 넣어 주세요.</div>
+            <div class="small muted">넣으면 오늘 탭 맨 아래 앱 버전 옆에 '앱 개선 요청' 버튼이 생겨요. 캡처·영상과 함께 요청하면 클라우드의 Claude가 검토해서 고치고 배포해요. tokyo-trip-desk 저장소에만 Contents·Issues 쓰기 권한을 준 토큰을 넣어 주세요.</div>
       ${deskKey() ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>요청함 토큰 저장됨</b><small>토큰 끝자리 ••••${esc(deskKey().slice(-4))}</small></span>
           <button class="btn" data-desk-test>연결 확인</button><button class="btn key-del" data-desk-forget aria-label="요청함 토큰 삭제">삭제</button></div>` : `
@@ -4766,7 +4755,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 200;
+const APP_VERSION = 201;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -4774,9 +4763,14 @@ async function loadLatest() {
     if (latest && latest !== state.latest) { state.latest = latest; render(); }
   } catch { /* offline: keep showing the running version */ }
 }
-const versionLine = () => (state.latest > APP_VERSION
-  ? `<button class="app-ver new" data-update>새 버전 v${state.latest} 있음 · 지금 업데이트</button>`
-  : `<div class="app-ver">앱 버전 v${APP_VERSION}${state.latest === APP_VERSION ? ' · 최신' : ''}</div>`);
+// On 오늘, the 앱 개선 요청 button (shown once a request-box token is saved) sits right next to the version.
+const versionLine = () => {
+  const ver = state.latest > APP_VERSION
+    ? `<button class="app-ver new" data-update>새 버전 v${state.latest} 있음 · 지금 업데이트</button>`
+    : `<div class="app-ver">앱 버전 v${APP_VERSION}${state.latest === APP_VERSION ? ' · 최신' : ''}</div>`;
+  if (state.tab !== 'today' || !deskKey()) return ver;
+  return `<div class="ver-row">${ver}<button class="btn ai req-btn" data-req-open aria-label="개선 요청">${aiLabel('앱 개선 요청')}</button></div>`;
+};
 
 // Clear the saved app files and load everything fresh; photos and records live elsewhere and stay.
 async function updateApp() {
@@ -5109,7 +5103,7 @@ document.addEventListener('click', async (e) => {
   else if ('deskSave' in d) {
     const k = $('#desk-key').value.trim();
     if (!/^(github_pat_|ghp_)/.test(k)) return toast('github_pat_로 시작하는 토큰을 넣어 주세요');
-    store.set('deskKey', k); render(); toast('개선 요청함을 켰어요. 오른쪽 아래 ‘앱 개선 요청’ 버튼을 눌러 보세요');
+    store.set('deskKey', k); render(); toast('개선 요청함을 켰어요. 오늘 탭 맨 아래 ‘앱 개선 요청’ 버튼을 눌러 보세요');
   }
   else if ('deskForget' in d) { if (confirm('이 폰에서 요청함 토큰을 지울까요?')) { store.set('deskKey', ''); render(); } }
   else if ('deskTest' in d) ghApi(`repos/${DESK}`).then((r) => toast(r.private ? '요청함에 연결됐어요' : '연결됐지만 요청함이 공개 저장소예요. 비공개로 바꿔 주세요')).catch((e) => toast(e.message));
