@@ -27,8 +27,10 @@ const store = {
     } catch { /* ignore */ }
   },
 };
-// What the sync carries: checks, done marks, own checklist items, added document sets, booking numbers, links, expenses, budget.
-const isShared = (key) => /^(ck|done|visit|save|edit|seal|start|gear|diary|board):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'cashYen', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
+// What the sync carries: bookings (numbers, links, vouchers, checks, expenses, budget) and the plan itself —
+// time changes, skips and swaps (edit:), arrivals and done marks, added stops and places, visits, saved places,
+// day stamps, records and diaries, nicknames and the morning prep check.
+const isShared = (key) => /^(ck|done|visit|save|edit|seal|start|gear|diary|nick|prep):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'cashYen', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
 // Deleted list entries and photos are remembered so a sync doesn't bring them back.
 // Ids stay unique across both phones even when two records are made in the same millisecond.
 const uid = (prefix) => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -1128,28 +1130,20 @@ async function importSync(file) {
   toast(records || photos ? `${person(data.from)}폰에서 기록 ${records}건 · 사진 ${photos}장을 합쳤어요` : '이미 같은 내용이에요');
 }
 
-function syncCard() {
+// 설정 › 동기화: the same send / merge steps, always open; whose phone it is comes from 내 정보.
+function syncPanel() {
   const got = store.get('syncGot', null);
   const sent = store.get('syncSent', 0);
   const f = state.syncFile;
-  const last = Math.max(sent, got?.at || 0);
-  if (state.syncOpen && !f && !state.syncBuilding && !state.syncFailed) setTimeout(prepareSync);
-  const head = `
-      <button class="sync-head" data-sync-toggle aria-expanded="${!!state.syncOpen}">
-        <span class="ii">${icon('refresh')}</span>
-        <span class="sync-title"><b>예약정보 동기화</b>
-          <small class="muted">${last ? `${who()} 폰 · 마지막 ${new Date(last).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : '예약번호·링크·바우처·자료·체크·지출 전체'}</small></span>
-        <i class="chev"></i>
-      </button>`;
-  if (!state.syncOpen) return `<div class="card sync">${head}</div>`;
+  if (!f && !state.syncBuilding && !state.syncFailed) setTimeout(prepareSync);
+  const when = (t) => new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   return `
-    <div class="card sync open">
-      ${head}
-      <div class="sync-who"><span>이 폰은</span>${PEOPLE.map((w) => `<button class="seg ${who() === w ? 'on' : ''}" data-who="${w}">${w}폰</button>`).join('')}</div>
+    <div class="card set-card sync-panel">
+      <div class="set-row"><span class="grow"><b>${esc(who())}폰 기록을 다른 폰과 합쳐요</b><small>예약번호·링크·바우처·자료·체크·지출, 그리고 일정·장소 변경(시간 바꾸기·건너뛰기·도착·완료·추가한 일정과 장소·방문 기록)까지 함께 보내요</small></span></div>
       <div class="btns">
         ${state.syncFailed ? `<button class="btn primary" data-sync-build>${icon('refresh')}다시 준비하기</button>`
             : f ? `<button class="btn primary" data-sync-share>${icon('ext')}보내기</button>`
-            : `<button class="btn primary" disabled>준비 중…</button>`}
+            : '<button class="btn primary" disabled>준비 중…</button>'}
         <button class="btn" data-sync-pick>${icon('clip')}받은 파일 합치기</button>
       </div>
       ${f ? `<div class="small muted sync-size">사진 ${state.syncPhotos}장 포함 · ${f.size < 1048576 ? Math.max(1, Math.round(f.size / 1024)) + 'KB' : (f.size / 1048576).toFixed(1) + 'MB'}</div>` : ''}
@@ -1158,13 +1152,10 @@ function syncCard() {
         <li>받은 폰에서 파일을 열어 '파일에 저장'하세요.</li>
         <li>받은 폰의 앱에서 '받은 파일 합치기'를 누르면 끝이에요.</li>
       </ol>
-      <div class="small muted sync-note">
-        서로 한 번씩 주고받으면 두 폰이 같아져요. 예약번호와 사진이 들어 있으니 보낸 뒤 대화방의 파일은 지워 주세요.
-        ${sent ? `<br>보낸 시각 ${new Date(sent).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
-        ${got ? `<br>${esc(got.from)}폰에서 받은 시각 ${new Date(got.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
-      </div>
+      <div class="small muted sync-note">같은 일정을 두 폰에서 바꿨다면 나중에 바꾼 쪽이 남아요. 예약번호와 사진이 들어 있으니 보낸 뒤 대화방의 파일은 지워 주세요.${sent ? `<br>보낸 시각 ${when(sent)}` : ''}${got ? `<br>${esc(got.from)}폰에서 받은 시각 ${when(got.at)}` : ''}</div>
     </div>`;
 }
+
 
 // ---------- phrases for a schedule item ----------
 // Which phrase group fits an item: by its icon, with title words for airport and hotel stops.
@@ -2216,7 +2207,6 @@ function renderDays() {
     ${edit ? '' : daySummary(day, items, now) || (expenses().some((e) => e.date === day.date) ? `<div class="day-sum">${dayExpense(day.date, true)}</div>` : '')}
     <button class="btn wide day-add" data-item-new="${esc(day.date)}" data-after="${esc(items[items.length - 1]?.id || '')}">${icon('plus')}일정 추가</button>
     ${edit ? dayEditTools(day) : ''}
-    <button class="btn wide alarm-btn" data-alarm-sheet>${icon('ext')}일정 알림 받기</button>
   `;
 }
 
@@ -2508,8 +2498,7 @@ function renderWallet() {
   return `
     ${walletTabs('wallet')}
     <nav class="wallet-nav" aria-label="바로가기">${[['exp', '경비', 'money'], ['w-air', '항공', 'plane'], ['w-road', '공항 가는 길', 'bus'], ['w-stay', '숙소', 'bed'], ['w-secret', '예약번호', 'id'], ['w-docs', '바우처', 'ticket'], ['w-sos', '긴급', 'phone'], ['w-guide', '안내', 'checklist']].map(([k, l, ic]) => `<button data-jump="${k}">${icon(ic)}${l}</button>`).join('')}</nav>
-    ${syncCard()}
-    <button class="card set-link" data-settings>${secIcon('spark')}<span class="grow"><b>AI 도우미 · 키</b><small>Claude·구글 키와 모델은 설정에서 관리해요</small></span><i class="chev"></i></button>
+    <button class="card set-link" data-settings="sync">${secIcon('refresh')}<span class="grow"><b>동기화 · AI 키</b><small>두 폰 합치기와 Claude·구글 키는 설정에서 해요</small></span><i class="chev"></i></button>
     ${expenseSection()}
     <div class="section-title" id="w-air">${secIcon('plane')}<span>항공</span></div>
     ${flights.map(boardingPass).join('')}
@@ -4027,16 +4016,16 @@ function settingsBody() {
   return `
     <div class="sheet-head"><h3>설정</h3></div>
     <div class="settings">
-      ${sec('home', '이 폰', `
+      ${sec('id', '내 정보', `
         <div class="card set-card">
-          <div class="set-row"><span class="grow"><b>누구 폰인가요</b><small>경비·기록을 남긴 사람과 동기화에 쓰여요</small></span></div>
+          <div class="set-row"><span class="grow"><b>나는 누구인가요</b><small>경비·기록을 남긴 사람, 동기화 파일 이름에 쓰여요</small></span></div>
           <div class="seg-row">${PEOPLE.map((w) => `<button class="seg ${me === w ? 'on' : ''}" data-who="${w}">${w}폰</button>`).join('')}</div>
           <button class="set-row tap" data-nick="${esc(me)}"><span class="grow"><b>부르는 이름</b><small>아침 준비 카드에서 이렇게 불러요</small></span><em>${esc(callOf(me))}</em>${icon('pen')}</button>
         </div>`)}
       ${sec('spark', 'AI 도우미', aiSettings())}
-      ${sec('refresh', '동기화 · 알림', `
+      ${sec('refresh', '동기화', syncPanel())}
+      ${sec('clock', '일정 알림', `
         <div class="card set-card">
-          <button class="set-row tap" data-go-sync><span class="grow"><b>예약정보 동기화</b><small>예약번호·자료·체크·지출을 두 폰이 나눠 가져요 (예약 탭)</small></span><i class="chev"></i></button>
           <button class="set-row tap" data-alarm-sheet><span class="grow"><b>일정 알림 받기</b><small>아이폰 캘린더에 일정을 넣어 시작 전에 알려 줘요</small></span><i class="chev"></i></button>
         </div>`)}
       ${sec('talk', '개선 요청함', deskSettings())}
@@ -4048,9 +4037,10 @@ function settingsBody() {
         </div>`)}
     </div>`;
 }
-function openSettings() {
+function openSettings(at = '') {
   $('#sheet-body').innerHTML = settingsBody();
   $('#sheet').hidden = false;
+  if (at === 'sync') setTimeout(() => $('#sheet-body .sync-panel')?.closest('.set-sec').scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
 }
 
 function openPlaceNew() {
@@ -4693,7 +4683,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 191;
+const APP_VERSION = 192;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -4772,7 +4762,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-go-sync],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -4958,8 +4948,7 @@ document.addEventListener('click', async (e) => {
     $('.exp-form [name=memo]').focus();
     toast(`${yen(amount)} · 메모와 분류를 고르고 '기록'을 누르세요`);
   }
-  else if ('settings' in d) openSettings();
-  else if ('goSync' in d) { closeSheet(); state.syncOpen = true; go('wallet'); setTimeout(() => $('.card.sync')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 80); }
+  else if ('settings' in d) openSettings(d.settings);
   else if ('syncToggle' in d) { state.syncOpen = !state.syncOpen; render(); }
   else if (d.transApp) {
     const dir = state.talkDir;
@@ -5339,7 +5328,7 @@ $('#doc-file').addEventListener('change', async (e) => {
       if (!(await addDoc(slotId, file))) break;
       saved += 1;
     }
-    if (saved) toast(`${saved}장 저장했어요 · 다른 폰과는 예약정보 동기화로 맞출 수 있어요`);
+    if (saved) toast(`${saved}장 저장했어요 · 다른 폰과는 설정 › 동기화로 맞출 수 있어요`);
   } catch { toast('사진을 저장하지 못했어요. 저장 공간을 확인해 주세요.'); }
   state.pendingDoc = state.pendingTitle = null;
   render();

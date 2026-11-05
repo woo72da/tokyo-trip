@@ -1730,3 +1730,6 @@ ol.alarm-note { padding-left: 18px; }
 .top-add { right: 62px; top: calc(env(safe-area-inset-top) + 10px); bottom: auto; min-height: 40px; }
 /* Same spot on every tab: level with the 탐색 title line (top padding 14 + title 6 + 29/2 − 20) */
 .top-gear, .top-add { top: calc(env(safe-area-inset-top) + 14.5px); }
+.sync-panel .btns { margin-top: 4px; }
+.sync-panel .sync-note { margin: 8px 0 0; padding-left: 18px; line-height: 1.55; }
+.sync-panel div.sync-note { padding: 0 0 10px; }
