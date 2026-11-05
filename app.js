@@ -3562,20 +3562,25 @@ async function rcptFromPhoto() {
     const row = payRow({ date: day, time: /^\d{1,2}:\d{2}$/.test(r.time) ? r.time.padStart(5, '0') : '', shop: r.shop || '영수증', cur: r.currency, value: Math.round(r.total) });
     state.rcptAi = { file, row, pay: r.pay === 'unknown' ? payOf() : r.pay, items: r.items || [], taxfree: !!r.taxfree };
     doneWait();
+    const items = (r.items || []).filter((x) => x.name);
+    const lbl = (t, html, cls = '') => `<label class="rf ${cls}"><span>${t}</span>${html}</label>`;
     $('#ai-res').innerHTML = `
-      <form class="exp-form rcpt-ai" data-rcpt-save>
-        <label class="field"><span>가게</span><input class="input" name="shop" value="${esc(row.shop)}" maxlength="60"></label>
-        <div class="rcpt-grid">
-          <input class="input amount" name="amount" inputmode="numeric" value="${row.value}">
-          <select class="input" name="cur"><option value="JPY" ${row.cur === 'JPY' ? 'selected' : ''}>엔</option><option value="KRW" ${row.cur === 'KRW' ? 'selected' : ''}>원</option></select>
-          <select class="input" name="pay"><option value="card" ${state.rcptAi.pay === 'card' ? 'selected' : ''}>카드</option><option value="cash" ${state.rcptAi.pay === 'cash' ? 'selected' : ''}>현금</option></select>
-          <select class="input" name="cat">${EXP_CATS.map((c) => `<option ${c === (r.cat || row.cat) ? 'selected' : ''}>${c}</option>`).join('')}</select>
+      <form class="rcpt-ai" data-rcpt-save>
+        <div class="rcpt-sum">
+          <input class="rcpt-shop" name="shop" value="${esc(row.shop)}" maxlength="60" aria-label="장소명" placeholder="장소명">
+          <div class="rcpt-amt"><input class="amount" name="amount" inputmode="numeric" value="${row.value.toLocaleString('ko-KR')}" aria-label="금액"><select name="cur" aria-label="통화"><option value="JPY" ${row.cur === 'JPY' ? 'selected' : ''}>엔</option><option value="KRW" ${row.cur === 'KRW' ? 'selected' : ''}>원</option></select></div>
+          <div class="rcpt-tags">${[row.itemTitle ? `<span class="tag">${icon('pin')}${esc(row.itemTitle)} 일정</span>` : '', r.taxfree ? '<span class="tag ok">면세 영수증</span>' : ''].join('')}</div>
         </div>
-        ${expDatePick(row.date)}
-        <div class="small muted">${[row.time ? `${row.time} 결제` : '', row.itemTitle ? `${esc(row.itemTitle)} 일정에 연결` : '', r.taxfree ? '면세 영수증' : ''].filter(Boolean).join(' · ')}</div>
         ${row.dup ? '<div class="ai-note">같은 날 같은 금액의 지출이 이미 있어요. 중복이 아닌지 확인해 주세요.</div>' : ''}
-        ${(r.items || []).length ? `<ul class="rcpt-items">${r.items.map((x) => `<li><span>${esc(x.name)}</span>${x.price ? `<b>${Math.round(x.price).toLocaleString('ko-KR')}</b>` : ''}</li>`).join('')}</ul>` : ''}
-        <button class="btn primary wide" type="submit">${icon('check')}지출로 등록 (영수증 사진 함께 저장)</button>
+        <div class="rcpt-fields">
+          ${lbl('날짜', expDatePick(row.date))}
+          ${lbl('시간', `<input class="input" type="time" name="time" value="${esc(row.time || '')}">`)}
+          ${lbl('결제', `<select class="input" name="pay"><option value="card" ${state.rcptAi.pay === 'card' ? 'selected' : ''}>카드</option><option value="cash" ${state.rcptAi.pay === 'cash' ? 'selected' : ''}>현금</option></select>`)}
+          ${lbl('분류', `<select class="input" name="cat">${EXP_CATS.map((c) => `<option ${c === (r.cat || row.cat) ? 'selected' : ''}>${c}</option>`).join('')}</select>`)}
+        </div>
+        ${items.length ? `<details class="rcpt-more"><summary>영수증 품목 ${items.length}개</summary><ul class="rcpt-items">${items.map((x) => `<li><span>${esc(x.name)}</span>${x.price ? `<b>${Math.round(x.price).toLocaleString('ko-KR')}</b>` : ''}</li>`).join('')}</ul></details>` : ''}
+        <button class="btn primary wide" type="submit">${icon('check')}지출 등록</button>
+        <div class="small muted rcpt-foot">${icon('image')}영수증 사진도 이 지출에 함께 저장돼요</div>
       </form>`;
   } catch (e) { sheetFail(e.message); }
 }
@@ -3585,9 +3590,9 @@ async function saveRcptAi(form) {
   const f = new FormData(form);
   const value = Number(String(f.get('amount')).replace(/[^\d.]/g, ''));
   if (!value) return toast('금액을 확인해 주세요');
+  // The title is the place only; the receipt's item lines stay on the photo.
   const shop = String(f.get('shop') || '').trim();
-  const items = a.items.map((x) => x.name).slice(0, 4).join(', ');
-  const id = addExpense({ value, cur: f.get('cur'), pay: f.get('pay'), cat: f.get('cat'), date: f.get('date'), item: a.row.item, time: a.row.time || '', memo: `${shop}${items ? ` (${items})` : ''}` });
+  const id = addExpense({ value, cur: f.get('cur'), pay: f.get('pay'), cat: f.get('cat'), date: f.get('date'), item: a.row.item, time: String(f.get('time') || ''), memo: shop });
   try { await addDoc(rcptSlot(id), a.file); await refreshDocSlots(); } catch { toast('지출은 등록했지만 사진은 저장하지 못했어요'); }
   state.rcptAi = null;
   state.expView = 'spent';
@@ -4624,7 +4629,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 184;
+const APP_VERSION = 185;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

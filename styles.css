@@ -1631,3 +1631,31 @@ ol.alarm-note { padding-left: 18px; }
 /* The stamp's two lines sit dead centre in the ring */
 .seal, .day-sum-head .seal { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; text-align: center; box-sizing: border-box; }
 .seal b { display: block; font: inherit; line-height: 1.15; white-space: nowrap; }
+
+/* Receipt read by AI: what was paid, big; the rest as labelled fields; items folded away */
+.rcpt-ai { display: grid; gap: 12px; margin-top: 12px; }
+.rcpt-sum { padding: 14px 16px; border-radius: 16px; background: var(--soft); }
+.rcpt-shop { width: 100%; padding: 2px 0; border: 0; border-bottom: 1.5px dashed var(--line); background: none; color: var(--ink); font: 800 18px/1.3 var(--sans); }
+.rcpt-amt { display: flex; align-items: baseline; gap: 6px; margin-top: 8px; }
+.rcpt-amt .amount { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--ink); font: 700 30px/1.2 var(--mono); }
+.rcpt-amt select { flex: none; min-height: 36px; padding: 0 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font-size: 16px; }
+.rcpt-shop:focus, .rcpt-amt .amount:focus { outline: none; border-bottom-color: var(--accent); }
+.rcpt-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rcpt-tags:empty { display: none; }
+.rcpt-tags .tag { display: inline-flex; align-items: center; gap: 4px; }
+.rcpt-tags .ico { width: 13px; height: 13px; }
+.rcpt-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+.rf { display: grid; gap: 4px; min-width: 0; }
+.rf > span { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.rf .input { min-height: 46px; font-size: 16px; width: 100%; }
+.rcpt-more summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 2px; font-size: 14px; font-weight: 700; color: var(--muted); list-style: none; cursor: pointer; }
+.rcpt-more summary::-webkit-details-marker { display: none; }
+.rcpt-foot { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: -4px; }
+.rcpt-foot .ico { width: 14px; height: 14px; }
+.rcpt-tags .tag { background: var(--paper); font-size: 12px; padding: 3px 8px; }
+.rcpt-ai { grid-template-columns: minmax(0, 1fr); }
+.rcpt-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rcpt-shop, .rf .input { min-width: 0; box-sizing: border-box; }
+.rcpt-amt .amount { width: 0; }
+.rcpt-more summary::after { content: '보기'; font-size: 13px; color: var(--accent); }
+.rcpt-more[open] summary::after { content: '접기'; }
