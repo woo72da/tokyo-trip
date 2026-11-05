@@ -2342,14 +2342,19 @@ function kmBetween(a, b) {
 const distLabel = (km) => (km < 1 ? `${Math.round(km * 100) * 10}m` : `${km.toFixed(1)}km`);
 
 // Google Maps photo by link, with the category icon underneath when it can't load (offline, expired link).
-const placeThumb = (p, size) => `
-  <span class="thumb">${itemIcon(CAT_ICON[p.cat], 'lg')}${p.photo ? `<img src="${esc(p.photo)}=${size}-k-no" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}</span>`;
+const PHOTO_FALLBACK = "if(this.dataset.alt){this.src=this.dataset.alt;this.dataset.alt=''}else{this.remove()}";
+const photoSrc = (p, size) => (p.photo ? `${p.photo}=${size}-k-no` : p.photoUrl || '');
+const placeThumb = (p, size) => { if (!p.photo && !p.photoUrl) refreshPhoto(p); return `
+  <span class="thumb">${itemIcon(CAT_ICON[p.cat], 'lg')}${p.photo || p.photoUrl ? `<img src="${esc(photoSrc(p, size))}" data-alt="${esc(p.photo && p.photoUrl ? p.photoUrl : '')}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="${PHOTO_FALLBACK}">` : ''}</span>`; };
 
 // Would we go back: strongly, yes, or no. Older "한 번이면 충분" marks read as 비추천.
 const AGAIN = { best: '강력 추천', yes: '추천', no: '비추천' };
 const againIcon = (k) => (k === 'best' ? `<span class="thumbs two">${icon('thumb')}${icon('thumb')}</span>` : k === 'yes' ? `<span class="thumbs">${icon('thumb')}</span>` : k === 'no' ? `<span class="thumbs">${icon('thumb-down')}</span>` : '');
 const recommended = (v) => v?.again === 'best' || v?.again === 'yes';
-const placeHero = (p) => (p?.photo ? `<div class="place-hero"><img src="${esc(p.photo)}=w800-h400-k-no" alt="" referrerpolicy="no-referrer" onerror="this.parentElement.remove()"></div>` : '');
+const placeHero = (p) => {
+  if (p && !p.photo && !p.photoUrl) refreshPhoto(p);
+  return p?.photo || p?.photoUrl ? `<div class="place-hero"><img src="${esc(photoSrc(p, 'w800-h400'))}" data-alt="${esc(p.photo && p.photoUrl ? p.photoUrl : '')}" alt="" referrerpolicy="no-referrer" onerror="if(this.dataset.alt){this.src=this.dataset.alt;this.dataset.alt=''}else{this.parentElement.remove()}"></div>` : '';
+};
 
 function placeCard(p, now) {
   const info = placeInfo(p);
@@ -2579,7 +2584,7 @@ function parseShare(text) {
   let [name = '', addr = ''] = lines;
   if (!addr && name.includes(', ')) [name, addr] = [name.slice(0, name.indexOf(', ')), name.slice(name.indexOf(', ') + 2)];
   if (!name) {
-    const fromUrl = url.match(/\/maps\/place\/([^/@?]+)/)?.[1];
+    const fromUrl = url.match(/\/maps\/place\/([^/@?]+)/)?.[1]?.replace(/^data=.*/, '');
     if (fromUrl) name = decodeURIComponent(fromUrl).replace(/\+/g, ' ');
   }
   return { url, name, addr };
@@ -2724,6 +2729,11 @@ async function gFetch(path, { body, mask, query = '' } = {}) {
   if (res.status === 429) throw new Error('오늘 구글 사용량 한도에 닿았어요. 내일 다시 쓰거나 할당량을 늘려 주세요.');
   throw new Error(`구글 오류 (${res.status})${why ? ` · ${why.slice(0, 120)}` : ''}`);
 }
+// The place at a map position (a long link's "!3d…!4d…" or "@lat,lng"), nearest first.
+async function gNear(lat, lng) {
+  const data = await gFetch('places:searchNearby', { mask: 'places.id,places.displayName', body: { maxResultCount: 1, rankPreference: 'DISTANCE', languageCode: 'ko', locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius: 40 } } } });
+  return data.places?.[0]?.id || null;
+}
 // Suggestions while typing; tied to one session so picking one counts as a single paid lookup.
 async function gSuggest(input, session) {
   const data = await gFetch('places:autocomplete', { body: { input, sessionToken: session, languageCode: 'ko', regionCode: 'JP', locationBias: { circle: { center: TOKYO, radius: 40000 } } } });
@@ -2752,17 +2762,37 @@ const G_CAT = (types = []) => (types.some((t) => /cafe|coffee|tea_house|bakery|d
   : types.some((t) => /restaurant|food|meal|ramen|sushi|izakaya/.test(t)) ? 'eat'
     : types.some((t) => /store|shop|mall|market|department/.test(t)) ? 'shop' : 'see');
 const G_STAY = { eat: 60, drink: 40, shop: 45, see: 60 };
+// First photo of a place as an address the app can size ("…=w160-h160-k-no"), plus Google's own full address as a backup.
+async function gPhoto(photos) {
+  if (!photos?.[0]?.name) return { photo: '', photoUrl: '', photoErr: '구글에 등록된 사진이 없어요' };
+  try {
+    const ph = await gFetch(`${photos[0].name}/media`, { query: `?maxWidthPx=1200&skipHttpRedirect=true&key=${encodeURIComponent(gKey())}` });
+    const full = ph?.photoUri || '';
+    if (!full) return { photo: '', photoUrl: '', photoErr: '사진 주소를 받지 못했어요' };
+    return { photo: /googleusercontent\.com/.test(full) ? full.replace(/=[^=/]*$/, '') : '', photoUrl: full, photoErr: '' };
+  } catch (e) { return { photo: '', photoUrl: '', photoErr: `사진을 못 가져왔어요 · ${e.message}` }; }
+}
+// A place saved without a photo (or before photos worked) gets one the next time it's opened, if a Google key is set.
+const photoTried = new Set();
+async function refreshPhoto(p) {
+  if (!p?.gid || p.photo || p.photoUrl || !gKey() || photoTried.has(p.gid)) return;
+  photoTried.add(p.gid);
+  try {
+    const d = await gFetch(`places/${encodeURIComponent(p.gid)}`, { mask: 'photos' });
+    const { photo, photoUrl } = await gPhoto(d.photos);
+    if (!photo && !photoUrl) return;
+    store.set('myplaces', store.get('myplaces', []).map((x) => (x.gid === p.gid ? { ...x, photo, photoUrl } : x)));
+    if (!$('#sheet').hidden && !$('#sheet-body .place-hero')) $('#sheet-body').insertAdjacentHTML('afterbegin', placeHero({ ...p, photo, photoUrl }));
+    if ($('#sheet').hidden) render();
+  } catch { /* no photo this time */ }
+}
+
 // Full place from a Google place ID: details in Korean, the Japanese name, and a photo address.
 async function gPlace(id, session) {
   const mask = 'id,displayName,formattedAddress,location,rating,userRatingCount,regularOpeningHours,primaryType,primaryTypeDisplayName,types,photos,googleMapsUri,editorialSummary';
   const d = await gFetch(`places/${encodeURIComponent(id)}`, { mask, query: `?languageCode=ko&regionCode=JP${session ? `&sessionToken=${session}` : ''}` });
   const ja = await gFetch(`places/${encodeURIComponent(id)}`, { mask: 'displayName', query: '?languageCode=ja' }).catch(() => null);
-  let photo = '';
-  if (d.photos?.[0]?.name) {
-    const ph = await gFetch(`${d.photos[0].name}/media`, { query: `?maxWidthPx=1200&skipHttpRedirect=true&key=${encodeURIComponent(gKey())}` }).catch(() => null);
-    // The app adds its own "=w…-h…" size, so keep the address without Google's size part.
-    if (ph?.photoUri) photo = ph.photoUri.replace(/=[^=/]*$/, '');
-  }
+  const { photo, photoUrl, photoErr } = await gPhoto(d.photos);
   const { o, off } = gHours(d.regularOpeningHours?.periods);
   const cat = G_CAT([d.primaryType, ...(d.types || [])].filter(Boolean));
   return {
@@ -2770,7 +2800,7 @@ async function gPlace(id, session) {
     addr: d.formattedAddress || '', ...(d.location ? { lat: d.location.latitude, lng: d.location.longitude } : {}),
     o, off, r: d.rating || null, n: d.userRatingCount ? d.userRatingCount.toLocaleString('ko-KR') : '',
     memo: d.editorialSummary?.text || '', best: [], tips: [], stay: G_STAY[cat], note: '', ai: true, src: 'google',
-    photo, url: d.googleMapsUri || '', kind: d.primaryTypeDisplayName?.text || '', week: d.regularOpeningHours?.weekdayDescriptions || [],
+    photo, photoUrl, ...(photoErr ? { note: photoErr } : {}), url: d.googleMapsUri || '', kind: d.primaryTypeDisplayName?.text || '', week: d.regularOpeningHours?.weekdayDescriptions || [],
   };
 }
 // Claude adds what Google doesn't give: a natural Korean name, one line on why go, picks, tips and visit length.
@@ -2845,7 +2875,7 @@ async function aiPlace(text) {
 const aiPlaceCard = (pl) => `
   <div class="ai-card">
     <div class="ai-tag ${pl.src === 'google' ? 'g' : ''}">${icon('check')}${pl.src === 'google' ? `구글 장소 정보${aiKey() ? ' + AI 설명' : ''}` : 'AI가 찾은 정보 · 확인 필요'}</div>
-    ${pl.photo ? `<img class="ai-photo" src="${esc(pl.photo)}=w600-h300-k-no" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+    ${pl.photo || pl.photoUrl ? `<img class="ai-photo" src="${esc(photoSrc(pl, 'w600-h300'))}" data-alt="${esc(pl.photo && pl.photoUrl ? pl.photoUrl : '')}" alt="" referrerpolicy="no-referrer" onerror="${PHOTO_FALLBACK}">` : ''}
     <b>${esc(pl.name)}${pl.nameJa ? ` <small>${esc(pl.nameJa)}</small>` : ''}</b>
     <div class="ai-facts">${[pl.r ? `★${pl.r.toFixed(1)}${pl.n ? ` (${esc(pl.n)})` : ''}` : '', pl.o ? `영업 ${esc(pl.o)}` : '', pl.off.length ? `휴무 ${pl.off.map((d) => WEEKDAYS[d]).join('·')}` : '', `머무는 시간 약 ${formatLeft(pl.stay)}`, pl.lat ? '위치 확인' : '위치 미확인'].filter(Boolean).join(' · ')}</div>
     ${pl.memo ? `<div class="ai-desc">${esc(pl.memo)}</div>` : ''}
@@ -2858,6 +2888,7 @@ function saveAiPlace(pl, url) {
   const { stay, note, kind, week, ...rest } = pl;
   const place = { id: uid('my'), ...rest, ...(/^https?:/.test(url || '') && !rest.url ? { url } : {}) };
   if (!place.photo) delete place.photo;
+  if (!place.photoUrl) delete place.photoUrl;
   if (!place.url) delete place.url;
   if (!place.o) delete place.o;
   if (!place.off?.length) delete place.off;
@@ -2925,14 +2956,21 @@ async function runAiPlace(where, btn) {
   const out = where === 'pn' ? $('#pn-ai') : $('#f-ai');
   const nameBox = where === 'pn' ? $('#pn-name') : $('#f-link-name');
   const given = nameBox?.value.trim() || '';
-  if (bareLink(pasted) && !given) {
+  // A link with a map position (!3d…!4d… or @lat,lng) needs no name.
+  if (bareLink(pasted) && !given && !(gKey() && /!3d-?[\d.]+!4d|@-?[\d.]+,-?[\d.]+/.test(pasted))) {
     if (nameBox) { nameBox.hidden = false; nameBox.focus(); }
-    out.innerHTML = '<div class="ai-note">구글지도 짧은 링크는 밖에서 열리지 않아요. 지도에 보이는 가게 이름을 함께 적어 주세요. 일본어나 영어 이름이면 더 정확해요.</div>';
+    out.innerHTML = `<div class="ai-note">구글지도 짧은 링크(maps.app.goo.gl)는 구글 밖에서 열리지 않게 막혀 있어서 링크만으로는 장소를 알 수 없어요. ${gKey() ? '아래 칸에 이름을 2~3글자만 입력하면 추천 목록에서 고를 수 있어요.' : '지도에 보이는 가게 이름을 함께 적어 주세요.'}</div>`;
     return;
   }
   const text = given && !pasted.includes(given) ? `${given}\n${pasted}` : pasted;
   const { url, name: shareName, addr } = parseShare(text);
   if (gKey()) {
+    const pos = url.match(/!3d(-?[\d.]+)!4d(-?[\d.]+)/) || url.match(/@(-?[\d.]+),(-?[\d.]+)/);
+    // A position in the link is exact, so it goes first; the name is the fallback.
+    if (pos) {
+      out.innerHTML = '<div class="small muted ai-wait">링크의 위치로 찾는 중…</div>';
+      try { const id = await gNear(Number(pos[1]), Number(pos[2])); if (id) return gPick(id, where); } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; return; }
+    }
     const q = given || shareName || (bareLink(pasted) ? '' : pasted);
     const label = btn.textContent;
     btn.disabled = true; btn.textContent = '찾는 중…';
@@ -3675,7 +3713,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 154;
+const APP_VERSION = 155;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
