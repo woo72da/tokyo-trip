@@ -2702,6 +2702,119 @@ Then call save_place once. Write Korean for name, desc, best, tips and note; nam
 Only fill rating, reviews and hours when a source shows them; leave unknown fields empty or null and say what in note. Never copy review sentences; write tips in your own words.
 If you can't tell which place it is, call save_place with found false and explain in note.`;
 
+
+// ---------- Google Places API (New): the same place data Google Maps shows, with the traveler's own key ----------
+// The key lives in localStorage under 'gKey' (not synced, never in the repo). Restrict it to this site and Places API (New).
+const gKey = () => store.get('gKey', '');
+const G_BASE = 'https://places.googleapis.com/v1';
+const TOKYO = { latitude: 35.6895, longitude: 139.7530 };
+async function gFetch(path, { body, mask, query = '' } = {}) {
+  if (!navigator.onLine) throw new Error('인터넷이 연결되어 있지 않아요.');
+  const headers = { 'X-Goog-Api-Key': gKey(), ...(mask ? { 'X-Goog-FieldMask': mask } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) };
+  let res;
+  try { res = await fetch(`${G_BASE}/${path}${query}`, { method: body ? 'POST' : 'GET', headers, body: body ? JSON.stringify(body) : undefined }); }
+  catch { throw new Error('구글에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) return data;
+  const why = data.error?.message || '';
+  if (res.status === 403 && /referer|referrer/i.test(why)) throw new Error('구글 키의 웹사이트 제한에 https://woo72da.github.io/* 를 넣었는지 확인해 주세요.');
+  if (res.status === 403 && /not been used|disabled|SERVICE_DISABLED/i.test(why)) throw new Error('구글 콘솔에서 "Places API (New)"를 사용으로 켜 주세요.');
+  if (res.status === 403 && /billing/i.test(why)) throw new Error('구글 콘솔에서 프로젝트에 결제 계정을 연결해 주세요.');
+  if (res.status === 400 && /API key/i.test(why)) throw new Error('구글 키가 맞지 않아요. 예약 탭 AI 도우미에서 확인해 주세요.');
+  if (res.status === 429) throw new Error('오늘 구글 사용량 한도에 닿았어요. 내일 다시 쓰거나 할당량을 늘려 주세요.');
+  throw new Error(`구글 오류 (${res.status})${why ? ` · ${why.slice(0, 120)}` : ''}`);
+}
+// Suggestions while typing; tied to one session so picking one counts as a single paid lookup.
+async function gSuggest(input, session) {
+  const data = await gFetch('places:autocomplete', { body: { input, sessionToken: session, languageCode: 'ko', regionCode: 'JP', locationBias: { circle: { center: TOKYO, radius: 40000 } } } });
+  return (data.suggestions || []).map((x) => x.placePrediction).filter(Boolean).slice(0, 5)
+    .map((pp) => ({ id: pp.placeId, main: pp.structuredFormat?.mainText?.text || pp.text?.text || '', sub: pp.structuredFormat?.secondaryText?.text || '' }));
+}
+// Google's weekly hours → the app's "HH:MM-HH:MM" (25:00 past midnight) for the usual day, and the closed weekdays.
+function gHours(periods) {
+  if (!periods?.length) return { o: '', off: [] };
+  if (periods.length === 1 && !periods[0].close) return { o: '00:00-24:00', off: [] };
+  const byDay = {};
+  for (const pd of periods) {
+    if (!pd.open || !pd.close) continue;
+    const from = pd.open.hour * 60 + (pd.open.minute || 0);
+    let to = pd.close.hour * 60 + (pd.close.minute || 0);
+    if (pd.close.day !== pd.open.day || to <= from) to += 1440;
+    (byDay[pd.open.day] = byDay[pd.open.day] || []).push(`${clock(from)}-${String(Math.floor(to / 60)).padStart(2, '0')}:${String(to % 60).padStart(2, '0')}`);
+  }
+  const days = Object.keys(byDay).map(Number);
+  const tally = {};
+  days.forEach((d) => { const k = byDay[d].join(','); tally[k] = (tally[k] || 0) + 1; });
+  const o = Object.entries(tally).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  return { o, off: [0, 1, 2, 3, 4, 5, 6].filter((d) => !days.includes(d)) };
+}
+const G_CAT = (types = []) => (types.some((t) => /cafe|coffee|tea_house|bakery|dessert|bar$|pub/.test(t)) ? 'drink'
+  : types.some((t) => /restaurant|food|meal|ramen|sushi|izakaya/.test(t)) ? 'eat'
+    : types.some((t) => /store|shop|mall|market|department/.test(t)) ? 'shop' : 'see');
+const G_STAY = { eat: 60, drink: 40, shop: 45, see: 60 };
+// Full place from a Google place ID: details in Korean, the Japanese name, and a photo address.
+async function gPlace(id, session) {
+  const mask = 'id,displayName,formattedAddress,location,rating,userRatingCount,regularOpeningHours,primaryType,primaryTypeDisplayName,types,photos,googleMapsUri,editorialSummary';
+  const d = await gFetch(`places/${encodeURIComponent(id)}`, { mask, query: `?languageCode=ko&regionCode=JP${session ? `&sessionToken=${session}` : ''}` });
+  const ja = await gFetch(`places/${encodeURIComponent(id)}`, { mask: 'displayName', query: '?languageCode=ja' }).catch(() => null);
+  let photo = '';
+  if (d.photos?.[0]?.name) {
+    const ph = await gFetch(`${d.photos[0].name}/media`, { query: `?maxWidthPx=1200&skipHttpRedirect=true&key=${encodeURIComponent(gKey())}` }).catch(() => null);
+    // The app adds its own "=w…-h…" size, so keep the address without Google's size part.
+    if (ph?.photoUri) photo = ph.photoUri.replace(/=[^=/]*$/, '');
+  }
+  const { o, off } = gHours(d.regularOpeningHours?.periods);
+  const cat = G_CAT([d.primaryType, ...(d.types || [])].filter(Boolean));
+  return {
+    gid: d.id, name: d.displayName?.text || '', nameJa: ja?.displayName?.text || '', cat,
+    addr: d.formattedAddress || '', ...(d.location ? { lat: d.location.latitude, lng: d.location.longitude } : {}),
+    o, off, r: d.rating || null, n: d.userRatingCount ? d.userRatingCount.toLocaleString('ko-KR') : '',
+    memo: d.editorialSummary?.text || '', best: [], tips: [], stay: G_STAY[cat], note: '', ai: true, src: 'google',
+    photo, url: d.googleMapsUri || '', kind: d.primaryTypeDisplayName?.text || '', week: d.regularOpeningHours?.weekdayDescriptions || [],
+  };
+}
+// Claude adds what Google doesn't give: a natural Korean name, one line on why go, picks, tips and visit length.
+const ENRICH_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['name', 'desc', 'best', 'tips', 'stay', 'cat'],
+  properties: {
+    name: { type: 'string' }, desc: { type: 'string' },
+    best: { type: 'array', items: { type: 'string' } }, tips: { type: 'array', items: { type: 'string' } },
+    stay: { type: 'integer' }, cat: { type: 'string', enum: ['eat', 'drink', 'see', 'shop'] },
+  },
+};
+const ENRICH_SYSTEM = `You write short Korean place notes for a Korean couple's Tokyo trip app (2026-11-02 to 11-06).
+You get Google Maps facts about one place. Return: name (the Korean name a Korean traveler would use; keep brand names recognizable), desc (one line: what it is and why go), best (up to 3 dishes or highlights worth trying, from what you know about this place), tips (2-3 practical visitor tips in your own words: queues, cash, ordering, best time), stay (typical visit length in minutes), cat.
+Don't invent facts you aren't fairly sure of; leave best or tips short rather than guessing. Never copy review sentences.`;
+async function aiEnrich(g) {
+  const { Anthropic, client } = await aiClient();
+  const m = aiModel();
+  const facts = { name: g.name, nameJa: g.nameJa, type: g.kind, address: g.addr, rating: g.r, reviews: g.n, hours: g.week, summary: g.memo };
+  const body = { model: m.id, max_tokens: 4000, system: [{ type: 'text', text: ENRICH_SYSTEM, cache_control: { type: 'ephemeral' } }], output_config: { effort: 'low', format: { type: 'json_schema', schema: ENRICH_SCHEMA } }, messages: [{ role: 'user', content: JSON.stringify(facts) }] };
+  try {
+    const res = m.fallback
+      ? await client.beta.messages.create({ ...body, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' })
+      : await client.messages.create(body);
+    if (res.stop_reason === 'refusal') return null;
+    const text = res.content.find((b) => b.type === 'text')?.text;
+    return text ? JSON.parse(text) : null;
+  } catch (e) { throw new Error(aiError(e, Anthropic)); }
+}
+// Google facts first, then Claude's notes when an AI key is set (a failed note step keeps the Google facts).
+async function placeFromGoogle(id, session) {
+  const g = await gPlace(id, session);
+  if (!aiKey()) return g;
+  try {
+    const e = await aiEnrich(g);
+    if (e) {
+      return { ...g, name: String(e.name || g.name).slice(0, 60), memo: String(e.desc || g.memo), cat: ['eat', 'drink', 'see', 'shop'].includes(e.cat) ? e.cat : g.cat,
+        best: (Array.isArray(e.best) ? e.best : []).map(String).slice(0, 3), tips: (Array.isArray(e.tips) ? e.tips : []).map(String).slice(0, 3),
+        stay: Math.min(240, Math.max(15, Math.round((Number(e.stay) || g.stay) / 15) * 15)) };
+    }
+  } catch (e) { return { ...g, note: `AI 설명은 못 붙였어요 · ${e.message}` }; }
+  return g;
+}
+
 // Pasted share text → a place record in the app's own format.
 async function aiPlace(text) {
   const m = aiModel();
@@ -2731,7 +2844,8 @@ async function aiPlace(text) {
 // A found place, as a small card to check before saving.
 const aiPlaceCard = (pl) => `
   <div class="ai-card">
-    <div class="ai-tag">${icon('check')}AI가 찾은 정보 · 확인 필요</div>
+    <div class="ai-tag ${pl.src === 'google' ? 'g' : ''}">${icon('check')}${pl.src === 'google' ? `구글 장소 정보${aiKey() ? ' + AI 설명' : ''}` : 'AI가 찾은 정보 · 확인 필요'}</div>
+    ${pl.photo ? `<img class="ai-photo" src="${esc(pl.photo)}=w600-h300-k-no" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
     <b>${esc(pl.name)}${pl.nameJa ? ` <small>${esc(pl.nameJa)}</small>` : ''}</b>
     <div class="ai-facts">${[pl.r ? `★${pl.r.toFixed(1)}${pl.n ? ` (${esc(pl.n)})` : ''}` : '', pl.o ? `영업 ${esc(pl.o)}` : '', pl.off.length ? `휴무 ${pl.off.map((d) => WEEKDAYS[d]).join('·')}` : '', `머무는 시간 약 ${formatLeft(pl.stay)}`, pl.lat ? '위치 확인' : '위치 미확인'].filter(Boolean).join(' · ')}</div>
     ${pl.memo ? `<div class="ai-desc">${esc(pl.memo)}</div>` : ''}
@@ -2741,8 +2855,10 @@ const aiPlaceCard = (pl) => `
   </div>`;
 // Save as one of "내 장소"; returns the stored place.
 function saveAiPlace(pl, url) {
-  const { stay, note, ...rest } = pl;
-  const place = { id: uid('my'), ...rest, ...(/^https?:/.test(url || '') ? { url } : {}) };
+  const { stay, note, kind, week, ...rest } = pl;
+  const place = { id: uid('my'), ...rest, ...(/^https?:/.test(url || '') && !rest.url ? { url } : {}) };
+  if (!place.photo) delete place.photo;
+  if (!place.url) delete place.url;
   if (!place.o) delete place.o;
   if (!place.off?.length) delete place.off;
   if (!place.r) { delete place.r; delete place.n; }
@@ -2753,6 +2869,56 @@ function saveAiPlace(pl, url) {
 // Runs the place lookup for the 탐색 sheet ('pn') or a new stop ('form'). Without a key, the share text alone fills what it can.
 // A short maps.app.goo.gl link can't be opened from outside Google, so with a bare link the place name is asked for and used to search.
 const bareLink = (text) => { const { url, name } = parseShare(text); return !!url && !name; };
+function applyFound(where, pl, url) {
+  const out = where === 'pn' ? $('#pn-ai') : $('#f-ai');
+  if (where === 'pn') {
+    state.aiFound = pl;
+    $('#pn-name').value = pl.name; $('#pn-addr').value = pl.addr || ''; $('#pn-cat').value = pl.cat; $('#pn-memo').value = pl.memo;
+    $('#pn-url').value = pl.url || url || '';
+    out.innerHTML = aiPlaceCard(pl);
+    return;
+  }
+  const place = saveAiPlace(pl, url);
+  const kind = CAT_ICON[place.cat] || '📍';
+  state.form.kind = kind;
+  document.querySelectorAll('[data-f-kind]').forEach((b) => b.classList.toggle('on', glyph(b.dataset.fKind)[0] === glyph(kind)[0]));
+  $('#f-title').value = place.name;
+  if ($('#f-place')) $('#f-place').value = place.name;
+  if (place.memo && !$('#f-note').value) $('#f-note').value = place.memo;
+  state.form.dur = pl.stay;
+  $('#f-end').value = clock(Math.min(1439, state.form.s + pl.stay));
+  out.innerHTML = aiPlaceCard(pl);
+  if ($('#f-sugg')) $('#f-sugg').innerHTML = '';
+  updateForm();
+}
+// Typing a name shows Google's suggestions (one session per sheet, so a pick is one lookup).
+let gTimer = null;
+function gTyped(where, value) {
+  const box = where === 'pn' ? $('#pn-sugg') : $('#f-sugg');
+  if (!box || !gKey()) return;
+  clearTimeout(gTimer);
+  const q = value.trim();
+  if (q.length < 2 || /https?:\/\//.test(q)) { box.innerHTML = ''; return; }
+  gTimer = setTimeout(async () => {
+    state.gSession = state.gSession || crypto.randomUUID();
+    try {
+      const list = await gSuggest(q, state.gSession);
+      box.innerHTML = list.map((x) => `<button type="button" data-g-pick="${esc(x.id)}" data-where="${where}"><b>${esc(x.main)}</b><small>${esc(x.sub)}</small></button>`).join('') || '<div class="small muted">찾은 장소가 없어요</div>';
+    } catch (e) { box.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+  }, 350);
+}
+async function gPick(id, where) {
+  const out = where === 'pn' ? $('#pn-ai') : $('#f-ai');
+  const box = where === 'pn' ? $('#pn-sugg') : $('#f-sugg');
+  if (box) box.innerHTML = '';
+  out.innerHTML = `<div class="small muted ai-wait">${aiKey() ? '구글 정보와 AI 설명을 가져오는 중… 5~15초' : '구글 정보를 가져오는 중…'}</div>`;
+  try {
+    const pl = await placeFromGoogle(id, state.gSession);
+    state.gSession = null;
+    applyFound(where, pl, pl.url);
+  } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+}
+
 async function runAiPlace(where, btn) {
   const pasted = (where === 'pn' ? $('#pn-paste') : $('#f-link')).value.trim();
   if (!pasted) return toast('구글지도 공유 내용을 먼저 붙여 넣어 주세요');
@@ -2766,6 +2932,20 @@ async function runAiPlace(where, btn) {
   }
   const text = given && !pasted.includes(given) ? `${given}\n${pasted}` : pasted;
   const { url, name: shareName, addr } = parseShare(text);
+  if (gKey()) {
+    const q = given || shareName || (bareLink(pasted) ? '' : pasted);
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = '찾는 중…';
+    try {
+      state.gSession = state.gSession || crypto.randomUUID();
+      const [top] = await gSuggest(q, state.gSession);
+      if (!top) throw new Error('구글에서 찾은 장소가 없어요. 이름을 바꿔 보세요.');
+      btn.textContent = label; btn.disabled = false;
+      return gPick(top.id, where);
+    } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+    btn.disabled = false; btn.textContent = label;
+    return;
+  }
   let pl = null;
   if (aiKey()) {
     const label = btn.textContent;
@@ -2815,6 +2995,15 @@ async function aiTest() {
   toast(msg);
 }
 
+async function gTest() {
+  if (state.gTest?.busy) return;
+  state.gTest = { busy: true }; render();
+  let msg;
+  try { const list = await gSuggest('浅草寺', crypto.randomUUID()); msg = list.length ? '구글 장소 검색이 연결됐어요' : '연결은 됐지만 결과가 없어요'; }
+  catch (e) { msg = e.message; }
+  state.gTest = { msg, ok: /연결됐어요/.test(msg) }; render(); toast(msg);
+}
+
 // Settings card in the 예약 tab.
 function aiCard() {
   const key = aiKey();
@@ -2831,6 +3020,15 @@ function aiCard() {
       <label class="field"><span>모델</span><select class="input" id="ai-model">${Object.entries(AI_MODELS).map(([k, m]) => `<option value="${k}" ${k === pick ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>
       <div class="btns">${key ? '<button class="btn wide" data-ai-forget>키 지우기</button>' : '<button class="btn primary wide" data-ai-save>저장</button>'}</div>
       <div class="small muted ai-cost">요청 한 번에 보통 수십 원 정도 들어요. Claude 콘솔에서 월 사용 한도를 걸어 두면 안심이에요.</div>
+      <div class="ai-sub">구글 장소 키 (Places API)</div>
+      <div class="small muted">넣으면 이름만 입력해도 구글 지도와 같은 위치·영업시간·평점·사진을 가져와요. 웹사이트 제한(woo72da.github.io)과 API 제한(Places API (New))을 걸어 두세요.</div>
+      ${gKey() ? `
+        <div class="ai-on">${icon('check')}<span class="grow"><b>구글 키 저장됨</b><small>키 끝자리 ••••${esc(gKey().slice(-4))}</small></span>
+          <button class="btn" data-g-test ${state.gTest?.busy ? 'disabled' : ''}>${state.gTest?.busy ? '확인 중…' : '연결 확인'}</button></div>
+        ${state.gTest?.msg ? `<div class="ai-msg ${state.gTest.ok ? 'ok' : ''}">${esc(state.gTest.msg)}</div>` : ''}
+        <div class="btns"><button class="btn wide" data-g-forget>구글 키 지우기</button></div>` : `
+        <input class="input" id="g-key" type="password" autocomplete="off" placeholder="AIza로 시작하는 구글 API 키">
+        <div class="btns"><button class="btn primary wide" data-g-save>구글 키 저장</button></div>`}
     </div>`;
 }
 
@@ -2839,9 +3037,10 @@ function openPlaceNew() {
     <div class="sheet-head"><h3>내 장소 추가</h3></div>
     <label class="field"><span>구글지도 공유 내용</span><textarea class="input" id="pn-paste" rows="3" autocomplete="off" placeholder="구글지도에서 공유 → 복사한 내용을 붙여넣으세요"></textarea></label>
     <div class="pn-found" id="pn-found" hidden>${icon('check')}지도 연결됨</div>
-    ${aiKey() ? `<button class="btn wide ai-go" data-ai-place="pn">${icon('pen')}AI로 장소 정보 채우기</button><div id="pn-ai"></div>` : '<div class="small muted ai-hint">예약 탭 AI 도우미에 키를 등록하면 링크만으로 정보를 채워요.</div>'}
+    ${aiKey() || gKey() ? `<button class="btn wide ai-go" data-ai-place="pn">${icon('pen')}${gKey() ? '구글에서 찾아 채우기' : 'AI로 장소 정보 채우기'}</button><div id="pn-ai"></div>` : '<div class="small muted ai-hint">예약 탭 AI 도우미에 키를 등록하면 링크만으로 정보를 채워요.</div><div id="pn-ai"></div>'}
     <input type="hidden" id="pn-url">
-    <label class="field"><span>이름</span><input class="input" id="pn-name" maxlength="60" placeholder="예: 친구가 추천한 라멘집"></label>
+    <label class="field"><span>이름</span><input class="input" id="pn-name" maxlength="60" placeholder="${gKey() ? '이름을 입력하면 구글 장소를 추천해요' : '예: 친구가 추천한 라멘집'}" autocomplete="off"></label>
+    <div class="sugg" id="pn-sugg"></div>
     <label class="field"><span>주소 (선택)</span><input class="input" id="pn-addr" maxlength="120" autocomplete="off"></label>
     <label class="field"><span>분류</span><select class="input" id="pn-cat">${EX_CATS.filter(([k]) => k !== 'log').map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
     <label class="field"><span>메모 (선택)</span><input class="input" id="pn-memo" maxlength="80" placeholder="추천 메뉴, 이유"></label>
@@ -2938,9 +3137,10 @@ function openItemForm(id, opt = {}) {
     ${opt.catch ? `<div class="small muted">${started ? '이 일정을 15분 늘리고' : '이 일정을 지금 시작으로 바꾸고'} 뒤 일정을 미뤄요. 아래 변경 내용을 확인하고 저장하세요.</div>` : ''}
     <form class="item-form" autocomplete="off">
       ${!it ? `<div class="f-link">
-        <textarea class="input" id="f-link" rows="2" placeholder="구글지도 공유 링크를 붙여 넣으면 장소·제목·시간을 채워요"></textarea>
+        <textarea class="input" id="f-link" rows="2" placeholder="${gKey() ? '장소 이름을 입력하거나 구글지도 링크를 붙여 넣으세요' : '구글지도 공유 링크를 붙여 넣으면 장소·제목·시간을 채워요'}"></textarea>
+        <div class="sugg" id="f-sugg"></div>
         <input class="input" id="f-link-name" hidden maxlength="60" autocomplete="off" placeholder="가게 이름 · 지도에 보이는 이름 (예: AFURI 原宿)">
-        <button type="button" class="btn ${aiKey() ? 'primary' : ''}" data-ai-place="form">${aiKey() ? 'AI로 채우기' : '링크로 채우기'}</button>
+        <button type="button" class="btn ${aiKey() || gKey() ? 'primary' : ''}" data-ai-place="form">${gKey() ? '구글에서 찾아 채우기' : aiKey() ? 'AI로 채우기' : '링크로 채우기'}</button>
         <div id="f-ai"></div>
       </div>` : ''}
       <label class="row-field"><span>제목</span><input class="input" id="f-title" value="${esc(it?.title || '')}" placeholder="예: 편의점 들르기" maxlength="60"></label>
@@ -3475,7 +3675,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 153;
+const APP_VERSION = 154;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -3550,7 +3750,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-ai-place],[data-ai-save],[data-ai-forget],[data-ai-test],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-ai-place],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -3631,6 +3831,14 @@ document.addEventListener('click', async (e) => {
   }
   else if ('aiForget' in d) { if (confirm('이 폰에서 API 키를 지울까요?')) { store.set('aiKey', ''); render(); toast('키를 지웠어요'); } }
   else if ('aiTest' in d) aiTest();
+  else if ('gSave' in d) {
+    const k = $('#g-key').value.trim();
+    if (!/^AIza/.test(k)) return toast('AIza로 시작하는 구글 API 키를 넣어 주세요');
+    store.set('gKey', k); state.gTest = null; render(); toast('구글 장소 키를 저장했어요');
+  }
+  else if ('gForget' in d) { if (confirm('이 폰에서 구글 키를 지울까요?')) { store.set('gKey', ''); state.gTest = null; render(); } }
+  else if ('gTest' in d) gTest();
+  else if ('gPick' in d) gPick(d.gPick, d.where);
   else if (d.placeDel) deletePlace(d.placeDel);
   else if (d.placePlan) openPlan(d.placePlan);
   else if (d.planSave) savePlan(d.planSave);
@@ -3854,7 +4062,9 @@ document.addEventListener('input', (e) => {
   else if (t.id === 'fx-in') { state.fxCalc.value = t.value; updateFx(); }
   else if (t.id === 'fx-tax') { state.fxCalc.tax = t.checked; updateFx(); }
   else if (t.id === 'pn-paste') fillShare(t.value);
-  else if (t.id === 'f-link' && $('#f-link-name')) $('#f-link-name').hidden = !bareLink(t.value) && !$('#f-link-name').value;
+  else if (t.id === 'f-link' && $('#f-link-name')) { $('#f-link-name').hidden = gKey() ? !bareLink(t.value) : !bareLink(t.value) && !$('#f-link-name').value; gTyped('form', t.value); }
+  else if (t.id === 'f-link-name') gTyped('form', t.value);
+  else if (t.id === 'pn-name') gTyped('pn', t.value);
   else if (t.id === 'ai-model') store.set('aiModel', t.value);
   else if (t.id === 'ex-q') {
     state.ex.q = t.value;
