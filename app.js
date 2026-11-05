@@ -1977,7 +1977,7 @@ function heroCard(it, kind, now, started = true) {
     <div class="hero ${kind} ${waiting || over > 0 ? 'wait' : ''}" data-item="${esc(it.id)}" role="button" tabindex="0">
       <div class="hero-sun"></div>
       <div class="hero-bar">
-        <div class="eyebrow"><i class="pulse"></i>${esc(label)}${tagFor(it)}</div>
+        <div class="eyebrow">${waiting || over > 0 ? `<span class="late-badge">${icon('warn')}${esc(label)}</span>` : `<i class="pulse"></i>${esc(label)}`}${tagFor(it)}</div>
         <div class="hero-time">${esc(it.start)}${it.end ? '–' + esc(it.end) : ''}</div>
       </div>
       <div class="hero-head">
@@ -4617,7 +4617,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 177;
+const APP_VERSION = 178;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
