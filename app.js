@@ -799,11 +799,11 @@ function openFx() {
 
 // amount is always yen so totals add up; a won entry keeps what was typed in orig.
 const expAmount = (value, cur) => (cur === 'KRW' ? { amount: Math.round(value / fxRate()), orig: { cur, value } } : { amount: value, orig: null });
-function addExpense({ value, cur, pay, memo, cat, item, date }) {
+function addExpense({ value, cur, pay, memo, cat, item, date, time = '' }) {
   const list = expenses();
   localStorage.setItem('lastPay', pay);
   const id = uid('e-');
-  list.push({ id, ...expAmount(value, cur), pay, memo, cat, item: item || null, date: date || tokyoNow().date, by: who(), at: Date.now() });
+  list.push({ id, ...expAmount(value, cur), pay, memo, cat, item: item || null, date: date || tokyoNow().date, time: time || '', by: who(), at: Date.now() });
   store.set('exp', list);
   return id;
 }
@@ -839,8 +839,9 @@ function openExpEdit(id) {
       <input class="input amount" name="amount" inputmode="numeric" value="${commas(e.orig?.value || e.amount)}" autocomplete="off" required aria-label="금액">
       ${expPick(e.orig?.cur || 'JPY', e.pay || 'card')}
       <select class="input" name="cat" aria-label="분류">${EXP_CATS.map((c) => `<option ${c === e.cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
-      ${expDatePick(e.date, 'exp-wide')}
-      <input class="input exp-wide" name="memo" placeholder="메모" value="${esc(e.memo)}" autocomplete="off">
+      ${expDatePick(e.date)}
+      <input class="input" type="time" name="time" value="${esc(expTime(e))}" aria-label="결제 시간">
+      <input class="input exp-wide" name="memo" placeholder="메모" value="${esc(expTitle(e) === e.cat && !e.memo ? '' : expTitle(e))}" autocomplete="off">
       <button class="btn exp-wide" type="button" data-doc-add="${rcptSlot(id)}">${icon('camera')}${hasRcpt(id) ? '영수증 사진 더 넣기' : '영수증 사진 넣기'}</button>
       ${hasRcpt(id) ? `<button class="btn exp-wide" type="button" data-doc-view="${rcptSlot(id)}">${icon('image')}영수증 보기</button>` : ''}
       <button class="btn primary exp-wide" type="submit">저장</button>
@@ -848,12 +849,15 @@ function openExpEdit(id) {
     </form>`;
   $('#sheet').hidden = false;
 }
+// Paid-at time has its own field; older card entries kept it at the end of the memo ('GINZASIX · 12:06').
+const expTime = (e) => e.time || /\s·\s(\d{1,2}:\d{2})$/.exec(e.memo || '')?.[1] || '';
+const expTitle = (e) => (e.time ? e.memo : String(e.memo || '').replace(/\s·\s\d{1,2}:\d{2}$/, '')) || e.cat;
 function expRow(e) {
   return `
     <div class="exp-row">
       <span class="exp-cat">${esc(e.cat)}</span>
       <button type="button" class="exp-open" data-exp-edit="${esc(e.id)}">
-        <span class="grow"><b>${esc(e.memo || e.cat)}</b><small>${esc([expDateLabel(e.date), person(e.by), e.pay ? { cash: '현금', card: '카드' }[e.pay] : ''].filter(Boolean).join(' · '))}</small></span>
+        <span class="grow"><b>${esc(expTitle(e))}</b><small>${esc([`${expDateLabel(e.date)}${expTime(e) ? ' ' + expTime(e) : ''}`, person(e.by), e.pay ? { cash: '현금', card: '카드' }[e.pay] : ''].filter(Boolean).join(' · '))}</small></span>
         <span class="exp-amt">${e.orig?.cur === 'KRW' ? `<b>${e.orig.value.toLocaleString('ko-KR')}원</b><small>${yen(e.amount)}</small>` : `<b>${yen(e.amount)}</b><small>${won(e.amount)}</small>`}</span>
       </button>
       ${hasRcpt(e.id) ? `<button type="button" class="exp-rcpt" data-doc-view="${rcptSlot(e.id)}" aria-label="영수증 보기">${icon('image')}</button>` : ''}
@@ -950,7 +954,7 @@ function addSms() {
   let n = 0;
   (state.sms || []).forEach((r, i) => {
     if (!r.ok || !$(`[data-sms-i="${i}"]`)?.checked) return;
-    addExpense({ value: r.value, cur: r.cur, pay: 'card', memo: `${r.shop} · ${r.time}`, cat: $(`[data-sms-cat="${i}"]`)?.value || r.cat, item: r.item, date: r.date });
+    addExpense({ value: r.value, cur: r.cur, pay: 'card', memo: r.shop, time: r.time || '', cat: $(`[data-sms-cat="${i}"]`)?.value || r.cat, item: r.item, date: r.date || '' });
     n++;
   });
   if (!n) return toast('등록할 결제를 골라 주세요');
@@ -962,7 +966,7 @@ function addSms() {
 }
 
 function expenseSection() {
-  const list = expenses().sort((a, b) => (a.date === b.date ? b.id.localeCompare(a.id) : b.date.localeCompare(a.date)));
+  const list = expenses().sort((a, b) => (a.date !== b.date ? b.date.localeCompare(a.date) : expTime(a) !== expTime(b) ? expTime(b).localeCompare(expTime(a)) : b.id.localeCompare(a.id)));
   const total = list.reduce((a, e) => a + e.amount, 0);
   const shop = list.filter((e) => e.cat === '쇼핑').reduce((a, e) => a + e.amount, 0);
   const budget = store.get('budget', state.trip.budget?.yen || 0);
@@ -2202,9 +2206,10 @@ function dayExpense(date, open) {
   const cats = Object.entries(list.reduce((m, e) => ({ ...m, [e.cat]: (m[e.cat] || 0) + e.amount }), {})).sort((a, b) => b[1] - a[1]);
   // Time of each payment: the card message's time, else the stop it was logged at.
   const rows = list.map((e) => {
-    const m = /\s·\s(\d{1,2}:\d{2})$/.exec(e.memo || '');
+    const t = expTime(e);
     const it = e.item && findItem(e.item);
-    return { e, time: m ? m[1].padStart(5, '0') : it?.start || '', name: (m ? e.memo.slice(0, m.index) : e.memo) || (it ? stripEmoji(it.title).split(' · ')[0] : e.cat), stop: it && m ? stripEmoji(it.title).split(' · ')[0] : '' };
+    const name = expTitle(e) === e.cat && !e.memo ? '' : expTitle(e);
+    return { e, time: t ? t.padStart(5, '0') : it?.start || '', name: name || (it ? stripEmoji(it.title).split(' · ')[0] : e.cat), stop: it && t ? stripEmoji(it.title).split(' · ')[0] : '' };
   }).sort((a, b) => (a.time || '99') .localeCompare(b.time || '99') || a.e.at - b.e.at);
   return `
     <div class="dx">
@@ -3580,7 +3585,7 @@ async function saveRcptAi(form) {
   if (!value) return toast('금액을 확인해 주세요');
   const shop = String(f.get('shop') || '').trim();
   const items = a.items.map((x) => x.name).slice(0, 4).join(', ');
-  const id = addExpense({ value, cur: f.get('cur'), pay: f.get('pay'), cat: f.get('cat'), date: f.get('date'), item: a.row.item, memo: `${shop}${items ? ` (${items})` : ''}${a.row.time ? ` · ${a.row.time}` : ''}` });
+  const id = addExpense({ value, cur: f.get('cur'), pay: f.get('pay'), cat: f.get('cat'), date: f.get('date'), item: a.row.item, time: a.row.time || '', memo: `${shop}${items ? ` (${items})` : ''}` });
   try { await addDoc(rcptSlot(id), a.file); await refreshDocSlots(); } catch { toast('지출은 등록했지만 사진은 저장하지 못했어요'); }
   state.rcptAi = null;
   state.expView = 'spent';
@@ -4372,7 +4377,7 @@ const docSlot = (id) => {
   const place = id?.startsWith?.('place-') && placeById(id.slice(6));
   if (place) return { id, label: place.name, icon: '📎', max: 20 };
   const e = id?.startsWith?.('rcpt-') && expenses().find((x) => x.id === id.slice(5));
-  return e ? { id, label: `영수증 · ${e.memo || e.cat}`, icon: '📎', max: 5, receipt: true } : allDocs().find((s) => s.id === id);
+  return e ? { id, label: `영수증 · ${expTitle(e)}`, icon: '📎', max: 5, receipt: true } : allDocs().find((s) => s.id === id);
 };
 
 // Store a picked photo: single-photo slots replace, others append up to their limit.
@@ -4617,7 +4622,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 179;
+const APP_VERSION = 180;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5200,7 +5205,7 @@ document.addEventListener('submit', (e) => {
     if (!value) return toast('금액을 입력해 주세요.');
     const f = new FormData(e.target);
     store.set('exp', expenses().map((x) => (x.id === e.target.dataset.id
-      ? { ...x, ...expAmount(value, f.get('cur')), pay: f.get('pay'), cat: f.get('cat'), date: f.get('date') || x.date, memo: String(f.get('memo') || '').trim(), at: Date.now() }
+      ? { ...x, ...expAmount(value, f.get('cur')), pay: f.get('pay'), cat: f.get('cat'), date: f.get('date') || x.date, time: String(f.get('time') || ''), memo: String(f.get('memo') || '').trim(), at: Date.now() }
       : x)));
     closeSheet();
     render();
