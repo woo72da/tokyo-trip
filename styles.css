@@ -31,6 +31,12 @@
   --sel-accent: var(--accent);
   --night-edge: transparent;
   --on-now: #ffffff;
+  /* AI: one violet family used only for things Claude does (DESIGN.md › AI) */
+  --ai: #6a4fc4;
+  --ai-ink: #ffffff;
+  --ai-soft: #efeafb;
+  --ai-edge: #d6cbf4;
+  --ai-on-night: #c9b8ff;
   --radius: 20px;
   --plane: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath transform='rotate%2890 128 128%29' d='M240%2C136v32a8%2C8%2C0%2C0%2C1-8%2C8%2C7.61%2C7.61%2C0%2C0%2C1-1.57-.16L156%2C161v23.73l17.66%2C17.65A8%2C8%2C0%2C0%2C1%2C176%2C208v24a8%2C8%2C0%2C0%2C1-11%2C7.43l-37-14.81L91%2C239.43A8%2C8%2C0%2C0%2C1%2C80%2C232V208a8%2C8%2C0%2C0%2C1%2C2.34-5.66L100%2C184.69V161L25.57%2C175.84A7.61%2C7.61%2C0%2C0%2C1%2C24%2C176a8%2C8%2C0%2C0%2C1-8-8V136a8%2C8%2C0%2C0%2C1%2C4.42-7.16L100%2C89.06V44a28%2C28%2C0%2C0%2C1%2C56%2C0V89.06l79.58%2C39.78A8%2C8%2C0%2C0%2C1%2C240%2C136Z'/%3E%3C/svg%3E");
   --sans: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Hiragino Sans", system-ui, sans-serif;
@@ -63,6 +69,11 @@
     --sel-accent: #3a5a86;
     --night-edge: rgba(190,205,230,.16);
     --on-now: #0d2620;
+    --ai: #b7a3f2;
+    --ai-ink: #17122a;
+    --ai-soft: #2a2442;
+    --ai-edge: #4b3f75;
+    --ai-on-night: #c9b8ff;
   }
 }
 
@@ -1374,7 +1385,7 @@ ol.alarm-note { padding-left: 18px; }
 .ai-card { margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line); }
 .ai-card > b { display: block; font-size: 16px; }
 .ai-card > b small { font-weight: 500; font-size: 12px; color: var(--muted); }
-.ai-tag { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 6px; padding: 2px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font-size: 11px; font-weight: 700; }
+.ai-tag { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 6px; padding: 2px 8px; border-radius: 999px; background: var(--ai-soft); color: var(--ai); font-size: 11px; font-weight: 700; }
 .ai-tag .ico { width: 12px; height: 12px; }
 .ai-facts { margin-top: 3px; font-size: 12.5px; color: var(--muted); }
 .ai-desc { margin-top: 6px; font-size: 13.5px; }
@@ -1415,7 +1426,7 @@ ol.alarm-note { padding-left: 18px; }
 
 /* AI: photos, plans, diary */
 .ai-shot { display: block; width: 100%; max-height: 220px; object-fit: contain; border-radius: 14px; background: var(--soft); margin: 4px 0 10px; }
-.ai-wait.big { display: flex; align-items: center; gap: 8px; padding: 12px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 14px; }
+.ai-wait.big { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 12px; border-radius: 12px; background: var(--ai-soft); color: var(--ai); font-weight: 700; font-size: 14px; }
 .ai-wait.big .ico { width: 16px; height: 16px; animation: spin 1.2s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ai-wait.big .ico { animation: none; } }
@@ -1449,13 +1460,14 @@ ol.alarm-note { padding-left: 18px; }
 .ai-opt > small { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
 .ai-diff { margin: 8px 0 10px; padding-left: 18px; font-size: 13.5px; line-height: 1.6; }
 .ai-diff li.warn { color: var(--warn); font-weight: 700; }
-.ai-late { margin-top: 8px; background: transparent; color: var(--on-night); box-shadow: inset 0 0 0 1.5px rgba(244, 241, 234, .3); }
+.btn.ai.ai-late { margin-top: 8px; background: transparent; color: var(--ai-on-night); box-shadow: inset 0 0 0 1.5px var(--ai-on-night); }
+.btn.ai.ai-late .ai-pill { background: var(--ai-on-night); color: var(--night); }
 .diary { padding: 12px 0; border-top: 1px solid var(--line); }
 .diary > b { display: block; font-size: 16px; }
 .diary p { margin: 6px 0 4px; font-size: 14.5px; line-height: 1.7; }
 
 /* 개선 요청 */
-.req-fab { position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom) + 84px); z-index: 30; width: 50px; height: 50px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--accent); color: #fff; box-shadow: 0 6px 18px rgba(20, 30, 50, .25); }
+.req-fab { position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom) + 84px); z-index: 30; width: 52px; height: 52px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--ai); color: var(--ai-ink); box-shadow: 0 6px 18px rgba(60, 40, 120, .3); }
 .req-fab .ico { width: 24px; height: 24px; }
 #sheet:not([hidden]) ~ .req-fab { display: none; }
 .req-tabs { margin-bottom: 10px; }
@@ -1479,3 +1491,30 @@ ol.alarm-note { padding-left: 18px; }
 .req-msg small { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); }
 .req-msg p { margin: 4px 0 0; font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
 .req-refresh { display: block; margin: 10px auto 0; }
+
+/* ---------- AI (DESIGN.md › AI): one look for everything Claude does ---------- */
+.btn.ai { background: var(--ai-soft); color: var(--ai); box-shadow: inset 0 0 0 1.5px var(--ai-edge); }
+.btn.ai.primary { background: var(--ai); color: var(--ai-ink); box-shadow: none; }
+.btn.ai .ico { color: inherit; }
+.ai-pill { flex: none; display: inline-block; margin-left: 2px; padding: 1px 6px; border-radius: 999px; background: var(--ai); color: var(--ai-ink); font: 800 10px/1.5 var(--sans); font-style: normal; letter-spacing: .04em; vertical-align: 2px; }
+.btn.ai.primary .ai-pill { background: var(--ai-ink); color: var(--ai); }
+.ai-tag .ico { width: 12px; height: 12px; }
+.ai-tag.g { background: var(--now-soft); color: var(--now); }
+.ai-tag.app { background: var(--soft); color: var(--muted); }
+.ai-wait.big.plain { background: var(--soft); color: var(--muted); }
+.ai-wait.big .ico { animation: ai-twinkle 1.4s ease-in-out infinite; }
+@keyframes ai-twinkle { 50% { transform: scale(.78) rotate(18deg); opacity: .6; } }
+@media (prefers-reduced-motion: reduce) { .ai-wait.big .ico { animation: none; } }
+/* Results Claude produced sit on a violet edge, so they read as "made by AI, check it". */
+.ai-card, .ai-opt, .menu-list { box-shadow: inset 0 0 0 1.5px var(--ai-edge); }
+.ai-card:has(.ai-tag.app), .ai-card:has(.ai-tag.g) { box-shadow: inset 0 0 0 1.5px var(--line); }
+.menu-ask { background: var(--ai-soft); } .menu-ask small { color: var(--ai); }
+.ai-opt .btn.primary { background: var(--ai); color: var(--ai-ink); }
+.diary { display: grid; gap: 4px; }
+.diary .ai-tag { justify-self: start; margin-bottom: 0; }
+.day-sum-row.ai > .ico { width: 22px; height: 22px; padding: 3px; border-radius: 8px; background: var(--ai-soft); color: var(--ai); box-sizing: content-box; }
+.day-sum-row.ai b .ai-pill { margin-left: 6px; }
+.ii.sec.ai { background: var(--ai-soft); color: var(--ai); }
+.req-fab-spark { position: absolute; top: 6px; right: 6px; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; background: var(--ai-ink); color: var(--ai); }
+.req-fab-spark .ico { width: 11px; height: 11px; }
+.ai-reply { background: var(--ai-soft); }

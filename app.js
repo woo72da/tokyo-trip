@@ -855,7 +855,7 @@ function openSmsSheet() {
     <p class="small muted sms-help">카드 승인 문자를 길게 눌러 복사하거나, 카드 앱 화면을 캡처한 사진에서 글자를 길게 눌러 복사해 붙여 넣으세요. 여러 건을 한 번에 넣어도 돼요. 카드 번호와 이름은 저장하지 않아요.</p>
     <textarea class="input sms-box" id="sms-text" placeholder="[Web발신]&#10;삼성1234해외승인 김*철&#10;JPY 2,860&#10;11/04 12:06 GINZASIX"></textarea>
     <div class="btns"><button class="btn" data-sms-paste>${icon('copy')}붙여넣기</button><button class="btn primary" data-sms-read>읽기</button>
-      ${aiKey() ? `<button class="btn wide" data-sms-photo>${icon('camera')}카드 앱 캡처 사진으로 읽기 (AI)</button>` : ''}</div>
+      ${aiKey() ? `<button class="btn ai wide" data-sms-photo>${aiLabel('카드 앱 캡처 사진으로 읽기', 'camera')}</button>` : ''}</div>
     <div id="sms-out"></div>`;
   $('#sheet').hidden = false;
 }
@@ -917,7 +917,7 @@ function expenseSection() {
       <div class="cash-left"><span>엔화 현금 남음</span><b>${yen(Math.max(0, cashTotal() - cashSpent()))}</b><small>환전 ${yen(cashTotal())} 중 ${yen(cashSpent())} 사용</small><button class="link" data-cash>환전액 바꾸기</button></div>
       ${expForm()}
       <div class="btns exp-quick">
-        ${aiKey() ? `<button class="btn" data-rcpt-ai>${icon('camera')}영수증 사진으로</button>` : ''}
+        ${aiKey() ? `<button class="btn ai" data-rcpt-ai>${aiLabel('영수증 사진으로', 'camera')}</button>` : ''}
         <button class="btn ${aiKey() ? '' : 'wide'}" data-sms-open>${icon('copy')}카드 문자로</button>
       </div>
       ${list.length ? `<div class="exp-list">${list.map(expRow).join('')}</div>` : '<div class="small muted exp-empty">아직 기록이 없어요. 일정을 눌러서도 기록할 수 있어요.</div>'}`}
@@ -1320,6 +1320,7 @@ function toast(msg, href, label) {
 // Phosphor Icons duotone (MIT, phosphoricons.com); torii, tower and lantern drawn to match.
 // The 20% layer (class "d") takes the category tint.
 const ICONS = {
+  'spark': '<path class="d" d="M108 40c6 50 24 68 74 74-50 6-68 24-74 74-6-50-24-68-74-74 50-6 68-24 74-74Z"/><path d="M108 40c6 50 24 68 74 74-50 6-68 24-74 74-6-50-24-68-74-74 50-6 68-24 74-74Zm0 30.5c-6.3 26.6-19 39.2-45.6 45.5C89 122.3 101.7 135 108 161.6c6.3-26.6 19-39.3 45.6-45.6C127 109.7 114.3 97 108 70.5ZM196 24c3 22 11 30 33 33-22 3-30 11-33 33-3-22-11-30-33-33 22-3 30-11 33-33Z"/>',
   'heart': '<path d="M178,32c-20.65,0-38.73,8.88-50,23.89C116.73,40.88,98.65,32,78,32A62.07,62.07,0,0,0,16,94c0,70,103.79,126.66,108.21,129a8,8,0,0,0,7.58,0C136.21,220.66,240,164,240,94A62.07,62.07,0,0,0,178,32ZM128,206.8C109.74,196.16,32,147.69,32,94A46.06,46.06,0,0,1,78,48c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46C224,147.61,146.24,196.15,128,206.8Z"/>',
   'image': '<path d="M224,56V178.06l-39.72-39.72a8,8,0,0,0-11.31,0L147.31,164,97.66,114.34a8,8,0,0,0-11.32,0L32,168.69V56a8,8,0,0,1,8-8H216A8,8,0,0,1,224,56Z" class="d"/><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z"/>',
   'route': '<g fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><circle cx="60" cy="196" r="28"/><circle cx="196" cy="60" r="28"/><path d="M88 196H164a36 36 0 0 0 0-72H92a32 32 0 0 1 0-64H168"/></g>',
@@ -1407,7 +1408,9 @@ const GLYPHS = {
 const glyph = (emoji) => (GLYPHS[String(emoji || '').replace(/\uFE0F/g, '')] || 'pin see').split(' ');
 const itemIcon = (emoji, cls = '') => { const [name, kind] = glyph(emoji); return `<span class="ii ${kind} ${cls}">${icon(name)}</span>`; };
 // Reservation tab headings share their icon with the shortcut that jumps to them.
-const secIcon = (name) => `<span class="ii sm sec">${icon(name)}</span>`;
+const secIcon = (name) => `<span class="ii sm sec ${name === 'spark' ? 'ai' : ''}">${icon(name)}</span>`;
+// Anything Claude does gets the same mark: the sparkle, the AI color and an "AI" pill (see DESIGN.md › AI).
+const aiLabel = (text, ic = 'spark') => `${icon(ic)}<span>${text}</span><i class="ai-pill">AI</i>`;
 const stripEmoji = (s) => String(s || '').replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '');
 const wxIcon = (name) => icon(name, 'wxi ' + name);
 const icon = (name, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">${ICONS[name] || ''}</svg>`;
@@ -1621,7 +1624,7 @@ function backlogCard(queue, items, now) {
           <button class="btn" data-item-skip="${esc(it.id)}">${icon('skip')}건너뛰기</button>
         </div>`}`).join('')}
       ${catchBtn(head, items, now)}
-      ${aiKey() ? `<button class="btn wide ai-late" data-ai-plan="late">${icon('pen')}AI에게 조정 방법 물어보기</button>` : ''}
+      ${aiKey() ? `<button class="btn ai wide ai-late" data-ai-plan="late">${aiLabel('조정 방법 물어보기')}</button>` : ''}
     </div>`;
 }
 // Every stop's time has come and some are still open: close the day in one go, so the stamp card can show.
@@ -1828,7 +1831,7 @@ function renderDays() {
       <button class="btn" data-day-share>${icon('ext')}공유</button>
       <button class="btn ${edit ? 'primary' : ''}" data-day-edit>${icon(edit ? 'check' : 'pen')}${edit ? '편집 완료' : '편집'}</button>
     </div>
-    ${!edit && aiKey() ? `<button class="btn wide ai-plan-btn" data-ai-plan>${icon('pen')}말로 일정 바꾸기 (AI)</button>` : ''}
+    ${!edit && aiKey() ? `<button class="btn ai wide ai-plan-btn" data-ai-plan>${aiLabel('말로 일정 바꾸기')}</button>` : ''}
     ${edit ? '<div class="small muted edit-hint">일정을 누르면 고치고, ＋를 누르면 그 자리에 넣어요.</div>' : ''}
     ${timeline(items, now, edit)}
     ${edit ? '' : daySummary(day, items, now) || (expenses().some((e) => e.date === day.date) ? `<div class="day-sum">${dayExpense(day.date, true)}</div>` : '')}
@@ -2248,7 +2251,7 @@ function renderTalk() {
   setHeader('', '번역 · 회화', 'Google 번역 앱 · 파파고 웹');
   const groups = [...new Set(phrases.map((p) => p.group))];
   return `
-    ${aiKey() ? `<button class="btn primary wide menu-go" data-menu-ai>${icon('camera')}메뉴판·안내문 사진 번역 (AI)</button>` : ''}
+    ${aiKey() ? `<button class="btn ai primary wide menu-go" data-menu-ai>${aiLabel('메뉴판·안내문 사진 번역', 'camera')}</button>` : ''}
     <div class="sheet-tools two talk-top">${transTools('카메라 번역')}</div>
     ${talkBox()}
 
@@ -2888,7 +2891,7 @@ async function aiPlace(text) {
 // A found place, as a small card to check before saving.
 const aiPlaceCard = (pl) => `
   <div class="ai-card">
-    <div class="ai-tag ${pl.from === 'google' ? 'g' : ''}">${icon('check')}${pl.from === 'google' ? `구글 장소 정보${aiKey() ? ' + AI 설명' : ''}` : 'AI가 찾은 정보 · 확인 필요'}</div>
+    <div class="ai-tag ${pl.from === 'google' && !aiKey() ? 'g' : ''}">${icon(pl.from === 'google' && !aiKey() ? 'check' : 'spark')}${pl.from === 'google' ? `구글 장소 정보${aiKey() ? ' + AI 설명' : ''}` : 'AI가 찾은 정보 · 확인 필요'}</div>
     ${pl.photo || pl.photoUrl ? `<img class="ai-photo" src="${esc(photoSrc(pl, 'w600-h300'))}" data-alt="${esc(pl.photo && pl.photoUrl ? pl.photoUrl : '')}" alt="" referrerpolicy="no-referrer" onerror="${PHOTO_FALLBACK}">` : ''}
     <b>${esc(pl.name)}${pl.nameJa ? ` <small>${esc(pl.nameJa)}</small>` : ''}</b>
     <div class="ai-facts">${[pl.r ? `★${pl.r.toFixed(1)}${pl.n ? ` (${esc(pl.n)})` : ''}` : '', pl.o ? `영업 ${esc(pl.o)}` : '', pl.off.length ? `휴무 ${pl.off.map((d) => WEEKDAYS[d]).join('·')}` : '', `머무는 시간 약 ${formatLeft(pl.stay)}`, pl.lat ? '위치 확인' : '위치 미확인'].filter(Boolean).join(' · ')}</div>
@@ -2998,7 +3001,7 @@ async function runFind(w) {
   const local = name && localMatches(name)[0];
   if (local) return pickLocal(local.id, w, '앱에 이미 있는 장소라 그 정보를 썼어요');
   if (aiKey()) {
-    out.innerHTML = '<div class="small muted ai-wait">AI가 찾는 중… 10~30초</div>';
+    out.innerHTML = `<div class="ai-wait big">${icon('spark')}AI가 찾는 중… 10~30초</div>`;
     try { return useFound(w, await aiPlace(given && !raw.includes(given) ? `${given}\n${raw}` : raw), url); } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; return; }
   }
   if (!name) return toast('공유 내용에서 이름을 찾지 못했어요');
@@ -3009,7 +3012,7 @@ async function runFind(w) {
 async function gPick(id, w) {
   const out = $(`#${w}-out`);
   $(`#${w}-sugg`).innerHTML = '';
-  out.innerHTML = `<div class="small muted ai-wait">${aiKey() ? '구글 정보와 AI 설명을 가져오는 중… 5~15초' : '구글 정보를 가져오는 중…'}</div>`;
+  out.innerHTML = `<div class="ai-wait big ${aiKey() ? '' : 'plain'}">${icon(aiKey() ? 'spark' : 'refresh')}${aiKey() ? '구글 정보와 AI 설명을 가져오는 중… 5~15초' : '구글 정보를 가져오는 중…'}</div>`;
   try {
     const g = await gPlace(id, state.gSession);
     state.gSession = null;
@@ -3026,7 +3029,7 @@ function pickLocal(id, w, why = '') {
   const out = $(`#${w}-out`);
   const card = `
     <div class="ai-card">
-      <div class="ai-tag g">${icon('check')}앱에 있는 장소${why ? ` · ${esc(why)}` : ''}</div>
+      <div class="ai-tag app">${icon('check')}앱에 있는 장소${why ? ` · ${esc(why)}` : ''}</div>
       <div class="found-row">${placeThumb(x, 'w120-h120')}<span><b>${esc(x.name)}</b><small>${esc(placeLine(x))}</small>${x.desc ? `<small>${esc(x.desc)}</small>` : ''}</span></div>
     </div>`;
   if (w === 'pn') {
@@ -3154,7 +3157,7 @@ async function imgBlock(file) {
 const sheetWait = (title, msg, file) => {
   $('#sheet-body').innerHTML = `<div class="sheet-head"><h3>${esc(title)}</h3></div>
     ${file ? `<img class="ai-shot" src="${URL.createObjectURL(file)}" alt="">` : ''}
-    <div class="ai-wait big">${icon('refresh')}${esc(msg)}</div><div id="ai-res"></div>`;
+    <div class="ai-wait big">${icon('spark')}${esc(msg)}</div><div id="ai-res"></div>`;
   $('#sheet').hidden = false;
 };
 const sheetFail = (msg) => { const box = $('#ai-res') || $('#sheet-body'); $('.ai-wait')?.remove(); box.insertAdjacentHTML('beforeend', `<div class="ai-note">${esc(msg)}</div>`); };
@@ -3232,7 +3235,7 @@ const CAP_SCHEMA = {
 async function smsFromPhoto() {
   const file = await pickImage();
   if (!file) return;
-  $('#sms-out').innerHTML = '<div class="ai-wait">AI가 캡처를 읽는 중… 5~15초</div>';
+  $('#sms-out').innerHTML = `<div class="ai-wait big">${icon('spark')}AI가 캡처를 읽는 중… 5~15초</div>`;
   try {
     const r = await aiAsk({
       system: `You read a screenshot of a Korean card app or card text messages for a Tokyo trip in ${state.trip.trip.start.slice(0, 4)}. List every payment you can see: date (YYYY-MM-DD; the year is ${state.trip.trip.start.slice(0, 4)} if not shown), time, shop as shown, amount, currency (JPY for 해외/엔 amounts, else KRW), cancel true for 취소. Prefer the foreign-currency amount when both are shown. Skip balances and totals. note: Korean, what you could not read.`,
@@ -3325,7 +3328,7 @@ async function aiPlanGo() {
   const items = dayItems(day);
   const stops = items.map((it) => ({ id: it.id, start: it.start, end: it.end || '', title: stripEmoji(it.title), kind: isMove(it) ? 'move' : '', fixed: isFixed(it), done: isDone(it.id), skipped: !!it.skip, place: placeOfItem(it.id)?.name || '' }));
   const known = allPlaces().filter((x) => x.lat).map((x) => `${x.name}|${x.area}|${x.cat}`).join('\n');
-  $('#ai-res').innerHTML = '<div class="ai-wait">AI가 일정을 맞춰 보는 중… 5~20초</div>';
+  $('#ai-res').innerHTML = `<div class="ai-wait big">${icon('spark')}AI가 일정을 맞춰 보는 중… 5~20초</div>`;
   try {
     const r = await aiAsk({
       system: [{ type: 'text', text: PLAN_SYSTEM }, { type: 'text', text: `Known places (name|area|category):\n${known}`, cache_control: { type: 'ephemeral' } }],
@@ -3429,8 +3432,8 @@ async function aiDiary(date, btn) {
 }
 const diaryCard = (date) => {
   const d = store.get('diary:' + date, null);
-  if (!d) return aiKey() ? `<button class="day-sum-row" data-ai-diary="${esc(date)}">${icon('pen')}<span class="grow"><b>오늘 기록 정리하기</b><small>방문·평가·지출·날씨로 짧은 여행 일기를 만들어요 (AI)</small></span></button>` : '';
-  return `<div class="diary"><b>${esc(d.title)}</b><p>${esc(d.text)}</p>
+  if (!d) return aiKey() ? `<button class="day-sum-row ai" data-ai-diary="${esc(date)}">${icon('spark')}<span class="grow"><b>오늘 기록 정리하기<i class="ai-pill">AI</i></b><small>방문·평가·지출·날씨로 짧은 여행 일기를 만들어요 (AI)</small></span></button>` : '';
+  return `<div class="diary"><span class="ai-tag">${icon('spark')}AI가 쓴 하루 기록</span><b>${esc(d.title)}</b><p>${esc(d.text)}</p>
     <div class="btns"><button class="btn" data-diary-share="${esc(date)}">${icon('ext')}공유·복사</button><button class="btn" data-ai-diary="${esc(date)}">${icon('refresh')}다시 쓰기</button></div></div>`;
 };
 
@@ -3564,7 +3567,7 @@ function syncReqFab() {
     fab = document.createElement('button');
     fab.id = 'req-fab'; fab.className = 'req-fab'; fab.setAttribute('aria-label', '개선 요청');
     fab.dataset.reqOpen = '';
-    fab.innerHTML = icon('talk');
+    fab.innerHTML = `${icon('talk')}<i class="req-fab-spark">${icon('spark')}</i>`;
     document.body.appendChild(fab);
   }
 }
@@ -3574,7 +3577,7 @@ function aiCard() {
   const key = aiKey();
   const pick = store.get('aiModel', 'opus');
   return `
-    <div class="section-title" id="w-ai">${secIcon('pen')}<span>AI 도우미</span></div>
+    <div class="section-title" id="w-ai">${secIcon('spark')}<span>AI 도우미</span></div>
     <div class="card ai-set">
       <div class="small muted">구글지도 링크를 붙여 넣으면 장소 정보를 찾아 일정에 바로 넣어요. 본인 Claude API 키가 필요하고, 키는 이 폰에만 저장돼요 (동기화·GitHub에 안 올라가요).</div>
       ${key ? `
@@ -4240,7 +4243,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 158;
+const APP_VERSION = 159;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
