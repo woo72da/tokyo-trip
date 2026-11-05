@@ -1620,3 +1620,10 @@ ol.alarm-note { padding-left: 18px; }
 /* Arrived: the card's next step is 방문 완료, right there */
 .start-ask.in .grow { display: inline-flex; align-items: center; gap: 6px; color: var(--now); }
 .start-ask .done-yes { background: var(--now); color: #0d2a24; }
+
+/* AI mark on buttons: the AI 도우미 badge */
+.btn .ai-mark, .day-sum-row .ai-mark { width: 26px; height: 26px; border-radius: 8px; }
+.btn.ai .ai-mark, .day-sum-row .ai-mark { background: color-mix(in srgb, var(--ai) 24%, transparent); color: var(--ai); }
+.btn .ai-mark .ico, .day-sum-row .ai-mark .ico { width: 16px; height: 16px; }
+.btn.ai.primary .ai-mark { background: color-mix(in srgb, var(--ai-ink) 22%, transparent); color: var(--ai-ink); }
+.btn.ai.ai-late .ai-mark { background: color-mix(in srgb, var(--ai-on-night) 18%, transparent); color: var(--ai-on-night); }

@@ -1483,7 +1483,8 @@ const itemIcon = (emoji, cls = '') => { const [name, kind] = glyph(emoji); retur
 // Reservation tab headings share their icon with the shortcut that jumps to them.
 const secIcon = (name) => `<span class="ii sm sec ${name === 'spark' ? 'ai' : ''}">${icon(name)}</span>`;
 // Anything Claude does gets the same mark: the sparkle, the AI color and an "AI" pill (see DESIGN.md › AI).
-const aiLabel = (text, ic = 'spark') => `${icon(ic)}<span>${text}</span><i class="ai-pill">AI</i>`;
+// The same badge as AI 도우미 in 예약 탭 (sparkle in a soft purple square) marks every AI button.
+const aiLabel = (text, ic = 'spark') => `<span class="ii sm sec ai ai-mark">${icon(ic)}</span><span>${text}</span>`;
 const stripEmoji = (s) => String(s || '').replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '');
 const wxIcon = (name) => icon(name, 'wxi ' + name);
 const icon = (name, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">${ICONS[name] || ''}</svg>`;
@@ -2211,7 +2212,7 @@ function renderDays() {
       <button class="btn" data-day-share>${icon('ext')}공유</button>
       <button class="btn ${edit ? 'primary' : ''}" data-day-edit>${icon(edit ? 'check' : 'pen')}${edit ? '편집 완료' : '편집'}</button>
     </div>
-    ${!edit && aiKey() ? `<button class="btn ai wide ai-plan-btn" data-ai-plan>${aiLabel('말로 일정 바꾸기')}</button>` : ''}
+    ${!edit && aiKey() ? `<button class="btn ai wide ai-plan-btn" data-ai-plan>${aiLabel('말로 일정을 변경해 보세요')}</button>` : ''}
     ${edit ? '<div class="small muted edit-hint">일정을 누르면 고치고, ＋를 누르면 그 자리에 넣어요.</div>' : ''}
     ${timeline(items, now, edit)}
     ${edit ? '' : daySummary(day, items, now) || (expenses().some((e) => e.date === day.date) ? `<div class="day-sum">${dayExpense(day.date, true)}</div>` : '')}
@@ -3834,7 +3835,7 @@ async function aiDiary(date, btn) {
 }
 const diaryCard = (date) => {
   const d = store.get('diary:' + date, null);
-  if (!d) return aiKey() ? `<button class="day-sum-row ai" data-ai-diary="${esc(date)}">${icon('spark')}<span class="grow"><b>오늘 기록 정리하기<i class="ai-pill">AI</i></b><small>방문·평가·지출·날씨로 짧은 여행 일기를 만들어요 (AI)</small></span></button>` : '';
+  if (!d) return aiKey() ? `<button class="day-sum-row ai" data-ai-diary="${esc(date)}"><span class="ii sm sec ai ai-mark">${icon('spark')}</span><span class="grow"><b>오늘 기록 정리하기</b><small>방문·평가·지출·날씨로 짧은 여행 일기를 만들어요 (AI)</small></span></button>` : '';
   return `<div class="diary"><span class="ai-tag">${icon('spark')}AI가 쓴 하루 기록</span><b>${esc(d.title)}</b><p>${esc(d.text)}</p>
     <div class="btns"><button class="btn" data-diary-share="${esc(date)}">${icon('ext')}공유·복사</button><button class="btn" data-ai-diary="${esc(date)}">${icon('refresh')}다시 쓰기</button></div></div>`;
 };
@@ -4650,7 +4651,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 175;
+const APP_VERSION = 176;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
