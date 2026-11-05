@@ -1505,6 +1505,9 @@ const itemIcon = (emoji, cls = '') => { const [name, kind] = glyph(emoji); retur
 const secIcon = (name) => `<span class="ii sm sec ${name === 'spark' ? 'ai' : ''}">${icon(name)}</span>`;
 // Anything Claude does gets the same mark: the sparkle, the AI color and an "AI" pill (see DESIGN.md › AI).
 // The same badge as AI 도우미 in 예약 탭 (sparkle in a soft purple square) marks every AI button.
+// The AI badge alone (titles of AI sheets) and the small one inside result tags.
+const aiBadge = (cls = '') => `<span class="ii sm sec ai ai-mark ${cls}">${icon('spark')}</span>`;
+const aiTag = (text) => `<span class="ai-tag">${aiBadge('xs')}${text}</span>`;
 const aiLabel = (text, ic = 'spark') => `<span class="ii sm sec ai ai-mark">${icon(ic)}</span><span>${text}</span>`;
 const stripEmoji = (s) => String(s || '').replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '');
 const wxIcon = (name) => icon(name, 'wxi ' + name);
@@ -3319,7 +3322,7 @@ async function aiPlace(text) {
 // A found place, as a small card to check before saving.
 const aiPlaceCard = (pl) => `
   <div class="ai-card">
-    <div class="ai-tag ${pl.from === 'google' && !aiKey() ? 'g' : ''}">${icon(pl.from === 'google' && !aiKey() ? 'check' : 'spark')}${pl.from === 'google' ? `구글 장소 정보${aiKey() ? ' + AI 설명' : ''}` : 'AI가 찾은 정보 · 확인 필요'}</div>
+    <div class="ai-tag ${pl.from === 'google' && !aiKey() ? 'g' : ''}">${pl.from === 'google' && !aiKey() ? icon('check') : aiBadge('xs')}${pl.from === 'google' ? `구글 장소 정보${aiKey() ? ' + AI 설명' : ''}` : 'AI가 찾은 정보 · 확인 필요'}</div>
     ${pl.photo || pl.photoUrl ? `<img class="ai-photo" src="${esc(photoSrc(pl, 'w600-h300'))}" data-alt="${esc(pl.photo && pl.photoUrl ? pl.photoUrl : '')}" alt="" referrerpolicy="no-referrer" onerror="${PHOTO_FALLBACK}">` : ''}
     <b>${esc(pl.name)}${pl.nameJa ? ` <small>${esc(pl.nameJa)}</small>` : ''}</b>
     <div class="ai-facts">${[pl.r ? `★${pl.r.toFixed(1)}${pl.n ? ` (${esc(pl.n)})` : ''}` : '', pl.o ? `영업 ${esc(pl.o)}` : '', pl.off.length ? `휴무 ${pl.off.map((d) => WEEKDAYS[d]).join('·')}` : '', `머무는 시간 약 ${formatLeft(pl.stay)}`, pl.lat ? '위치 확인' : '위치 미확인'].filter(Boolean).join(' · ')}</div>
@@ -3600,7 +3603,7 @@ setInterval(() => {
   });
 }, 1000);
 const sheetWait = (title, msg, file, steps = []) => {
-  $('#sheet-body').innerHTML = `<div class="sheet-head"><h3>${esc(title)}</h3></div>
+  $('#sheet-body').innerHTML = `<div class="sheet-head"><h3 class="ai-h">${aiBadge()}${esc(title)}</h3></div>
     ${file ? `<div class="ai-shot-wrap scanning"><img class="ai-shot" src="${URL.createObjectURL(file)}" alt=""></div>` : ''}
     ${aiLoading(msg, steps)}<div id="ai-res"></div>`;
   $('#sheet').hidden = false;
@@ -3640,6 +3643,7 @@ async function rcptFromPhoto() {
     const lbl = (t, html, cls = '') => `<label class="rf ${cls}"><span>${t}</span>${html}</label>`;
     $('#ai-res').innerHTML = `
       <form class="rcpt-ai" data-rcpt-save>
+        ${aiTag('AI가 읽은 내용 · 맞는지 확인 후 등록')}
         <div class="rcpt-sum">
           <input class="rcpt-shop" name="shop" value="${esc(row.shop)}" maxlength="60" aria-label="장소명" placeholder="장소명">
           <div class="rcpt-amt"><input class="amount" name="amount" inputmode="numeric" value="${row.value.toLocaleString('ko-KR')}" aria-label="금액"><select name="cur" aria-label="통화"><option value="JPY" ${row.cur === 'JPY' ? 'selected' : ''}>엔</option><option value="KRW" ${row.cur === 'KRW' ? 'selected' : ''}>원</option></select></div>
@@ -3723,6 +3727,7 @@ ask: one useful Japanese sentence the traveler may want to say here (ja), its Ko
     const rate = fxRate();
     $('#ai-res').innerHTML = `
       <div class="menu-ai">
+        ${aiTag('AI가 옮긴 내용 · 가게에서 다시 확인')}
         <b class="menu-t">${esc(r.title)}</b>
         ${r.summary ? `<div class="menu-s">${esc(r.summary)}</div>` : ''}
         ${(r.items || []).length ? `<div class="menu-list">${r.items.map((x) => `
@@ -3761,7 +3766,7 @@ function openAiPlan(preset = '') {
   const day = state.trip.days[state.dayIndex] || state.trip.days.find((d) => d.date === tokyoNow().date);
   state.aiPlanDate = day.date;
   $('#sheet-body').innerHTML = `
-    <div class="sheet-head"><h3>말로 일정 바꾸기</h3></div>
+    <div class="sheet-head"><h3 class="ai-h">${aiBadge()}말로 일정 바꾸기</h3></div>
     <div class="small muted">${esc(dayLabel(day.date))} 일정 · 바꾸고 싶은 걸 그대로 적거나 🎤로 말해 주세요. 바뀌는 내용을 먼저 보여 드려요.</div>
     <textarea class="input ai-ask" id="ai-plan-q" rows="3" placeholder="예: 마이센 줄 길어서 근처 라멘집으로 바꾸고, 뒤 일정 30분 미뤄줘">${esc(preset)}</textarea>
     <div class="chips ai-eg">${['비 와서 밖 일정 빼고 실내로', '30분 늦게 시작할래', '점심 1시간 늦춰줘', '저녁 전에 1시간 쉬고 싶어'].map((t) => `<button type="button" class="chip" data-ai-eg="${esc(t)}">${esc(t)}</button>`).join('')}</div>
@@ -3792,6 +3797,7 @@ async function aiPlanGo() {
     $('[data-ai-plan-go]')?.removeAttribute('disabled'); $('[data-ai-plan-go]')?.classList.remove('busy');
     $('#ai-res').innerHTML = `
       ${r.reply ? `<div class="ai-reply">${esc(r.reply)}</div>` : ''}
+      ${state.aiPlan.options.length ? aiTag('AI가 만든 안 · 적용 전에 확인하세요') : ''}
       ${state.aiPlan.options.map((o, i) => `
         <div class="ai-opt">
           <b>${esc(o.title)}</b>${o.summary ? `<small>${esc(o.summary)}</small>` : ''}
@@ -3888,7 +3894,7 @@ async function aiDiary(date, btn) {
 const diaryCard = (date) => {
   const d = store.get('diary:' + date, null);
   if (!d) return aiKey() ? `<button class="day-sum-row ai" data-ai-diary="${esc(date)}"><span class="ii sm sec ai ai-mark">${icon('spark')}</span><span class="grow"><b>오늘 기록 정리하기</b><small>방문·평가·지출·날씨로 짧은 여행 일기를 만들어요 (AI)</small></span></button>` : '';
-  return `<div class="diary"><span class="ai-tag">${icon('spark')}AI가 쓴 하루 기록</span><b>${esc(d.title)}</b><p>${esc(d.text)}</p>
+  return `<div class="diary">${aiTag('AI가 쓴 하루 기록')}<b>${esc(d.title)}</b><p>${esc(d.text)}</p>
     <div class="btns"><button class="btn" data-diary-share="${esc(date)}">${icon('ext')}공유·복사</button><button class="btn ai" data-ai-diary="${esc(date)}">${aiLabel('다시 쓰기')}</button></div></div>`;
 };
 
@@ -4737,7 +4743,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 195;
+const APP_VERSION = 196;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

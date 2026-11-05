@@ -1759,3 +1759,12 @@ ol.alarm-note { padding-left: 18px; }
 .exp-day[open] .chev { transform: rotate(-135deg) translate(-2px, -2px); }
 .exp-day .exp-list { margin: 0; padding: 0 14px 6px; background: var(--paper); border-radius: 0 0 14px 14px; box-shadow: inset 0 0 0 1px var(--soft); }
 .exp-day .exp-list .exp-row:first-child { border-top: 0; }
+
+/* AI badge everywhere: sheet titles and result tags carry the same purple square */
+.ai-h { display: flex; align-items: center; gap: 8px; }
+.ai-h .ai-mark { width: 28px; height: 28px; border-radius: 9px; background: color-mix(in srgb, var(--ai) 24%, transparent); color: var(--ai); }
+.ai-h .ai-mark .ico { width: 17px; height: 17px; }
+.ai-mark.xs { width: 16px; height: 16px; border-radius: 5px; background: color-mix(in srgb, var(--ai) 28%, transparent); color: var(--ai); }
+.ai-mark.xs .ico { width: 11px; height: 11px; }
+.ai-tag { gap: 5px; padding: 3px 9px 3px 4px; }
+.rcpt-ai > .ai-tag, .menu-ai > .ai-tag { justify-self: start; margin-bottom: -4px; }
