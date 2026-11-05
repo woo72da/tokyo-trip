@@ -1682,7 +1682,8 @@ function canArrive(it, now) {
   if (!now || now.date !== it.date || it.skip || isDone(it.id)) return false;
   const items = dayItems(dayOf(it.date)).filter((x) => !x.skip);
   const q = items.find((x) => x.id === it.id);
-  return !!q && q.startMin <= now.min && !isStarted(q, items);
+  // Up to 30 minutes early counts too (got to the restaurant and joined the queue before its time).
+  return !!q && q.startMin - 30 <= now.min && !isStarted(q, items) && !(q.startMin > now.min && isMove(q));
 }
 function arrive(id) {
   const now = tokyoNow();
@@ -1691,6 +1692,15 @@ function arrive(id) {
   const it = items[idx];
   const late = now.min - it.startMin;
   store.set('start:' + id, true);
+  // Early: the stop starts now with the same length; later stops keep their times (the gap is spare time).
+  if (late < 0 && !isFixed(it)) {
+    const old = store.get('edit:' + id, null);
+    store.set('edit:' + id, { ...(old || {}), start: clock(now.min), end: clock(Math.min(1439, now.min + it.endMin - it.startMin)), auto: true });
+    render();
+    if (squeezeOf(it.date, now)) openSqueeze(it.date);
+    else if ($('#sheet') && !$('#sheet').hidden) openItem(id);
+    return toast(`${clock(now.min)} ${arriveLabel(it)} · ${formatLeft(-late)} 일찍 시작`, () => { store.set('edit:' + id, old); store.set('start:' + id, false); render(); }, '되돌리기');
+  }
   if (late < 10 || isFixed(it)) {
     render();
     if ($('#sheet') && !$('#sheet').hidden) openItem(id);
@@ -1925,6 +1935,7 @@ function heroCard(it, kind, now, started = true) {
         <i class="chev" aria-label="자세히"></i>
       </div>
       ${chipsHtml(chipsFor(it, now, kind !== 'now').filter(noTag))}
+      ${kind === 'next' && canArrive(it, now) ? `<div class="start-ask"><span class="grow">벌써 도착했나요?</span><button class="start-yes" data-arrive="${esc(it.id)}">${icon('check')}${arriveLabel(it)}</button></div>` : ''}
       ${waiting ? `<div class="start-ask"><span class="grow">${isTransit(it) ? '출발했나요?' : '도착했나요?'}</span><button class="start-yes" data-arrive="${esc(it.id)}">${icon('check')}${arriveLabel(it)}</button><button data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button></div>` : ''}
       ${over > 0 ? `<div class="start-ask"><span class="grow">끝났나요?</span><button class="start-yes" data-done="${esc(it.id)}">${icon('check')}${doneLabel(it)}</button><button data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button></div>` : ''}
       ${kind === 'now' ? catchBtn(it, items, now) : ''}
@@ -4491,7 +4502,7 @@ function openItem(id) {
         <button class="tool" data-ja="${esc(it.id)}">${icon('ja')}보여주기</button>
       </div>` : ''}
     <div class="act" role="group" aria-label="일정 상태">
-      ${canArrive(it, now) ? `<button class="act-arrive" data-arrive="${esc(it.id)}">${icon(isTransit(it) ? 'nav' : 'pin')}<span class="grow"><b>${arriveLabel(it)}</b><small>${delayOf(it, now) && !isFixed(it) && now.min - toMin(it.start) >= 10 ? `지금 ${clock(now.min)} 기준으로 이 일정과 뒤 일정을 다시 맞춰요` : '늦음 표시가 멈추고, 나갈 때 완료를 누르면 돼요'}</small></span></button>` : ''}
+      ${canArrive(it, now) ? `<button class="act-arrive" data-arrive="${esc(it.id)}">${icon(isTransit(it) ? 'nav' : 'pin')}<span class="grow"><b>${arriveLabel(it)}</b><small>${now.min < toMin(it.start) ? `예정보다 일찍 왔으면 지금 ${clock(now.min)}부터 시작해요` : delayOf(it, now) && !isFixed(it) && now.min - toMin(it.start) >= 10 ? `지금 ${clock(now.min)} 기준으로 이 일정과 뒤 일정을 다시 맞춰요` : '늦음 표시가 멈추고, 나갈 때 완료를 누르면 돼요'}</small></span></button>` : ''}
       <button class="act-done ${done ? 'on' : ''} ${it.skip ? 'off' : ''}" data-done="${esc(it.id)}" aria-pressed="${done}">
         <i class="act-check">${icon('check')}</i>
         <span class="grow"><b>${done ? `${doneLabel(it)}했어요` : doneLabel(it)}</b><small>${done ? '잘못 눌렀다면 한 번 더 누르면 취소돼요' : it.skip ? '건너뛴 일정이에요 · 누르면 완료로 바꿔요' : '누르면 다음 일정으로 넘어가요'}</small></span>
@@ -4573,7 +4584,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 168;
+const APP_VERSION = 169;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
