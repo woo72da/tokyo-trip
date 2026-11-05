@@ -1728,3 +1728,5 @@ ol.alarm-note { padding-left: 18px; }
 .set-row .chev, .set-link .chev { transform: rotate(-45deg); margin-right: 4px; }
 /* '+ 장소' sits left of ⚙ on the same line, same height */
 .top-add { right: 62px; top: calc(env(safe-area-inset-top) + 10px); bottom: auto; min-height: 40px; }
+/* Centred on the title line */
+.top-gear, .top-add { top: calc(var(--title-mid, 50px) - 20px); }

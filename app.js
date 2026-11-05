@@ -4693,7 +4693,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 189;
+const APP_VERSION = 190;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -4739,6 +4739,9 @@ function render() {
   placeWxStrip(stripAt);
   $('#top-add').hidden = state.tab !== 'explore';
   document.documentElement.style.setProperty('--top-h', `${$('.top').offsetHeight}px`);
+  // ⚙ and '+ 장소' line up with the title, wherever the title sits (with or without the small line above it).
+  const tt = $('#top-title');
+  $('.top').style.setProperty('--title-mid', `${tt.offsetTop + tt.offsetHeight / 2}px`);
   $('#top-logo').hidden = state.tab !== 'today';
   $('.top').classList.toggle('has-logo', state.tab === 'today');
   document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === (state.tab === 'check' ? 'wallet' : state.tab))));
