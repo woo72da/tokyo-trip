@@ -1733,3 +1733,12 @@ ol.alarm-note { padding-left: 18px; }
 .sync-panel .btns { margin-top: 4px; }
 .sync-panel .sync-note { margin: 8px 0 0; padding-left: 18px; line-height: 1.55; }
 .sync-panel div.sync-note { padding: 0 0 10px; }
+
+/* 설정 › 일정 알림: the alarms still ahead, each a tap to add */
+.alarm-panel .alarm-row { padding: 10px 0; }
+.alarm-panel .alarm-row > .ico { flex: none; width: 18px; height: 18px; color: var(--accent); }
+.al-t { flex: none; width: 46px; font: 700 15px/1.2 var(--mono); }
+.al-t small { display: block; font: 600 11px/1.3 var(--sans); color: var(--muted); }
+.alarm-row em { font-style: normal; font-weight: 700; color: var(--warn); }
+.alarm-panel .alarm-file { margin-top: 4px; }
+.alarm-more-btns { margin: 0 0 10px; }

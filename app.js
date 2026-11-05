@@ -1654,6 +1654,33 @@ function gcalUrl(it) {
   if (it.place) q.set('location', it.place.query);
   return `https://calendar.google.com/calendar/render?${q}`;
 }
+// 설정 › 일정 알림: what is still ahead, at its current time; a stop moved since the calendar file was made
+// is marked, with a one-tap Google Calendar add at the new time.
+function alarmPanel() {
+  const now = tokyoNow();
+  const ahead = alarmItems().filter((it) => !it.skip && !isDone(it.id) && (it.date > now.date || (it.date === now.date && it.startMin > now.min)));
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const android = /Android/i.test(navigator.userAgent);
+  const url = new URL('calendar.ics', location.href).href;
+  const fileHref = ios && navigator.standalone ? url.replace(/^https:/, 'x-safari-https:') : url;
+  const moved = (it) => rawItem(it.id)?.start && rawItem(it.id).start !== it.start;
+  if (!ahead.length) return '<div class="card set-card"><div class="set-row"><span class="grow"><b>남은 알림이 없어요</b><small>알림을 거는 일정이 모두 지났어요</small></span></div></div>';
+  return `
+    <div class="card set-card alarm-panel">
+      <div class="set-row"><span class="grow"><b>남은 알림 ${ahead.length}개</b><small>놓치면 안 되는 일정이에요. 캘린더에 넣어 두면 앱을 닫아도 알려 줘요</small></span></div>
+      ${ahead.map((it) => `
+        <a class="alarm-row" href="${esc(gcalUrl(it))}" target="_blank" rel="noopener">
+          <span class="al-t">${esc(it.start)}<small>${esc(shortDate(it.date))}</small></span>
+          <span class="grow"><b>${esc(stripEmoji(it.alarmTitle || it.title))}</b><small>${it.alarm ? `${it.alarm}분 전 알림` : '시작할 때 알림'}${moved(it) ? ` · <em>원래 ${esc(rawItem(it.id).start)} → 바뀜, 다시 추가하세요</em>` : ''}</small></span>
+          ${icon('plus')}
+        </a>`).join('')}
+      <div class="small muted set-note">한 줄을 누르면 지금 시간으로 Google 캘린더에 하나씩 넣어요.</div>
+      <a class="btn wide alarm-file" href="${esc(fileHref)}" target="_blank" rel="noopener" ${android ? 'download="tokyo-trip.ics"' : ''}>${icon('calendar')}${ios ? 'Safari에서 열어 한 번에 추가' : '캘린더에 한 번에 추가'}</a>
+      <div class="small muted set-note">한 번에 추가는 처음 계획한 시간으로 들어가요.${ahead.some(moved) ? ' 시간이 바뀐 일정은 위에서 따로 추가해 주세요.' : ''}${ios ? ' 빈 화면이 뜨면 주소를 복사해 Safari에 붙여넣으세요.' : ''}</div>
+      ${ios ? `<div class="btns alarm-more-btns"><button class="btn" data-copy-text="${esc(url)}">${icon('copy')}주소 복사</button><a class="btn" href="${esc(url.replace(/^https:/, 'webcal:'))}">${icon('refresh')}캘린더 구독</a></div>` : ''}
+    </div>`;
+}
+
 function openAlarms() {
   const list = alarmItems();
   const android = /Android/i.test(navigator.userAgent);
@@ -4024,10 +4051,7 @@ function settingsBody() {
         </div>`)}
       ${sec('spark', 'AI 도우미', aiSettings())}
       ${sec('refresh', '동기화', syncPanel())}
-      ${sec('clock', '일정 알림', `
-        <div class="card set-card">
-          <button class="set-row tap" data-alarm-sheet><span class="grow"><b>일정 알림 받기</b><small>아이폰 캘린더에 일정을 넣어 시작 전에 알려 줘요</small></span><i class="chev"></i></button>
-        </div>`)}
+      ${sec('clock', '일정 알림', alarmPanel())}
       ${sec('talk', '개선 요청함', deskSettings())}
       ${sec('checklist', '앱 정보', `
         <div class="card set-card">
@@ -4683,7 +4707,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 192;
+const APP_VERSION = 193;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
