@@ -1742,8 +1742,9 @@ function squeezeOf(date, now) {
     const pend = items.filter((x) => x !== W && planned(x) < planned(W) && store.get('edit:' + x.id, null)?.past !== W.id && !isFixed(x) && !isDone(x.id) && (x.endMin > now.min || isBegun(x)))
       .sort((a, b) => planned(a) - planned(b));
     if (!pend.some((x) => !isMove(x))) continue;
-    const end = packEnd(pend, {}, [], W, now.min);
-    if (end > lastIn(W) || pend.some((x) => x.startMin >= W.startMin)) return { items, w, W, pend, buf: travelMin(pend[pend.length - 1], W), over: Math.max(0, end - lastIn(W)), now };
+    const from = items.filter((x) => isDone(x.id) && x.startMin <= now.min).pop() || null;
+    const end = packEnd(pend, {}, [], W, now.min, from);
+    if (end > lastIn(W) || pend.some((x) => x.startMin >= W.startMin)) return { items, w, W, pend, from, buf: travelMin(pend[pend.length - 1], W), over: Math.max(0, end - lastIn(W)), now };
   }
   return null;
 }
@@ -1751,13 +1752,16 @@ function squeezeOf(date, now) {
 // and the times in `out`. With `to`, the end includes getting to that stop. A stop under way keeps its
 // start and, if it has run over, ends now at the earliest.
 const isBegun = (x) => store.get('start:' + x.id, false);
-function packEnd(seq, cut, out, to, nowMin = 0) {
+// `from` is where we are now (the last stop done), so the first stop starts after getting there; no stop
+// starts before its original planned time, but an earlier push no longer holds it back.
+function packEnd(seq, cut, out, to, nowMin = 0, from = null) {
   let cur = null;
-  let prev = null;
+  let prev = from;
   for (const x of seq) {
     const len = x.endMin - x.startMin - (cut[x.id] || 0);
     const begun = isBegun(x);
-    const st = begun ? x.startMin : Math.max(cur == null ? x.startMin : cur + travelMin(prev, x), nowMin);
+    const plan = Math.min(x.startMin, toMin(rawItem(x.id)?.start || x.start));
+    const st = begun ? x.startMin : Math.max((cur ?? nowMin) + travelMin(prev, x), plan, nowMin);
     const en = begun ? Math.max(st + len, nowMin) : st + len;
     out.push({ it: x, start: st, end: en, begun });
     cur = en;
@@ -1769,19 +1773,21 @@ function squeezeWays(q) {
   const { items, w, W, pend } = q;
   const room = lastIn(W);
   const nowMin = q.now.min;
-  const fits = (seq, cut = {}) => packEnd(seq, cut, [], W, nowMin) <= room;
+  const fits = (seq, cut = {}) => packEnd(seq, cut, [], W, nowMin, q.from) <= room;
   // Only a stop marked started (도착했어요) is under way; one whose time has merely passed can still give way.
   const started = (x) => isStarted(x, items);
   // What gives way first (meals keep 35 min): optional stops, then shopping (short or skipped is fine), then sights,
   // then must-sees; meals last, and a meal is never skipped.
-  const tier = (x) => (isMeal(x) ? 4 : x.priority === 'optional' ? 0 : isShop(x) ? 1 : x.priority === 'must' ? 3 : 2);
-  const minLen = (x, len) => (isMeal(x) ? Math.min(len, 35) : isShop(x) ? Math.min(len, 15) : Math.max(20, Math.ceil(len / 2)));
+  // A walk can become a taxi (10 min) before a meal gets shorter.
+  const isWalk = (x) => isMove(x) && glyph(x.icon)[0] === 'walk';
+  const tier = (x) => (isMeal(x) ? 5 : x.priority === 'optional' && !isWalk(x) ? 0 : isShop(x) ? 1 : isWalk(x) ? 2 : x.priority === 'must' ? 4 : 3);
+  const minLen = (x, len) => (isMeal(x) ? Math.min(len, 35) : isWalk(x) ? Math.min(len, 10) : isShop(x) ? Math.min(len, 15) : Math.max(20, Math.ceil(len / 2)));
   // The least shortening that makes `seq` fit, or null, in 5-minute steps; the stop under way keeps 15 more minutes.
   const cutFor = (seq) => {
-    let need = packEnd(seq, {}, [], W, nowMin) - room;
+    let need = packEnd(seq, {}, [], W, nowMin, q.from) - room;
     if (need <= 0) return {};
     const cut = {};
-    for (const x of seq.filter((y) => !isMove(y)).sort((a, b) => tier(a) - tier(b))) {
+    for (const x of seq.filter((y) => !isMove(y) || isWalk(y)).sort((a, b) => tier(a) - tier(b))) {
       const len = x.endMin - x.startMin;
       const cap = Math.max(0, Math.min(len - minLen(x, len), started(x) ? x.startMin + len - (q.now.min + 15) : len));
       const take = Math.min(cap, Math.ceil(need / 5) * 5);
@@ -1790,11 +1796,11 @@ function squeezeWays(q) {
     }
     return need <= 0 && fits(seq, cut) ? cut : null;
   };
-  const lay = (seq, cut) => { const out = []; packEnd(seq, cut, out, null, nowMin); return out; };
-  const line = (o, cut) => (o.begun ? `${shortName(o.it)} ${clock(o.end)}에 나가기` : `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)}${cut[o.it.id] ? ` · ${cut[o.it.id]}분 줄임` : ''}`);
+  const lay = (seq, cut) => { const out = []; packEnd(seq, cut, out, null, nowMin, q.from); return out; };
+  const line = (o, cut) => (o.begun ? `${shortName(o.it)} ${clock(o.end)}에 나가기` : `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)}${cut[o.it.id] ? (isWalk(o.it) ? ` · 걷지 말고 택시로 (${o.end - o.start}분)` : ` · ${cut[o.it.id]}분 줄임`) : ''}`);
   // Every stop up to the fixed one, so the whole run to it can be checked at a glance.
   const runLines = (out, cut) => [...out.filter((o) => cut[o.it.id] || o.start !== o.it.startMin || o.end !== o.it.endMin).map((o) => line(o, cut)),
-    `${shortName(W)} ${clock(Math.max(W.startMin, packEnd(out.map((o) => o.it), cut, [], W, nowMin)))} 도착 (${W.enterBy || W.start}까지)`];
+    `${shortName(W)} ${clock(Math.max(W.startMin, packEnd(out.map((o) => o.it), cut, [], W, nowMin, q.from)))} 도착 (${W.enterBy || W.start}까지)`];
   const ways = [];
   // 1. Shorten.
   const c1 = cutFor(pend);
@@ -1850,7 +1856,7 @@ function squeezeWays(q) {
 function openSqueeze(date) {
   const q = squeezeOf(date, tokyoNow());
   if (!q) { closeSheet(); return toast('지금은 고정 일정과 겹치는 게 없어요'); }
-  state.squeeze = { date, ways: squeezeWays(q) };
+  state.squeeze = { date, W: q.W, ways: squeezeWays(q) };
   $('#sheet-body').innerHTML = `
     <div class="sheet-head"><h3>${esc(shortName(q.W))} ${esc(q.W.enterBy || q.W.start)}${q.W.enterBy ? '까지 입장' : '에 맞추기'}</h3></div>
     <div class="sq-why">${icon('warn')}<span>${q.over ? `이대로면 <b>${formatLeft(q.over)}</b> 모자라요.` : `${esc(q.pend.filter((x) => x.startMin >= q.W.startMin).map(shortName).join(', '))}${hasBatchim(shortName(q.pend.filter((x) => x.startMin >= q.W.startMin).pop())) ? '이' : '가'} ${esc(shortName(q.W))} 뒤로 밀려 있어요.`} ${esc(shortName(q.W))}${eunNeun(shortName(q.W))} 시간이 정해져 있어서 움직이지 않아요${q.W.enterBy ? ` (${esc(q.W.enterBy)}까지 입장하면 돼요)` : ''}${q.buf ? ` (가는 시간 ${q.buf}분 포함)` : ''}.</span></div>
@@ -1873,9 +1879,15 @@ function applySqueeze(i) {
   };
   for (const o of [...wy.out, ...wy.after]) {
     const st = o.start; const en = o.end;
-    if (st !== o.it.startMin || en !== o.it.endMin || o.past) put(o.it.id, { start: clock(st), end: clock(Math.min(1439, en)), auto: true, ...(o.past ? { past: o.past } : {}) });
+    const taxi = isMove(o.it) && glyph(o.it.icon)[0] === 'walk' && en - st < o.it.endMin - o.it.startMin;
+    if (st !== o.it.startMin || en !== o.it.endMin || o.past) put(o.it.id, { start: clock(st), end: clock(Math.min(1439, en)), auto: true, ...(o.past ? { past: o.past } : {}), ...(taxi ? { note: `택시로 ${en - st}분 (시간 맞추기)` } : {}) });
   }
   for (const x of wy.skip) put(x.id, { skip: true });
+  // Arriving inside the entry window: the fixed stop starts when we get there, so the list stays in order.
+  const W = state.squeeze.W;
+  const lastOut = wy.out[wy.out.length - 1];
+  const arrive = lastOut ? lastOut.end + travelMin(lastOut.it, W) : W.startMin;
+  if (W.enterBy && arrive > W.startMin && arrive <= toMin(W.enterBy)) put(W.id, { start: clock(arrive), auto: true });
   closeSheet();
   render();
   toast(`${wy.title} · 적용했어요`, () => { for (const [k, v] of Object.entries(undo)) store.set('edit:' + k, v); render(); }, '되돌리기');
@@ -4561,7 +4573,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 167;
+const APP_VERSION = 168;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
