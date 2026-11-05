@@ -1395,3 +1395,20 @@ ol.alarm-note { padding-left: 18px; }
 .ai-photo { display: block; width: 100%; height: 140px; object-fit: cover; border-radius: 10px; margin: 4px 0 8px; }
 .ai-sub { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 15px; font-weight: 800; }
 .ai-wait { margin-top: 6px; }
+
+/* Place finder (일정 추가 and 탐색 ＋ share it) */
+.finder { display: grid; gap: 8px; padding: 10px; margin-bottom: 10px; border-radius: 16px; background: var(--accent-soft); }
+.finder-in { display: flex; align-items: flex-start; gap: 8px; padding: 0 6px 0 12px; border-radius: 14px; background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line); }
+.finder-in > .ico { flex: none; width: 18px; height: 18px; margin-top: 14px; color: var(--accent); }
+.finder-in textarea { flex: 1; min-height: 46px; padding: 12px 0; border: 0; background: transparent; box-shadow: none; resize: none; line-height: 1.4; font-size: 16px; overflow: hidden; }
+.finder-in textarea:focus { border: 0; outline: none; }
+.finder-go { flex: none; margin-top: 6px; height: 36px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font: inherit; font-size: 14px; font-weight: 700; }
+.finder-hint { padding: 0 4px; }
+.sugg-h { margin: 4px 2px 0; font-size: 12px; font-weight: 700; color: var(--muted); }
+.sugg button { display: flex; align-items: center; gap: 10px; }
+.sugg button > span:last-child { min-width: 0; }
+.sugg .thumb, .found-row .thumb { flex: none; width: 40px; height: 40px; border-radius: 10px; }
+.found-row { display: flex; align-items: center; gap: 10px; }
+.found-row b { display: block; font-size: 16px; }
+.found-row small { display: block; font-size: 12.5px; color: var(--muted); }
+.pn-manual { display: block; margin: 6px auto 0; }

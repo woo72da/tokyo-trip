@@ -2309,7 +2309,7 @@ const visitOf = (id) => store.get('visit:' + id, null);
 // Trip places plus the ones added on the phones.
 const allPlaces = () => [
   ...(state.trip.places || []),
-  ...store.get('myplaces', []).map((p) => ({ ...p, area: '내 장소', mine: true, desc: p.memo })),
+  ...fixMyPlaces().map((p) => ({ ...p, area: '내 장소', mine: true, desc: p.memo })),
 ];
 const placeById = (id) => allPlaces().find((p) => p.id === id);
 function placeOfItem(itemId) {
@@ -2480,7 +2480,7 @@ const PLACE_STATUS = {
   identity_unconfirmed: '상호 확인 필요',
 };
 function placeSource(p) {
-  if (!p.src) return '';
+  if (!Array.isArray(p.src)) return '';
   const srcs = p.src.map((k) => state.trip.sources[k]);
   const check = p.verified
     ? `구글지도에서 위치 확인 (${p.verified.at.slice(5).replace('-', '/')}) · 영업 여부는 다시 확인`
@@ -2564,6 +2564,7 @@ function openPlace(id) {
       <button class="btn" data-place-visit="${esc(id)}">${v ? `${icon('check')}방문함` : '방문 표시'}</button>
       ${item ? `<button class="btn wide" data-item="${esc(item.id)}">${esc(dayLabel(item.date))} ${esc(item.start)} 일정 보기</button>`
     : `<button class="btn wide" data-place-plan="${esc(id)}">${icon('plus')}일정에 넣기</button>`}
+      ${p.mine && gKey() ? `<button class="btn wide" data-place-refresh="${esc(id)}">${icon('refresh')}구글 정보로 다시 채우기</button>` : ''}
       ${p.mine ? `<button class="btn wide" data-place-del="${esc(id)}">내 장소 삭제</button>` : ''}
     </div>
     <div class="section-title"><span>내 기록</span></div>
@@ -2595,15 +2596,6 @@ const CAT_WORDS = [
   ['see', /신사|사원|절|미술관|박물관|공원|타워|전망대|神社|寺|美術館|博物館|公園|タワー|展望/],
   ['shop', /백화점|마트|쇼핑|스토어|百貨店|ドン|マート|ストア|store|shop/i],
 ];
-function fillShare(text) {
-  const { url, name, addr } = parseShare(text);
-  if (name) $('#pn-name').value = name;
-  $('#pn-addr').value = addr;
-  $('#pn-url').value = url;
-  const cat = CAT_WORDS.find(([, re]) => re.test(name))?.[0];
-  if (cat) $('#pn-cat').value = cat;
-  $('#pn-found').hidden = !url;
-}
 
 // ---------- AI helper (the traveler's own Claude API key, kept on this phone only) ----------
 // The key lives in localStorage under 'aiKey', which is not a synced key, so it never goes into the sync file or GitHub.
@@ -2708,6 +2700,15 @@ Only fill rating, reviews and hours when a source shows them; leave unknown fiel
 If you can't tell which place it is, call save_place with found false and explain in note.`;
 
 
+// Saved places from v154-v155 marked Google with src: 'google'; that name means travel-blog sources elsewhere, so rename it.
+function fixMyPlaces() {
+  const list = store.get('myplaces', []);
+  if (!list.some((x) => typeof x.src === 'string')) return list;
+  const fixed = list.map(({ src, ...x }) => (typeof src === 'string' ? { ...x, from: src } : { ...x, ...(src ? { src } : {}) }));
+  store.set('myplaces', fixed);
+  return fixed;
+}
+
 // ---------- Google Places API (New): the same place data Google Maps shows, with the traveler's own key ----------
 // The key lives in localStorage under 'gKey' (not synced, never in the repo). Restrict it to this site and Places API (New).
 const gKey = () => store.get('gKey', '');
@@ -2799,7 +2800,7 @@ async function gPlace(id, session) {
     gid: d.id, name: d.displayName?.text || '', nameJa: ja?.displayName?.text || '', cat,
     addr: d.formattedAddress || '', ...(d.location ? { lat: d.location.latitude, lng: d.location.longitude } : {}),
     o, off, r: d.rating || null, n: d.userRatingCount ? d.userRatingCount.toLocaleString('ko-KR') : '',
-    memo: d.editorialSummary?.text || '', best: [], tips: [], stay: G_STAY[cat], note: '', ai: true, src: 'google',
+    memo: d.editorialSummary?.text || '', best: [], tips: [], stay: G_STAY[cat], note: '', ai: true, from: 'google',
     photo, photoUrl, ...(photoErr ? { note: photoErr } : {}), url: d.googleMapsUri || '', kind: d.primaryTypeDisplayName?.text || '', week: d.regularOpeningHours?.weekdayDescriptions || [],
   };
 }
@@ -2831,8 +2832,8 @@ async function aiEnrich(g) {
   } catch (e) { throw new Error(aiError(e, Anthropic)); }
 }
 // Google facts first, then Claude's notes when an AI key is set (a failed note step keeps the Google facts).
-async function placeFromGoogle(id, session) {
-  const g = await gPlace(id, session);
+async function placeFromGoogle(id, session) { return enrichPlace(await gPlace(id, session)); }
+async function enrichPlace(g) {
   if (!aiKey()) return g;
   try {
     const e = await aiEnrich(g);
@@ -2874,7 +2875,7 @@ async function aiPlace(text) {
 // A found place, as a small card to check before saving.
 const aiPlaceCard = (pl) => `
   <div class="ai-card">
-    <div class="ai-tag ${pl.src === 'google' ? 'g' : ''}">${icon('check')}${pl.src === 'google' ? `구글 장소 정보${aiKey() ? ' + AI 설명' : ''}` : 'AI가 찾은 정보 · 확인 필요'}</div>
+    <div class="ai-tag ${pl.from === 'google' ? 'g' : ''}">${icon('check')}${pl.from === 'google' ? `구글 장소 정보${aiKey() ? ' + AI 설명' : ''}` : 'AI가 찾은 정보 · 확인 필요'}</div>
     ${pl.photo || pl.photoUrl ? `<img class="ai-photo" src="${esc(photoSrc(pl, 'w600-h300'))}" data-alt="${esc(pl.photo && pl.photoUrl ? pl.photoUrl : '')}" alt="" referrerpolicy="no-referrer" onerror="${PHOTO_FALLBACK}">` : ''}
     <b>${esc(pl.name)}${pl.nameJa ? ` <small>${esc(pl.nameJa)}</small>` : ''}</b>
     <div class="ai-facts">${[pl.r ? `★${pl.r.toFixed(1)}${pl.n ? ` (${esc(pl.n)})` : ''}` : '', pl.o ? `영업 ${esc(pl.o)}` : '', pl.off.length ? `휴무 ${pl.off.map((d) => WEEKDAYS[d]).join('·')}` : '', `머무는 시간 약 ${formatLeft(pl.stay)}`, pl.lat ? '위치 확인' : '위치 미확인'].filter(Boolean).join(' · ')}</div>
@@ -2897,126 +2898,160 @@ function saveAiPlace(pl, url) {
   return place;
 }
 
-// Runs the place lookup for the 탐색 sheet ('pn') or a new stop ('form'). Without a key, the share text alone fills what it can.
-// A short maps.app.goo.gl link can't be opened from outside Google, so with a bare link the place name is asked for and used to search.
-const bareLink = (text) => { const { url, name } = parseShare(text); return !!url && !name; };
-function applyFound(where, pl, url) {
-  const out = where === 'pn' ? $('#pn-ai') : $('#f-ai');
-  if (where === 'pn') {
-    state.aiFound = pl;
-    $('#pn-name').value = pl.name; $('#pn-addr').value = pl.addr || ''; $('#pn-cat').value = pl.cat; $('#pn-memo').value = pl.memo;
-    $('#pn-url').value = pl.url || url || '';
-    out.innerHTML = aiPlaceCard(pl);
+// ---------- one place finder for 일정 추가 and 탐색 ＋ ----------
+// Type a name or paste a Google Maps link. Places already in the app come first (no lookup, nothing duplicated),
+// then Google's suggestions. A link is looked up on its own once pasted.
+const finderHtml = (w) => `
+  <div class="finder" data-finder="${w}">
+    <div class="finder-in">${icon('pin')}<textarea class="input" id="${w}-q" rows="1" autocomplete="off" placeholder="${gKey() ? '장소 이름 또는 구글지도 링크' : '장소 이름 또는 구글지도 공유 내용'}"></textarea>
+      <button type="button" class="finder-go" data-find="${w}" aria-label="찾기">찾기</button></div>
+    <input class="input finder-name" id="${w}-nm" hidden maxlength="60" autocomplete="off" placeholder="가게 이름 2~3글자 (짧은 링크는 이름이 필요해요)">
+    <div class="sugg" id="${w}-sugg"></div>
+    <div id="${w}-out"></div>
+    ${gKey() ? '' : `<div class="small muted finder-hint">${aiKey() ? '구글 장소 키를 넣으면 이름만으로 사진·영업시간까지 채워요.' : '예약 탭 AI 도우미에서 키를 넣으면 이름이나 링크로 정보를 채워요.'}</div>`}
+  </div>`;
+const fq = (w) => $(`#${w}-q`)?.value.trim() || '';
+const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, '');
+// Places in the app whose name matches what was typed (탐색 places and 내 장소).
+const localMatches = (q) => {
+  const n = norm(q);
+  if (n.length < 2) return [];
+  return allPlaces().filter((x) => [x.name, x.nameJa, x.sub].some((t) => norm(t).includes(n))).slice(0, 3);
+};
+// The app's place that is the same as a Google result: same Google ID, or within 50m with a similar name.
+const sameAs = (g) => allPlaces().find((x) => (x.gid && x.gid === g.gid)
+  || (x.lat && g.lat && kmBetween(x, g) < 0.05 && (norm(x.name).includes(norm(g.name).slice(0, 2)) || norm(g.nameJa).includes(norm(x.nameJa || x.name).slice(0, 2)))));
+const placeLine = (x) => [x.area === '내 장소' ? '내 장소' : x.area, x.r ? `★${Number(x.r).toFixed(1)}` : '', scheduledItem(x) ? '일정에 있음' : ''].filter(Boolean).join(' · ');
+
+let findTimer = null;
+function finderTyped(w) {
+  clearTimeout(findTimer);
+  const raw = fq(w);
+  const box = $(`#${w}-sugg`);
+  const nameBox = $(`#${w}-nm`);
+  if (/https?:\/\//.test(raw)) {
+    // A pasted link is looked up right away; only a short link without a name needs the name box.
+    box.innerHTML = '';
+    if (nameBox) nameBox.hidden = !needsName(raw);
+    if (!needsName(raw)) findTimer = setTimeout(() => runFind(w), 300);
+    else $(`#${w}-out`).innerHTML = `<div class="ai-note">짧은 구글지도 링크(maps.app.goo.gl)는 구글 밖에서 열리지 않아 링크만으로는 장소를 알 수 없어요. 아래에 가게 이름을 2~3글자 입력해 주세요.</div>`;
     return;
   }
-  const place = saveAiPlace(pl, url);
-  const kind = CAT_ICON[place.cat] || '📍';
-  state.form.kind = kind;
-  document.querySelectorAll('[data-f-kind]').forEach((b) => b.classList.toggle('on', glyph(b.dataset.fKind)[0] === glyph(kind)[0]));
-  $('#f-title').value = place.name;
-  if ($('#f-place')) $('#f-place').value = place.name;
-  if (place.memo && !$('#f-note').value) $('#f-note').value = place.memo;
-  state.form.dur = pl.stay;
-  $('#f-end').value = clock(Math.min(1439, state.form.s + pl.stay));
-  out.innerHTML = aiPlaceCard(pl);
-  if ($('#f-sugg')) $('#f-sugg').innerHTML = '';
-  updateForm();
+  if (nameBox) nameBox.hidden = true;
+  suggestFor(w, raw);
 }
-// Typing a name shows Google's suggestions (one session per sheet, so a pick is one lookup).
-let gTimer = null;
-function gTyped(where, value) {
-  const box = where === 'pn' ? $('#pn-sugg') : $('#f-sugg');
-  if (!box || !gKey()) return;
-  clearTimeout(gTimer);
-  const q = value.trim();
-  if (q.length < 2 || /https?:\/\//.test(q)) { box.innerHTML = ''; return; }
-  gTimer = setTimeout(async () => {
+// A short maps.app.goo.gl link can't be opened from outside Google, so a bare one needs the place name.
+const bareLink = (text) => { const { url, name } = parseShare(text); return !!url && !name; };
+const needsName = (raw) => bareLink(raw) && !/!3d-?[\d.]+!4d|@-?[\d.]+,-?[\d.]+/.test(raw);
+function suggestFor(w, q) {
+  clearTimeout(findTimer);
+  const box = $(`#${w}-sugg`);
+  if (!box) return;
+  const local = localMatches(q);
+  const draw = (google, err) => {
+    box.innerHTML = [
+      local.length ? `<div class="sugg-h">앱에 있는 장소</div>${local.map((x) => `<button type="button" data-pick-local="${esc(x.id)}" data-where="${w}">${placeThumb(x, 'w80-h80')}<span><b>${esc(x.name)}</b><small>${esc(placeLine(x))}</small></span></button>`).join('')}` : '',
+      google?.length ? `<div class="sugg-h">구글에서 찾은 장소</div>${google.map((x) => `<button type="button" data-g-pick="${esc(x.id)}" data-where="${w}"><span><b>${esc(x.main)}</b><small>${esc(x.sub)}</small></span></button>`).join('')}` : '',
+      err ? `<div class="ai-note">${esc(err)}</div>` : '',
+      !local.length && google && !google.length && q.length >= 2 ? '<div class="small muted">찾은 장소가 없어요. 이름을 바꿔 보세요.</div>' : '',
+    ].join('');
+  };
+  draw(null);
+  if (!gKey() || norm(q).length < 2) return;
+  findTimer = setTimeout(async () => {
     state.gSession = state.gSession || crypto.randomUUID();
-    try {
-      const list = await gSuggest(q, state.gSession);
-      box.innerHTML = list.map((x) => `<button type="button" data-g-pick="${esc(x.id)}" data-where="${where}"><b>${esc(x.main)}</b><small>${esc(x.sub)}</small></button>`).join('') || '<div class="small muted">찾은 장소가 없어요</div>';
-    } catch (e) { box.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+    try { draw(await gSuggest(q, state.gSession)); } catch (e) { draw([], e.message); }
   }, 350);
 }
-async function gPick(id, where) {
-  const out = where === 'pn' ? $('#pn-ai') : $('#f-ai');
-  const box = where === 'pn' ? $('#pn-sugg') : $('#f-sugg');
-  if (box) box.innerHTML = '';
-  out.innerHTML = `<div class="small muted ai-wait">${aiKey() ? '구글 정보와 AI 설명을 가져오는 중… 5~15초' : '구글 정보를 가져오는 중…'}</div>`;
-  try {
-    const pl = await placeFromGoogle(id, state.gSession);
-    state.gSession = null;
-    applyFound(where, pl, pl.url);
-  } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
-}
-
-async function runAiPlace(where, btn) {
-  const pasted = (where === 'pn' ? $('#pn-paste') : $('#f-link')).value.trim();
-  if (!pasted) return toast('구글지도 공유 내용을 먼저 붙여 넣어 주세요');
-  const out = where === 'pn' ? $('#pn-ai') : $('#f-ai');
-  const nameBox = where === 'pn' ? $('#pn-name') : $('#f-link-name');
-  const given = nameBox?.value.trim() || '';
-  // A link with a map position (!3d…!4d… or @lat,lng) needs no name.
-  if (bareLink(pasted) && !given && !(gKey() && /!3d-?[\d.]+!4d|@-?[\d.]+,-?[\d.]+/.test(pasted))) {
-    if (nameBox) { nameBox.hidden = false; nameBox.focus(); }
-    out.innerHTML = `<div class="ai-note">구글지도 짧은 링크(maps.app.goo.gl)는 구글 밖에서 열리지 않게 막혀 있어서 링크만으로는 장소를 알 수 없어요. ${gKey() ? '아래 칸에 이름을 2~3글자만 입력하면 추천 목록에서 고를 수 있어요.' : '지도에 보이는 가게 이름을 함께 적어 주세요.'}</div>`;
-    return;
-  }
-  const text = given && !pasted.includes(given) ? `${given}\n${pasted}` : pasted;
-  const { url, name: shareName, addr } = parseShare(text);
+// "찾기" or a pasted link: position in a long link first, then the name; without a Google key, Claude or the share text.
+async function runFind(w) {
+  const raw = fq(w);
+  const out = $(`#${w}-out`);
+  const given = $(`#${w}-nm`)?.value.trim() || '';
+  if (!raw && !given) return toast('장소 이름이나 구글지도 링크를 넣어 주세요');
+  if (needsName(raw) && !given) { $(`#${w}-nm`).hidden = false; $(`#${w}-nm`).focus(); return; }
+  const { url, name: shareName, addr } = parseShare(raw);
+  const name = given || shareName || (/https?:\/\//.test(raw) ? '' : raw);
   if (gKey()) {
     const pos = url.match(/!3d(-?[\d.]+)!4d(-?[\d.]+)/) || url.match(/@(-?[\d.]+),(-?[\d.]+)/);
-    // A position in the link is exact, so it goes first; the name is the fallback.
-    if (pos) {
-      out.innerHTML = '<div class="small muted ai-wait">링크의 위치로 찾는 중…</div>';
-      try { const id = await gNear(Number(pos[1]), Number(pos[2])); if (id) return gPick(id, where); } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; return; }
-    }
-    const q = given || shareName || (bareLink(pasted) ? '' : pasted);
-    const label = btn.textContent;
-    btn.disabled = true; btn.textContent = '찾는 중…';
+    out.innerHTML = '<div class="small muted ai-wait">찾는 중…</div>';
     try {
-      state.gSession = state.gSession || crypto.randomUUID();
-      const [top] = await gSuggest(q, state.gSession);
-      if (!top) throw new Error('구글에서 찾은 장소가 없어요. 이름을 바꿔 보세요.');
-      btn.textContent = label; btn.disabled = false;
-      return gPick(top.id, where);
-    } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
-    btn.disabled = false; btn.textContent = label;
-    return;
+      let id = pos ? await gNear(Number(pos[1]), Number(pos[2])) : null;
+      if (!id && name) { state.gSession = state.gSession || crypto.randomUUID(); id = (await gSuggest(name, state.gSession))[0]?.id; }
+      if (!id) throw new Error('구글에서 찾은 장소가 없어요. 이름을 바꿔 보세요.');
+      return gPick(id, w);
+    } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; return; }
   }
-  let pl = null;
+  const local = name && localMatches(name)[0];
+  if (local) return pickLocal(local.id, w, '앱에 이미 있는 장소라 그 정보를 썼어요');
   if (aiKey()) {
-    const label = btn.textContent;
-    btn.disabled = true; btn.textContent = '찾는 중… 10~30초';
-    out.innerHTML = '';
-    try { pl = await aiPlace(text); } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
-    btn.disabled = false; btn.textContent = label;
-    if (!pl) return;
-  } else {
-    if (!shareName) return toast('공유 내용에서 이름을 찾지 못했어요');
-    const hit = url.match(/!3d(-?[\d.]+)!4d(-?[\d.]+)/) || url.match(/@(-?[\d.]+),(-?[\d.]+)/);
-    pl = { name: shareName, nameJa: '', cat: CAT_WORDS.find(([, re]) => re.test(shareName))?.[0] || 'see', addr, o: '', off: [], r: null, n: '', memo: '', best: [], tips: [], stay: 60, note: '', ...(hit ? { lat: Number(hit[1]), lng: Number(hit[2]) } : {}) };
+    out.innerHTML = '<div class="small muted ai-wait">AI가 찾는 중… 10~30초</div>';
+    try { return useFound(w, await aiPlace(given && !raw.includes(given) ? `${given}\n${raw}` : raw), url); } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; return; }
   }
-  if (where === 'pn') {
-    state.aiFound = pl;
-    $('#pn-name').value = pl.name; $('#pn-addr').value = pl.addr || ''; $('#pn-cat').value = pl.cat; $('#pn-memo').value = pl.memo;
-    $('#pn-url').value = url;
-    out.innerHTML = pl.ai ? aiPlaceCard(pl) : '';
+  if (!name) return toast('공유 내용에서 이름을 찾지 못했어요');
+  const hit = url.match(/!3d(-?[\d.]+)!4d(-?[\d.]+)/) || url.match(/@(-?[\d.]+),(-?[\d.]+)/);
+  useFound(w, { name, nameJa: '', cat: CAT_WORDS.find(([, re]) => re.test(name))?.[0] || 'see', addr, o: '', off: [], r: null, n: '', memo: '', best: [], tips: [], stay: 60, note: '', ...(hit ? { lat: Number(hit[1]), lng: Number(hit[2]) } : {}) }, url);
+}
+// A Google pick: details first; if the app already has that place, use it instead of making a second copy.
+async function gPick(id, w) {
+  const out = $(`#${w}-out`);
+  $(`#${w}-sugg`).innerHTML = '';
+  out.innerHTML = `<div class="small muted ai-wait">${aiKey() ? '구글 정보와 AI 설명을 가져오는 중… 5~15초' : '구글 정보를 가져오는 중…'}</div>`;
+  try {
+    const g = await gPlace(id, state.gSession);
+    state.gSession = null;
+    const dup = sameAs(g);
+    if (dup) return pickLocal(dup.id, w, '앱에 이미 있는 장소라 그 정보를 썼어요');
+    useFound(w, await enrichPlace(g), g.url);
+  } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+}
+// A place the app already has: fill the stop from it, or (탐색) point to it.
+function pickLocal(id, w, why = '') {
+  const x = placeById(id);
+  if (!x) return;
+  $(`#${w}-sugg`).innerHTML = '';
+  const out = $(`#${w}-out`);
+  const card = `
+    <div class="ai-card">
+      <div class="ai-tag g">${icon('check')}앱에 있는 장소${why ? ` · ${esc(why)}` : ''}</div>
+      <div class="found-row">${placeThumb(x, 'w120-h120')}<span><b>${esc(x.name)}</b><small>${esc(placeLine(x))}</small>${x.desc ? `<small>${esc(x.desc)}</small>` : ''}</span></div>
+    </div>`;
+  if (w === 'pn') {
+    const item = scheduledItem(x);
+    out.innerHTML = `${card}<div class="btns"><button class="btn" data-place="${esc(id)}">장소 보기</button>${item ? `<button class="btn primary" data-item="${esc(item.id)}">${esc(item.start)} 일정 보기</button>` : `<button class="btn primary" data-place-plan="${esc(id)}">${icon('plus')}일정에 넣기</button>`}</div>`;
+    $('#pn-save').hidden = true;
     return;
   }
-  // New stop: keep the place, then fill title, kind, place and length; the form re-checks hours and overlaps.
-  const place = pl.ai ? saveAiPlace(pl, url) : saveAiPlace({ ...pl, ai: undefined }, url);
+  fillStop(x, G_STAY[x.cat] || 60);
+  out.innerHTML = card;
+}
+// Fill the stop form from a place (title, kind, place, length, memo); the form then re-checks hours and overlaps.
+function fillStop(place, stay) {
   const kind = CAT_ICON[place.cat] || '📍';
   state.form.kind = kind;
   document.querySelectorAll('[data-f-kind]').forEach((b) => b.classList.toggle('on', glyph(b.dataset.fKind)[0] === glyph(kind)[0]));
   $('#f-title').value = place.name;
   if ($('#f-place')) $('#f-place').value = place.name;
-  if (place.memo && !$('#f-note').value) $('#f-note').value = place.memo;
-  state.form.dur = pl.stay;
-  $('#f-end').value = clock(Math.min(1439, state.form.s + pl.stay));
-  out.innerHTML = pl.ai ? aiPlaceCard(pl) : `<div class="small muted">${esc(place.name)}을(를) 내 장소에 넣었어요. 키를 등록하면 영업시간·팁도 채워요.</div>`;
+  if ((place.memo || place.desc) && !$('#f-note').value) $('#f-note').value = place.memo || place.desc;
+  state.form.dur = stay;
+  $('#f-end').value = clock(Math.min(1439, state.form.s + stay));
   updateForm();
 }
+// A new place found: a stop saves it to 내 장소 and fills in; 탐색 shows it with the save buttons.
+function useFound(w, pl, url) {
+  const out = $(`#${w}-out`);
+  if (w === 'pn') {
+    state.aiFound = { pl, url };
+    out.innerHTML = aiPlaceCard(pl);
+    $('#pn-name').value = pl.name; $('#pn-cat').value = pl.cat; $('#pn-memo').value = pl.memo || '';
+    $('#pn-save').hidden = false;
+    return;
+  }
+  const place = saveAiPlace(pl.ai ? pl : { ...pl, ai: undefined }, url);
+  fillStop(place, pl.stay);
+  out.innerHTML = pl.ai ? aiPlaceCard(pl) : `<div class="small muted">${esc(place.name)}을(를) 내 장소에 넣었어요.</div>`;
+}
+
 // The result is kept in state, so a redraw (weather, exchange rate) while waiting doesn't wipe it.
 async function aiTest() {
   if (state.aiTest?.busy) return;
@@ -3040,6 +3075,26 @@ async function gTest() {
   try { const list = await gSuggest('浅草寺', crypto.randomUUID()); msg = list.length ? '구글 장소 검색이 연결됐어요' : '연결은 됐지만 결과가 없어요'; }
   catch (e) { msg = e.message; }
   state.gTest = { msg, ok: /연결됐어요/.test(msg) }; render(); toast(msg);
+}
+
+async function refreshFromGoogle(id) {
+  const old = store.get('myplaces', []).find((x) => x.id === id);
+  if (!old) return;
+  toast('구글에서 다시 찾는 중…');
+  try {
+    let gid = old.gid;
+    if (!gid && old.lat) gid = await gNear(old.lat, old.lng);
+    if (!gid) gid = (await gSuggest(old.name, crypto.randomUUID()))[0]?.id;
+    if (!gid) return toast('구글에서 찾지 못했어요');
+    const g = await gPlace(gid);
+    // Don't turn this place into a copy of another one the app already has.
+    const other = sameAs(g);
+    if (other && other.id !== id) return toast(`'${other.name}'과(와) 같은 장소예요. 그 장소를 써 주세요`);
+    const { stay, note, kind, week, ...rest } = await enrichPlace(g);
+    // What the traveler wrote stays; Google fills the facts.
+    store.set('myplaces', store.get('myplaces', []).map((x) => (x.id === id ? { ...x, ...rest, id, name: x.name || rest.name, memo: x.memo || rest.memo } : x)));
+    render(); openPlace(id); toast('구글 정보로 다시 채웠어요');
+  } catch (e) { toast(e.message); }
 }
 
 // Settings card in the 예약 tab.
@@ -3071,32 +3126,30 @@ function aiCard() {
 }
 
 function openPlaceNew() {
-  $('#sheet-body').innerHTML = `
-    <div class="sheet-head"><h3>내 장소 추가</h3></div>
-    <label class="field"><span>구글지도 공유 내용</span><textarea class="input" id="pn-paste" rows="3" autocomplete="off" placeholder="구글지도에서 공유 → 복사한 내용을 붙여넣으세요"></textarea></label>
-    <div class="pn-found" id="pn-found" hidden>${icon('check')}지도 연결됨</div>
-    ${aiKey() || gKey() ? `<button class="btn wide ai-go" data-ai-place="pn">${icon('pen')}${gKey() ? '구글에서 찾아 채우기' : 'AI로 장소 정보 채우기'}</button><div id="pn-ai"></div>` : '<div class="small muted ai-hint">예약 탭 AI 도우미에 키를 등록하면 링크만으로 정보를 채워요.</div><div id="pn-ai"></div>'}
-    <input type="hidden" id="pn-url">
-    <label class="field"><span>이름</span><input class="input" id="pn-name" maxlength="60" placeholder="${gKey() ? '이름을 입력하면 구글 장소를 추천해요' : '예: 친구가 추천한 라멘집'}" autocomplete="off"></label>
-    <div class="sugg" id="pn-sugg"></div>
-    <label class="field"><span>주소 (선택)</span><input class="input" id="pn-addr" maxlength="120" autocomplete="off"></label>
-    <label class="field"><span>분류</span><select class="input" id="pn-cat">${EX_CATS.filter(([k]) => k !== 'log').map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
-    <label class="field"><span>메모 (선택)</span><input class="input" id="pn-memo" maxlength="80" placeholder="추천 메뉴, 이유"></label>
-    <div class="btns"><button class="btn doc-pick" data-place-create>장소만 저장</button><button class="btn primary" data-place-create="plan">저장하고 일정에 넣기</button></div>`;
   state.aiFound = null;
+  $('#sheet-body').innerHTML = `
+    <div class="sheet-head"><h3>장소 추가</h3></div>
+    ${finderHtml('pn')}
+    <div id="pn-save" ${gKey() || aiKey() ? 'hidden' : ''}>
+      <div class="pn-fields">
+        <label class="field"><span>이름</span><input class="input" id="pn-name" maxlength="60" autocomplete="off" placeholder="예: 친구가 추천한 라멘집"></label>
+        <label class="field"><span>분류</span><select class="input" id="pn-cat">${EX_CATS.filter(([k]) => k !== 'log').map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+        <label class="field"><span>메모 (선택)</span><input class="input" id="pn-memo" maxlength="120" placeholder="추천 메뉴, 이유"></label>
+      </div>
+      <div class="btns"><button class="btn" data-place-create>장소만 저장</button><button class="btn primary" data-place-create="plan">저장하고 일정에 넣기</button></div>
+    </div>
+    ${gKey() || aiKey() ? '<button class="link pn-manual" data-pn-manual>직접 입력하기</button>' : ''}`;
   $('#sheet').hidden = false;
 }
 function createPlace(plan) {
   const name = $('#pn-name').value.trim();
   if (!name) return toast('이름을 입력해 주세요.');
-  const url = $('#pn-url').value.trim();
-  const hit = url.match(/!3d(-?[\d.]+)!4d(-?[\d.]+)/) || url.match(/@(-?[\d.]+),(-?[\d.]+)/);
-  const addr = $('#pn-addr').value.trim();
-  const ai = state.aiFound;
-  const place = ai
-    ? saveAiPlace({ ...ai, name, cat: $('#pn-cat').value, memo: $('#pn-memo').value.trim() || ai.memo, addr: addr || ai.addr }, url)
-    : { id: uid('my'), name, cat: $('#pn-cat').value, memo: $('#pn-memo').value.trim(), ...(addr ? { addr } : {}), ...(/^https?:/.test(url) ? { url } : {}), ...(hit ? { lat: Number(hit[1]), lng: Number(hit[2]) } : {}) };
-  if (!ai) store.set('myplaces', [...store.get('myplaces', []), place]);
+  const found = state.aiFound;
+  const memo = $('#pn-memo').value.trim();
+  const place = found
+    ? saveAiPlace({ ...found.pl, name, cat: $('#pn-cat').value, memo: memo || found.pl.memo }, found.url)
+    : { id: uid('my'), name, cat: $('#pn-cat').value, memo };
+  if (!found) store.set('myplaces', [...store.get('myplaces', []), place]);
   state.aiFound = null;
   if (plan) { closeSheet(); render(); return openPlan(place.id); }
   state.ex.cat = place.cat;
@@ -3174,13 +3227,7 @@ function openItemForm(id, opt = {}) {
     ${between ? `<div class="f-between ${gap < 5 && after ? 'tight' : ''}">${icon('clock')}<span>${esc(between)}</span></div>` : ''}
     ${opt.catch ? `<div class="small muted">${started ? '이 일정을 15분 늘리고' : '이 일정을 지금 시작으로 바꾸고'} 뒤 일정을 미뤄요. 아래 변경 내용을 확인하고 저장하세요.</div>` : ''}
     <form class="item-form" autocomplete="off">
-      ${!it ? `<div class="f-link">
-        <textarea class="input" id="f-link" rows="2" placeholder="${gKey() ? '장소 이름을 입력하거나 구글지도 링크를 붙여 넣으세요' : '구글지도 공유 링크를 붙여 넣으면 장소·제목·시간을 채워요'}"></textarea>
-        <div class="sugg" id="f-sugg"></div>
-        <input class="input" id="f-link-name" hidden maxlength="60" autocomplete="off" placeholder="가게 이름 · 지도에 보이는 이름 (예: AFURI 原宿)">
-        <button type="button" class="btn ${aiKey() || gKey() ? 'primary' : ''}" data-ai-place="form">${gKey() ? '구글에서 찾아 채우기' : aiKey() ? 'AI로 채우기' : '링크로 채우기'}</button>
-        <div id="f-ai"></div>
-      </div>` : ''}
+      ${!it ? finderHtml('f') : ''}
       <label class="row-field"><span>제목</span><input class="input" id="f-title" value="${esc(it?.title || '')}" placeholder="예: 편의점 들르기" maxlength="60"></label>
       <div class="row-field top"><span>종류</span><div class="kind-row">${KINDS.map(([e, label]) => `<button type="button" class="kind ${glyph(state.form.kind)[0] === glyph(e)[0] && state.form.kind ? 'on' : ''}" data-f-kind="${e}">${itemIcon(e)}${label}</button>`).join('')}</div></div>
       <label class="row-field"><span>날짜</span><select class="input" id="f-date">${state.trip.days.map((d, i) => `<option value="${d.date}" ${d.date === date ? 'selected' : ''}>${i + 1}일차 · ${esc(dayLabel(d.date))}</option>`).join('')}</select></label>
@@ -3713,7 +3760,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 155;
+const APP_VERSION = 156;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -3788,7 +3835,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-ai-place],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -3861,7 +3908,10 @@ document.addEventListener('click', async (e) => {
   else if ('alarmSheet' in d) openAlarms();
   else if ('placeNew' in d) openPlaceNew();
   else if ('placeCreate' in d) createPlace(d.placeCreate === 'plan');
-  else if ('aiPlace' in d) runAiPlace(d.aiPlace, el);
+  else if (d.find) runFind(d.find);
+  else if (d.pickLocal) pickLocal(d.pickLocal, d.where);
+  else if ('pnManual' in d) { $('#pn-save').hidden = false; el.remove(); $('#pn-name').value = $('#pn-name').value || fq('pn'); $('#pn-name').focus(); }
+  else if (d.placeRefresh) refreshFromGoogle(d.placeRefresh);
   else if ('aiSave' in d) {
     const k = $('#ai-key').value.trim();
     if (!/^sk-ant-/.test(k)) return toast('sk-ant-로 시작하는 API 키를 넣어 주세요');
@@ -4099,10 +4149,8 @@ document.addEventListener('input', (e) => {
   if (t.dataset.secret) store.set(t.dataset.secret, t.type === 'url' || t.type === 'tel' ? t.value.trim() : t.value.trim().toUpperCase());
   else if (t.id === 'fx-in') { state.fxCalc.value = t.value; updateFx(); }
   else if (t.id === 'fx-tax') { state.fxCalc.tax = t.checked; updateFx(); }
-  else if (t.id === 'pn-paste') fillShare(t.value);
-  else if (t.id === 'f-link' && $('#f-link-name')) { $('#f-link-name').hidden = gKey() ? !bareLink(t.value) : !bareLink(t.value) && !$('#f-link-name').value; gTyped('form', t.value); }
-  else if (t.id === 'f-link-name') gTyped('form', t.value);
-  else if (t.id === 'pn-name') gTyped('pn', t.value);
+  else if (t.id === 'f-q' || t.id === 'pn-q') { t.style.height = 'auto'; t.style.height = `${Math.min(t.scrollHeight, 120)}px`; finderTyped(t.id.split('-')[0]); }
+  else if (t.id === 'f-nm' || t.id === 'pn-nm') suggestFor(t.id.split('-')[0], t.value);
   else if (t.id === 'ai-model') store.set('aiModel', t.value);
   else if (t.id === 'ex-q') {
     state.ex.q = t.value;
