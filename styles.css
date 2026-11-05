@@ -1698,3 +1698,7 @@ ol.alarm-note { padding-left: 18px; }
 @keyframes flash { 0%, 90%, 94%, 100% { opacity: 0; } 91%, 93% { opacity: .9; } 92% { opacity: .2; } }
 @media (prefers-reduced-motion: reduce) { .de-sky * { animation: none !important; } .de-sky .drop, .de-sky .flake { display: none; } }
 .day-end:has(.de-now) { padding-top: 40px; }
+
+/* Saved key row: 연결 확인 and a small 삭제 side by side */
+.ai-on .btn { flex: none; padding: 0 12px; }
+.ai-on .key-del { background: transparent; color: var(--alert); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--alert) 40%, transparent); }

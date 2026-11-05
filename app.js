@@ -3990,27 +3990,25 @@ function aiCard() {
       <div class="small muted">구글지도 링크를 붙여 넣으면 장소 정보를 찾아 일정에 바로 넣어요. 본인 Claude API 키가 필요하고, 키는 이 폰에만 저장돼요 (동기화·GitHub에 안 올라가요).</div>
       ${key ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>키 저장됨</b><small>키 끝자리 ••••${esc(key.slice(-4))}</small></span>
-          <button class="btn" data-ai-test ${state.aiTest?.busy ? 'disabled' : ''}>${state.aiTest?.busy ? '확인 중…' : '연결 확인'}</button></div>
+          <button class="btn" data-ai-test ${state.aiTest?.busy ? 'disabled' : ''}>${state.aiTest?.busy ? '확인 중…' : '연결 확인'}</button><button class="btn key-del" data-ai-forget aria-label="API 키 삭제">삭제</button></div>
         ${state.aiTest?.msg ? `<div class="ai-msg ${state.aiTest.ok ? 'ok' : ''}">${esc(state.aiTest.msg)}</div>` : ''}` : `
         <input class="input" id="ai-key" type="password" autocomplete="off" placeholder="sk-ant-로 시작하는 API 키">`}
       <label class="field"><span>모델</span><select class="input" id="ai-model">${Object.entries(AI_MODELS).map(([k, m]) => `<option value="${k}" ${k === pick ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>
-      <div class="btns">${key ? '<button class="btn wide" data-ai-forget>키 지우기</button>' : '<button class="btn primary wide" data-ai-save>저장</button>'}</div>
+      ${key ? '' : '<div class="btns"><button class="btn primary wide" data-ai-save>저장</button></div>'}
       <div class="small muted ai-cost">요청 한 번에 보통 수십 원 정도 들어요. Claude 콘솔에서 월 사용 한도를 걸어 두면 안심이에요.</div>
       <div class="ai-sub">구글 장소 키 (Places API)</div>
       <div class="small muted">넣으면 이름만 입력해도 구글 지도와 같은 위치·영업시간·평점·사진을 가져와요. 웹사이트 제한(woo72da.github.io)과 API 제한(Places API (New))을 걸어 두세요.</div>
       ${gKey() ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>구글 키 저장됨</b><small>키 끝자리 ••••${esc(gKey().slice(-4))}</small></span>
-          <button class="btn" data-g-test ${state.gTest?.busy ? 'disabled' : ''}>${state.gTest?.busy ? '확인 중…' : '연결 확인'}</button></div>
-        ${state.gTest?.msg ? `<div class="ai-msg ${state.gTest.ok ? 'ok' : ''}">${esc(state.gTest.msg)}</div>` : ''}
-        <div class="btns"><button class="btn wide" data-g-forget>구글 키 지우기</button></div>` : `
+          <button class="btn" data-g-test ${state.gTest?.busy ? 'disabled' : ''}>${state.gTest?.busy ? '확인 중…' : '연결 확인'}</button><button class="btn key-del" data-g-forget aria-label="구글 키 삭제">삭제</button></div>
+        ${state.gTest?.msg ? `<div class="ai-msg ${state.gTest.ok ? 'ok' : ''}">${esc(state.gTest.msg)}</div>` : ''}` : `
         <input class="input" id="g-key" type="password" autocomplete="off" placeholder="AIza로 시작하는 구글 API 키">
         <div class="btns"><button class="btn primary wide" data-g-save>구글 키 저장</button></div>`}
       <div class="ai-sub">개선 요청함 토큰 (GitHub)</div>
       <div class="small muted">넣으면 화면 오른쪽 아래에 💬 버튼이 생겨요. 캡처·영상과 함께 요청하면 클라우드의 Claude가 검토해서 고치고 배포해요. tokyo-trip-desk 저장소에만 Contents·Issues 쓰기 권한을 준 토큰을 넣어 주세요.</div>
       ${deskKey() ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>요청함 토큰 저장됨</b><small>토큰 끝자리 ••••${esc(deskKey().slice(-4))}</small></span>
-          <button class="btn" data-desk-test>연결 확인</button></div>
-        <div class="btns"><button class="btn wide" data-desk-forget>요청함 토큰 지우기</button></div>` : `
+          <button class="btn" data-desk-test>연결 확인</button><button class="btn key-del" data-desk-forget aria-label="요청함 토큰 삭제">삭제</button></div>` : `
         <input class="input" id="desk-key" type="password" autocomplete="off" placeholder="github_pat_로 시작하는 토큰">
         <div class="btns"><button class="btn primary wide" data-desk-save>요청함 토큰 저장</button></div>`}
     </div>`;
@@ -4656,7 +4654,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 186;
+const APP_VERSION = 187;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
