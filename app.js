@@ -2117,7 +2117,7 @@ function transitRow(it, cls, late, now, edit, tail) {
         <span class="mv-ico">${icon(glyph(it.icon)[0])}</span>
         <div class="tl-main">
           <div class="mv-title">${current ? '<i class="mv-now">이동 중</i>' : ''}${esc(it.title)}</div>
-          ${it.line ? `<div class="mv-line">${lnRoute(it.line)}${boardOf(it.id) ? `<span class="mv-board">${icon('train')}${esc(boardOf(it.id).car)}</span>` : ''}</div>` : ''}
+          ${it.line ? `<div class="mv-line">${lnRoute(it.line)}</div>` : ''}
           ${sub || late ? `<div class="mv-sub">${late ? `<em class="mv-late">${esc(delayText(late))}</em>` : ''}${esc(sub)}</div>` : ''}
           ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
         </div>
@@ -2134,11 +2134,9 @@ const lnBadge = (l, no) => `<span class="ln" style="--ln:${esc(l.color)}"><i>${e
 const lnPill = (l) => `<span class="ln-pill" style="--ln:${esc(l.color)};--ln-ink:${lnInk(l.color)}">${esc(l.name)}</span>`;
 // "[H17] → [H11] 쓰키지 하차" for the timeline row; legs joined by a transfer mark.
 const lnRoute = (legs) => `<span class="ln-route">${legs.map((l, i) => `${i ? '<i class="ln-x">갈아타기</i>' : ''}${lnBadge(l, l.from.no)}<i class="ln-to">→</i>${lnBadge(l, l.to.no)}`).join('')}<span>${esc(legs[legs.length - 1].to.name)} 하차</span></span>`;
-const boardOf = (id) => store.get('board:' + id, null);
 // The card in a stop's sheet: line, direction, stations, transfers, and where to ride.
 function lineCard(it) {
   const legs = it.line;
-  const b = boardOf(it.id);
   return `
     <div class="card line-card">
       ${legs.map((l, i) => `
@@ -2151,39 +2149,7 @@ function lineCard(it) {
             <div>${lnBadge(l, l.to.no)}<span><small>내리는 역</small><b>${esc(l.to.name)}</b></span></div>
           </div>
         </div>`).join('')}
-      <div class="ln-board">
-        ${b ? `<div class="ln-board-on"><b>${icon('train')}빠른 하차 · ${esc(b.car)}</b>${b.why ? `<small>${esc(b.why)}</small>` : ''}<span class="ai-tag">${icon('spark')}AI가 찾은 정보 · 역에서 다시 확인</span></div>` : ''}
-        ${aiKey() ? `<button class="btn ai wide" data-ai-board="${esc(it.id)}">${aiLabel(b ? '빠른 하차 위치 다시 찾기' : '빠른 하차 위치 찾기')}</button>` : '<div class="small muted">AI 키를 넣으면 갈아타기·출구에 가까운 칸을 찾아 드려요.</div>'}
-      </div>
     </div>`;
-}
-const BOARD_TOOL = {
-  name: 'save_board',
-  description: 'Save where to ride for this trip. Call once.',
-  input_schema: { type: 'object', additionalProperties: false, required: ['found', 'car', 'why', 'note'], properties: {
-    found: { type: 'boolean' },
-    car: { type: 'string', description: 'Korean, short: e.g. "3호차 1번 문" or "앞쪽(1~2호차)"' },
-    why: { type: 'string', description: 'Korean, one line: what it is close to at the getting-off station (stairs, transfer, the exit to use)' },
-    note: { type: 'string', description: 'Korean: anything uncertain' },
-  } },
-};
-async function aiBoard(id, btn) {
-  const it = findItem(id);
-  const next = nextStop(it);
-  const box = btn.closest('.ln-board');
-  btn.replaceWith(Object.assign(document.createElement('div'), { innerHTML: aiLoading('AI가 빠른 하차 위치를 찾고 있어요', ['노선과 내리는 역을 확인하는 중', '갈아타기·출구 계단 위치를 찾는 중', '정리하는 중']) }));
-  try {
-    const m = aiModel();
-    const res = await aiRun({
-      system: [{ type: 'text', text: `You help a Korean traveler in Tokyo board the right train car. For each leg, find which car (호차) and door are closest to what they need at the station where they get off: the transfer to the next leg, or the exit toward the next destination. Use web search (Japanese sources such as 乗換案内 / NAVITIME / ekitan 「降車位置」「乗り換え 便利な車両」 are good). Cars are counted from the front in the direction of travel. If sources disagree or you can't find it, say so in note and give the safest general advice (for example the middle cars). Then call save_board once, in Korean.` }],
-      tools: [{ type: m.search, name: 'web_search', max_uses: 4, user_location: { type: 'approximate', city: 'Tokyo', country: 'JP', timezone: 'Asia/Tokyo' } }, BOARD_TOOL],
-      text: JSON.stringify({ legs: it.line.map((l) => ({ line: l.name, direction: l.dir, from: `${l.from.no} ${l.from.name}`, to: `${l.to.no} ${l.to.name}` })), then: next ? stripEmoji(next.title) : '', note: it.note || '' }),
-    });
-    const v = res.content.find((b) => b.type === 'tool_use' && b.name === 'save_board')?.input;
-    if (!v?.found || !v.car) throw new Error(v?.note || '빠른 하차 위치를 찾지 못했어요.');
-    store.set('board:' + id, { car: String(v.car).slice(0, 40), why: [v.why, v.note].filter(Boolean).join(' · ').slice(0, 160), at: Date.now() });
-    openItem(id);
-  } catch (e) { box.insertAdjacentHTML('beforeend', `<div class="ai-note">${esc(e.message)}</div>`); box.querySelector('.ai-load')?.remove(); }
 }
 
 function tlWx(it) {
@@ -4651,7 +4617,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 176;
+const APP_VERSION = 177;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -4727,7 +4693,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-ai-board],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -4814,7 +4780,6 @@ document.addEventListener('click', async (e) => {
   }
   else if ('aiForget' in d) { if (confirm('이 폰에서 API 키를 지울까요?')) { store.set('aiKey', ''); render(); toast('키를 지웠어요'); } }
   else if ('aiTest' in d) aiTest();
-  else if (d.aiBoard) aiBoard(d.aiBoard, el);
   else if ('gSave' in d) {
     const k = $('#g-key').value.trim();
     if (!/^AIza/.test(k)) return toast('AIza로 시작하는 구글 API 키를 넣어 주세요');

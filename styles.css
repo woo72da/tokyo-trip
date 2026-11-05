@@ -1559,8 +1559,6 @@ ol.alarm-note { padding-left: 18px; }
 .ln-route .ln b { font-size: 11px; }
 .ln-route > .ico { width: 11px; height: 11px; color: var(--muted); transform: rotate(45deg); flex: none; }
 .ln-route > span:not(.ln) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mv-board { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--ai); }
-.mv-board .ico { width: 13px; height: 13px; }
 .line-card { display: grid; gap: 10px; margin-top: 12px; }
 .ln-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ln-dir { font-size: 13.5px; font-weight: 700; }
@@ -1574,10 +1572,6 @@ ol.alarm-note { padding-left: 18px; }
 .ln-arrow::after { content: ''; position: absolute; right: -2px; top: -4px; border: 6px solid transparent; border-left-color: var(--ln); border-right: 0; }
 .ln-change { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; background: var(--soft); font-size: 12.5px; font-weight: 700; color: var(--muted); }
 .ln-change .ico { width: 14px; height: 14px; }
-.ln-board { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
-.ln-board-on b { display: flex; align-items: center; gap: 6px; font-size: 15px; }
-.ln-board-on b .ico { width: 17px; height: 17px; color: var(--ai); }
-.ln-board-on small { display: block; margin: 2px 0 6px; font-size: 13px; color: var(--muted); line-height: 1.45; }
 
 .ln-route { flex-wrap: wrap; row-gap: 4px; }
 .ln-to { font-style: normal; color: var(--muted); font-weight: 700; }
