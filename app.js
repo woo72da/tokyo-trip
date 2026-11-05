@@ -130,11 +130,19 @@ const $ = (sel) => document.querySelector(sel);
 // skip or delete laid over the trip file. The trip file itself never changes, so each edit can be undone.
 function planItems() {
   const base = [...state.trip.days.flatMap((d) => d.items.map((it) => ({ ...it, date: d.date }))), ...store.get('myitems', [])];
-  return base.map((it) => {
+  const list = base.map((it) => {
     const edit = store.get('edit:' + it.id, null);
     if (!edit) return it;
     const swapped = edit.swap && placeById(edit.swap);
     return swapped ? { ...it, ...swappedStop(it, swapped), ...edit } : { ...it, ...edit };
+  });
+  // A move renamed to '이동 → 시부야 스카이' goes there: directions follow the name, not the old place.
+  return list.map((it) => {
+    const edit = store.get('edit:' + it.id, null);
+    const to = edit?.title && glyph(it.icon)[1] === 'move' && /→\s*(.+)$/.exec(stripEmoji(edit.title))?.[1].trim();
+    if (!to) return it;
+    const dest = list.find((x) => x !== it && x.date === it.date && x.place && stripEmoji(x.title).startsWith(to));
+    return dest ? { ...it, place: dest.place, placeId: dest.placeId } : it;
   });
 }
 const effectiveItems = (day, withDeleted = false) => planItems().filter((it) => it.date === day.date && (withDeleted || !it.del));
@@ -4590,7 +4598,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 170;
+const APP_VERSION = 171;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
