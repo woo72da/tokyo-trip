@@ -1659,3 +1659,42 @@ ol.alarm-note { padding-left: 18px; }
 .rcpt-amt .amount { width: 0; }
 .rcpt-more summary::after { content: '보기'; font-size: 13px; color: var(--accent); }
 .rcpt-more[open] summary::after { content: '접기'; }
+
+/* Day-end card: a live sky for the weather right now */
+.day-end > :not(.de-sky) { position: relative; }
+.de-sky { position: absolute; inset: 0; overflow: hidden; pointer-events: none; transition: background .6s; }
+.day-end.is-night.sky-clear .de-sky { background: radial-gradient(120% 80% at 80% 0%, rgba(90,110,170,.28), transparent 60%); }
+.day-end.is-day .de-sky { background: linear-gradient(180deg, rgba(110,160,220,.30), transparent 75%); }
+.day-end.sky-cloud .de-sky, .day-end.sky-fog .de-sky { background: linear-gradient(180deg, rgba(150,160,180,.20), transparent 80%); }
+.day-end.sky-rain .de-sky, .day-end.sky-storm .de-sky { background: linear-gradient(180deg, rgba(70,90,120,.45), transparent 85%); }
+.day-end.sky-snow .de-sky { background: linear-gradient(180deg, rgba(190,205,230,.22), transparent 85%); }
+.de-now { position: absolute !important; left: 16px; top: 14px; font-size: 12.5px; font-weight: 700; color: var(--on-night-muted); }
+.de-sky .moon { position: absolute; right: 30px; top: 18px; width: 26px; height: 26px; border-radius: 50%; box-shadow: -7px 4px 0 0 #e3c07a; }
+.de-sky .sun { position: absolute; right: 22px; top: 14px; width: 34px; height: 34px; border-radius: 50%; background: #f2c76b; box-shadow: 0 0 0 8px rgba(242,199,107,.18), 0 0 30px 10px rgba(242,199,107,.25); animation: sun-glow 4s ease-in-out infinite; }
+@keyframes sun-glow { 50% { box-shadow: 0 0 0 12px rgba(242,199,107,.12), 0 0 40px 14px rgba(242,199,107,.3); } }
+.de-sky .star { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--on-night); animation: twinkle 2.6s ease-in-out infinite; }
+.de-sky .star:nth-of-type(2) { left: 8%; top: 22px; }
+.de-sky .star:nth-of-type(3) { left: 20%; top: 58px; animation-delay: .7s; }
+.de-sky .star:nth-of-type(4) { left: 38%; top: 14px; animation-delay: 1.9s; }
+.de-sky .star:nth-of-type(5) { left: 62%; top: 20px; animation-delay: .4s; }
+.de-sky .star:nth-of-type(6) { right: 9%; top: 76px; animation-delay: 1.3s; }
+.de-sky .cloud { position: absolute; height: 26px; border-radius: 999px; background: rgba(220,228,240,.16); filter: blur(1px); animation: cloud-drift 38s linear infinite; }
+.de-sky .cloud::before, .de-sky .cloud::after { content: ''; position: absolute; border-radius: 50%; background: inherit; }
+.de-sky .cloud::before { width: 46%; height: 170%; left: 16%; bottom: 20%; }
+.de-sky .cloud::after { width: 34%; height: 140%; left: 50%; bottom: 25%; }
+.de-sky .c1 { width: 130px; top: 30px; left: -10%; }
+.de-sky .c2 { width: 95px; top: 82px; left: 40%; animation-duration: 52s; animation-delay: -20s; opacity: .8; }
+.de-sky .c3 { width: 160px; top: 4px; left: 60%; animation-duration: 64s; animation-delay: -34s; opacity: .7; }
+@keyframes cloud-drift { from { transform: translateX(-60%); } to { transform: translateX(160%); } }
+.sky-rain .cloud, .sky-storm .cloud { background: rgba(160,170,190,.22); }
+.de-sky .drop { position: absolute; top: -30px; width: 1.5px; height: 22px; border-radius: 1px; background: linear-gradient(180deg, transparent, rgba(190,210,240,.85)); transform: rotate(10deg); animation: rain-fall .7s linear infinite; }
+@keyframes rain-fall { to { transform: translate(-50px, 420px) rotate(10deg); } }
+.de-sky .flake { position: absolute; top: -12px; width: 5px; height: 5px; border-radius: 50%; background: #fff; animation: snow-fall 6s linear infinite; }
+@keyframes snow-fall { 50% { transform: translate(14px, 210px); } to { transform: translate(-6px, 430px); } }
+.de-sky .mist { position: absolute; left: -30%; width: 160%; height: 40px; border-radius: 999px; background: rgba(210,215,225,.12); filter: blur(10px); animation: mist-drift 16s ease-in-out infinite alternate; }
+.de-sky .m1 { top: 30px; } .de-sky .m2 { top: 110px; animation-delay: -6s; } .de-sky .m3 { top: 200px; animation-delay: -11s; }
+@keyframes mist-drift { to { transform: translateX(18%); } }
+.de-sky .flash { position: absolute; inset: 0; background: rgba(235,240,255,.55); opacity: 0; animation: flash 7s infinite; }
+@keyframes flash { 0%, 90%, 94%, 100% { opacity: 0; } 91%, 93% { opacity: .9; } 92% { opacity: .2; } }
+@media (prefers-reduced-motion: reduce) { .de-sky * { animation: none !important; } .de-sky .drop, .de-sky .flake { display: none; } }
+.day-end:has(.de-now) { padding-top: 40px; }

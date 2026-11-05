@@ -1517,6 +1517,31 @@ function updateBand() {
 const isDayDone = (date, today = tokyoNow().date) => date < today || store.get('seal:' + date, false);
 
 // End of the day: a goshuin-style stamp to press, one per day, with the day's tally and tomorrow's first stop.
+// The card's sky follows the weather outside right now, the way the iPhone Weather app does:
+// stars and moon when clear, drifting clouds, falling rain or snow, mist, a lightning flash in a storm.
+function daySky(date) {
+  const now = tokyoNow();
+  const w = now.date === date ? wxHour(date, now.min) : null;
+  const day = dayOf(date);
+  const night = !day?.sunset || now.min >= toMin(day.sunset) - 20 || now.min < 6 * 60;
+  const kind = !w ? 'clear' : { 'wx-sun': 'clear', 'wx-partly': 'partly', 'wx-cloud': 'cloud', 'wx-fog': 'fog', 'wx-rain': 'rain', 'wx-snow': 'snow', 'wx-storm': 'storm' }[w.icon] || 'clear';
+  // Fixed pseudo-random spread so the layout doesn't jump on every render.
+  const r = (i, k) => ((i * 9301 + k * 49297) % 233280) / 233280;
+  const fall = (cls, n) => Array.from({ length: n }, (_, i) => `<i class="${cls}" style="left:${(r(i, 1) * 100).toFixed(1)}%;animation-delay:-${(r(i, 2) * (cls === 'drop' ? 2 : 7)).toFixed(2)}s;animation-duration:${(cls === 'drop' ? 0.55 + r(i, 3) * 0.35 : 4 + r(i, 3) * 3).toFixed(2)}s;opacity:${(0.35 + r(i, 4) * 0.5).toFixed(2)}"></i>`).join('');
+  const clouds = (n) => Array.from({ length: n }, (_, i) => `<i class="cloud c${i + 1}"></i>`).join('');
+  const stars = (n) => '<i class="star"></i>'.repeat(n);
+  const layer = {
+    clear: night ? `<i class="moon"></i>${stars(5)}` : '<i class="sun"></i>',
+    partly: night ? `<i class="moon"></i>${stars(3)}${clouds(2)}` : `<i class="sun"></i>${clouds(2)}`,
+    cloud: clouds(3),
+    fog: '<i class="mist m1"></i><i class="mist m2"></i><i class="mist m3"></i>',
+    rain: clouds(2) + fall('drop', 26),
+    storm: clouds(3) + fall('drop', 34) + '<i class="flash"></i>',
+    snow: clouds(1) + fall('flake', 22),
+  }[kind];
+  return { kind, night, layer, label: w ? `지금 ${w.temp}° · ${w.label}` : '' };
+}
+
 function dayEndCard(dayIdx, items) {
   const { days } = state.trip;
   const { date } = days[dayIdx];
@@ -1528,9 +1553,11 @@ function dayEndCard(dayIdx, items) {
   const spent = expenses().filter((e) => e.date === date).reduce((sum, e) => sum + e.amount, 0);
   const tally = [visited ? `오늘 ${visited}곳` : '', spent ? `${yen(spent)} 사용` : ''].filter(Boolean).join(' · ');
   const tomorrow = last ? null : dayItems(days[dayIdx + 1])[0];
+  const sky = daySky(date);
   return `
-    <div class="day-end">
-      <i class="moon"></i>${'<i class="star"></i>'.repeat(5)}
+    <div class="day-end sky-${sky.kind} ${sky.night ? 'is-night' : 'is-day'}" data-sky>
+      <div class="de-sky" aria-hidden="true">${sky.layer}</div>
+      ${sky.label ? `<div class="de-now">${esc(sky.label)}</div>` : ''}
       <div class="day-end-ja ja">お疲れさまでした</div>
       <div class="day-end-ko">오츠카레사마데시타 · ${last ? '여행 내내 수고했어요' : '오늘도 수고했어요'}</div>
       <button class="seal-slot" data-seal="${esc(date)}" aria-label="오늘 도장 찍기" ${sealed ? 'disabled' : ''}>
@@ -1538,7 +1565,7 @@ function dayEndCard(dayIdx, items) {
       </button>
       <div class="seal-days">${days.map((d, i) => `<span class="${isDayDone(d.date, date) ? 'on' : ''}">${i + 1}</span>`).join('')}</div>
       ${tally ? `<div class="day-end-sum">${esc(tally)}</div>` : ''}
-      <button class="day-end-log" data-day-sum="${dayIdx}">${icon('pen')}날씨·챙김 기록 남기기</button>
+      <button class="day-end-log" data-day-sum="${dayIdx}">${icon('pen')}날씨·옷차림 기록 남기기</button>
       <div class="day-end-next">${tomorrow ? `내일 첫 일정 ${esc(tomorrow.start)} ${esc(stripEmoji(tomorrow.title))}` : '도쿄 여행을 모두 마쳤어요'}</div>
     </div>`;
 }
@@ -4629,7 +4656,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 185;
+const APP_VERSION = 186;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
