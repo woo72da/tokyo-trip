@@ -3679,7 +3679,7 @@ function openAiPlan(preset = '') {
     <div class="small muted">${esc(dayLabel(day.date))} 일정 · 바꾸고 싶은 걸 그대로 적거나 🎤로 말해 주세요. 바뀌는 내용을 먼저 보여 드려요.</div>
     <textarea class="input ai-ask" id="ai-plan-q" rows="3" placeholder="예: 마이센 줄 길어서 근처 라멘집으로 바꾸고, 뒤 일정 30분 미뤄줘">${esc(preset)}</textarea>
     <div class="chips ai-eg">${['비 와서 밖 일정 빼고 실내로', '30분 늦게 시작할래', '점심 1시간 늦춰줘', '저녁 전에 1시간 쉬고 싶어'].map((t) => `<button type="button" class="chip" data-ai-eg="${esc(t)}">${esc(t)}</button>`).join('')}</div>
-    <button class="btn primary wide" data-ai-plan-go>${icon('check')}바뀔 내용 보기</button>
+    <button class="btn ai primary wide" data-ai-plan-go>${aiLabel('바뀔 내용 보기')}</button>
     <div id="ai-res"></div>`;
   $('#sheet').hidden = false;
   if (preset) aiPlanGo();
@@ -3803,7 +3803,7 @@ const diaryCard = (date) => {
   const d = store.get('diary:' + date, null);
   if (!d) return aiKey() ? `<button class="day-sum-row ai" data-ai-diary="${esc(date)}"><span class="ii sm sec ai ai-mark">${icon('spark')}</span><span class="grow"><b>오늘 기록 정리하기</b><small>방문·평가·지출·날씨로 짧은 여행 일기를 만들어요 (AI)</small></span></button>` : '';
   return `<div class="diary"><span class="ai-tag">${icon('spark')}AI가 쓴 하루 기록</span><b>${esc(d.title)}</b><p>${esc(d.text)}</p>
-    <div class="btns"><button class="btn" data-diary-share="${esc(date)}">${icon('ext')}공유·복사</button><button class="btn" data-ai-diary="${esc(date)}">${icon('refresh')}다시 쓰기</button></div></div>`;
+    <div class="btns"><button class="btn" data-diary-share="${esc(date)}">${icon('ext')}공유·복사</button><button class="btn ai" data-ai-diary="${esc(date)}">${aiLabel('다시 쓰기')}</button></div></div>`;
 };
 
 
@@ -4617,7 +4617,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 178;
+const APP_VERSION = 179;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

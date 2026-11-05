@@ -1468,7 +1468,6 @@ ol.alarm-note { padding-left: 18px; }
 .ai-diff { margin: 8px 0 10px; padding-left: 18px; font-size: 13.5px; line-height: 1.6; }
 .ai-diff li.warn { color: var(--warn); font-weight: 700; }
 .btn.ai.ai-late { margin-top: 8px; background: transparent; color: var(--ai-on-night); box-shadow: inset 0 0 0 1.5px var(--ai-on-night); }
-.btn.ai.ai-late .ai-pill { background: var(--ai-on-night); color: var(--night); }
 .diary { padding: 12px 0; border-top: 1px solid var(--line); }
 .diary > b { display: block; font-size: 16px; }
 .diary p { margin: 6px 0 4px; font-size: 14.5px; line-height: 1.7; }
@@ -1503,8 +1502,6 @@ ol.alarm-note { padding-left: 18px; }
 .btn.ai { background: var(--ai-soft); color: var(--ai); box-shadow: inset 0 0 0 1.5px var(--ai-edge); }
 .btn.ai.primary { background: var(--ai); color: var(--ai-ink); box-shadow: none; }
 .btn.ai .ico { color: inherit; }
-.ai-pill { flex: none; display: inline-block; margin-left: 2px; padding: 1px 6px; border-radius: 999px; background: var(--ai); color: var(--ai-ink); font: 800 10px/1.5 var(--sans); font-style: normal; letter-spacing: .04em; vertical-align: 2px; }
-.btn.ai.primary .ai-pill { background: var(--ai-ink); color: var(--ai); }
 .ai-tag .ico { width: 12px; height: 12px; }
 .ai-tag.g { background: var(--now-soft); color: var(--now); }
 .ai-tag.app { background: var(--soft); color: var(--muted); }
@@ -1520,7 +1517,6 @@ ol.alarm-note { padding-left: 18px; }
 .diary { display: grid; gap: 4px; }
 .diary .ai-tag { justify-self: start; margin-bottom: 0; }
 .day-sum-row.ai > .ico { width: 22px; height: 22px; padding: 3px; border-radius: 8px; background: var(--ai-soft); color: var(--ai); box-sizing: content-box; }
-.day-sum-row.ai b .ai-pill { margin-left: 6px; }
 .ii.sec.ai { background: var(--ai-soft); color: var(--ai); }
 .req-fab-spark { position: absolute; top: 6px; right: 6px; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; background: var(--ai-ink); color: var(--ai); }
 .req-fab-spark .ico { width: 11px; height: 11px; }
