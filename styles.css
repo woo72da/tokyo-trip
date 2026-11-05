@@ -1702,3 +1702,27 @@ ol.alarm-note { padding-left: 18px; }
 /* Saved key row: 연결 확인 and a small 삭제 side by side */
 .ai-on .btn { flex: none; padding: 0 12px; }
 .ai-on .key-del { background: transparent; color: var(--alert); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--alert) 40%, transparent); }
+
+/* Settings: ⚙ at the top right of every tab, opening one sheet */
+.top { padding-right: 64px; }
+.top-gear { position: absolute; right: 14px; top: calc(env(safe-area-inset-top) + 10px); display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 12px; background: var(--soft); color: var(--muted); }
+.top-gear .ico { width: 21px; height: 21px; }
+.top-gear:active { transform: scale(.94); }
+.settings { display: grid; gap: 18px; margin-top: 6px; }
+.set-h { display: flex; align-items: center; gap: 8px; margin: 0 2px 8px; font-size: 15px; font-weight: 800; }
+.set-sec .card { margin: 0; }
+.set-card { display: grid; gap: 4px; padding: 6px 14px; }
+.set-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 8px 0; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; }
+.set-row + .set-row, .seg-row + .set-row { border-top: 1px solid var(--line); }
+.set-row b { display: block; font-size: 15px; }
+.set-row small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.set-row em { flex: none; font-style: normal; font-size: 14px; font-weight: 700; color: var(--accent); }
+.set-row > .ico { flex: none; width: 16px; height: 16px; color: var(--muted); }
+.set-row .btn { flex: none; min-height: 38px; padding: 0 12px; }
+.seg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding-bottom: 10px; }
+.seg-row .seg { min-height: 42px; border-radius: 12px; }
+.set-note { padding: 4px 0 10px; line-height: 1.5; }
+.set-link { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 18px; padding: 14px; border: 0; color: var(--ink); font: inherit; text-align: left; }
+.set-link b { display: block; font-size: 15px; }
+.set-link small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.set-row .chev, .set-link .chev { transform: rotate(-45deg); margin-right: 4px; }

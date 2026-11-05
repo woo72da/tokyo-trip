@@ -1391,6 +1391,7 @@ function toast(msg, href, label) {
 // Phosphor Icons duotone (MIT, phosphoricons.com); torii, tower and lantern drawn to match.
 // The 20% layer (class "d") takes the category tint.
 const ICONS = {
+  'gear': '<rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(0 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(45 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(90 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(135 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(180 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(225 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(270 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(315 128 128)"/><circle cx="128" cy="128" r="66" fill="none" stroke="currentColor" stroke-width="22"/><circle cx="128" cy="128" r="24" fill="none" stroke="currentColor" stroke-width="18"/>',
   'spark': '<path class="d" d="M108 40c6 50 24 68 74 74-50 6-68 24-74 74-6-50-24-68-74-74 50-6 68-24 74-74Z"/><path d="M108 40c6 50 24 68 74 74-50 6-68 24-74 74-6-50-24-68-74-74 50-6 68-24 74-74Zm0 30.5c-6.3 26.6-19 39.2-45.6 45.5C89 122.3 101.7 135 108 161.6c6.3-26.6 19-39.3 45.6-45.6C127 109.7 114.3 97 108 70.5ZM196 24c3 22 11 30 33 33-22 3-30 11-33 33-3-22-11-30-33-33 22-3 30-11 33-33Z"/>',
   'heart': '<path d="M178,32c-20.65,0-38.73,8.88-50,23.89C116.73,40.88,98.65,32,78,32A62.07,62.07,0,0,0,16,94c0,70,103.79,126.66,108.21,129a8,8,0,0,0,7.58,0C136.21,220.66,240,164,240,94A62.07,62.07,0,0,0,178,32ZM128,206.8C109.74,196.16,32,147.69,32,94A46.06,46.06,0,0,1,78,48c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46C224,147.61,146.24,196.15,128,206.8Z"/>',
   'image': '<path d="M224,56V178.06l-39.72-39.72a8,8,0,0,0-11.31,0L147.31,164,97.66,114.34a8,8,0,0,0-11.32,0L32,168.69V56a8,8,0,0,1,8-8H216A8,8,0,0,1,224,56Z" class="d"/><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z"/>',
@@ -2508,7 +2509,7 @@ function renderWallet() {
     ${walletTabs('wallet')}
     <nav class="wallet-nav" aria-label="바로가기">${[['exp', '경비', 'money'], ['w-air', '항공', 'plane'], ['w-road', '공항 가는 길', 'bus'], ['w-stay', '숙소', 'bed'], ['w-secret', '예약번호', 'id'], ['w-docs', '바우처', 'ticket'], ['w-sos', '긴급', 'phone'], ['w-guide', '안내', 'checklist']].map(([k, l, ic]) => `<button data-jump="${k}">${icon(ic)}${l}</button>`).join('')}</nav>
     ${syncCard()}
-    ${aiCard()}
+    <button class="card set-link" data-settings>${secIcon('spark')}<span class="grow"><b>AI 도우미 · 키</b><small>Claude·구글 키와 모델은 설정에서 관리해요</small></span><i class="chev"></i></button>
     ${expenseSection()}
     <div class="section-title" id="w-air">${secIcon('plane')}<span>항공</span></div>
     ${flights.map(boardingPass).join('')}
@@ -3012,7 +3013,7 @@ async function aiClient() {
 // What went wrong, in words a traveler can act on.
 function aiError(e, Anthropic) {
   if (!navigator.onLine) return '인터넷이 연결되어 있지 않아요.';
-  if (Anthropic && e instanceof Anthropic.AuthenticationError) return 'API 키가 맞지 않아요. 예약 탭 AI 도우미에서 키를 다시 확인해 주세요.';
+  if (Anthropic && e instanceof Anthropic.AuthenticationError) return 'API 키가 맞지 않아요. 설정 › AI 도우미에서 키를 다시 확인해 주세요.';
   if (Anthropic && e instanceof Anthropic.PermissionDeniedError) return '이 키로는 쓸 수 없는 기능이에요. 콘솔에서 키 권한을 확인해 주세요.';
   if (Anthropic && e instanceof Anthropic.RateLimitError) return '요청이 많아요. 잠시 뒤 다시 시도해 주세요.';
   if (Anthropic && e instanceof Anthropic.APIConnectionTimeoutError) return '응답이 너무 늦어요. 인터넷 상태를 확인하고 다시 시도해 주세요.';
@@ -3123,7 +3124,7 @@ async function gFetch(path, { body, mask, query = '' } = {}) {
   if (res.status === 403 && /referer|referrer/i.test(why)) throw new Error('구글 키의 웹사이트 제한에 https://woo72da.github.io/* 를 넣었는지 확인해 주세요.');
   if (res.status === 403 && /not been used|disabled|SERVICE_DISABLED/i.test(why)) throw new Error('구글 콘솔에서 "Places API (New)"를 사용으로 켜 주세요.');
   if (res.status === 403 && /billing/i.test(why)) throw new Error('구글 콘솔에서 프로젝트에 결제 계정을 연결해 주세요.');
-  if (res.status === 400 && /API key/i.test(why)) throw new Error('구글 키가 맞지 않아요. 예약 탭 AI 도우미에서 확인해 주세요.');
+  if (res.status === 400 && /API key/i.test(why)) throw new Error('구글 키가 맞지 않아요. 설정 › AI 도우미에서 확인해 주세요.');
   if (res.status === 429) throw new Error('오늘 구글 사용량 한도에 닿았어요. 내일 다시 쓰거나 할당량을 늘려 주세요.');
   throw new Error(`구글 오류 (${res.status})${why ? ` · ${why.slice(0, 120)}` : ''}`);
 }
@@ -3305,7 +3306,7 @@ const finderHtml = (w) => `
     <input class="input finder-name" id="${w}-nm" hidden maxlength="60" autocomplete="off" placeholder="가게 이름 2~3글자 (짧은 링크는 이름이 필요해요)">
     <div class="sugg" id="${w}-sugg"></div>
     <div id="${w}-out"></div>
-    ${gKey() ? '' : `<div class="small muted finder-hint">${aiKey() ? '구글 장소 키를 넣으면 이름만으로 사진·영업시간까지 채워요.' : '예약 탭 AI 도우미에서 키를 넣으면 이름이나 링크로 정보를 채워요.'}</div>`}
+    ${gKey() ? '' : `<div class="small muted finder-hint">${aiKey() ? '구글 장소 키를 넣으면 이름만으로 사진·영업시간까지 채워요.' : '설정 › AI 도우미에서 키를 넣으면 이름이나 링크로 정보를 채워요.'}</div>`}
   </div>`;
 const fq = (w) => $(`#${w}-q`)?.value.trim() || '';
 const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, '');
@@ -3862,7 +3863,7 @@ async function ghApi(path, { method = 'GET', body } = {}) {
   } catch { throw new Error('GitHub에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
   const data = await res.json().catch(() => ({}));
   if (res.ok) return data;
-  if (res.status === 401) throw new Error('요청함 토큰이 맞지 않거나 만료됐어요. 예약 탭 AI 도우미에서 확인해 주세요.');
+  if (res.status === 401) throw new Error('요청함 토큰이 맞지 않거나 만료됐어요. 설정 › AI 도우미에서 확인해 주세요.');
   if (res.status === 403 || res.status === 404) throw new Error('토큰에 tokyo-trip-desk 저장소의 Contents·Issues 쓰기 권한이 있는지 확인해 주세요.');
   if (res.status === 422 && /too large|size/i.test(data.message || '')) throw new Error('파일이 너무 커요. 영상은 20초 이내로 찍어 주세요.');
   throw new Error(`GitHub 오류 (${res.status}) ${data.message || ''}`.trim());
@@ -3980,12 +3981,11 @@ function syncReqFab() {
   }
 }
 
-// Settings card in the 예약 tab.
-function aiCard() {
+// 설정 › AI 도우미: Claude key and model, and the Google Places key.
+function aiSettings() {
   const key = aiKey();
   const pick = store.get('aiModel', 'opus');
   return `
-    <div class="section-title" id="w-ai">${secIcon('spark')}<span>AI 도우미</span></div>
     <div class="card ai-set">
       <div class="small muted">구글지도 링크를 붙여 넣으면 장소 정보를 찾아 일정에 바로 넣어요. 본인 Claude API 키가 필요하고, 키는 이 폰에만 저장돼요 (동기화·GitHub에 안 올라가요).</div>
       ${key ? `
@@ -4003,15 +4003,54 @@ function aiCard() {
           <button class="btn" data-g-test ${state.gTest?.busy ? 'disabled' : ''}>${state.gTest?.busy ? '확인 중…' : '연결 확인'}</button><button class="btn key-del" data-g-forget aria-label="구글 키 삭제">삭제</button></div>
         ${state.gTest?.msg ? `<div class="ai-msg ${state.gTest.ok ? 'ok' : ''}">${esc(state.gTest.msg)}</div>` : ''}` : `
         <input class="input" id="g-key" type="password" autocomplete="off" placeholder="AIza로 시작하는 구글 API 키">
-        <div class="btns"><button class="btn primary wide" data-g-save>구글 키 저장</button></div>`}
-      <div class="ai-sub">개선 요청함 토큰 (GitHub)</div>
-      <div class="small muted">넣으면 화면 오른쪽 아래에 💬 버튼이 생겨요. 캡처·영상과 함께 요청하면 클라우드의 Claude가 검토해서 고치고 배포해요. tokyo-trip-desk 저장소에만 Contents·Issues 쓰기 권한을 준 토큰을 넣어 주세요.</div>
+        <div class="btns"><button class="btn wide" data-g-save>구글 키 저장</button></div>`}
+    </div>`;
+}
+
+// 설정 › 개선 요청함: the GitHub token for the 💬 request box.
+function deskSettings() {
+  return `
+    <div class="card ai-set">
+            <div class="small muted">넣으면 화면 오른쪽 아래에 💬 버튼이 생겨요. 캡처·영상과 함께 요청하면 클라우드의 Claude가 검토해서 고치고 배포해요. tokyo-trip-desk 저장소에만 Contents·Issues 쓰기 권한을 준 토큰을 넣어 주세요.</div>
       ${deskKey() ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>요청함 토큰 저장됨</b><small>토큰 끝자리 ••••${esc(deskKey().slice(-4))}</small></span>
           <button class="btn" data-desk-test>연결 확인</button><button class="btn key-del" data-desk-forget aria-label="요청함 토큰 삭제">삭제</button></div>` : `
         <input class="input" id="desk-key" type="password" autocomplete="off" placeholder="github_pat_로 시작하는 토큰">
-        <div class="btns"><button class="btn primary wide" data-desk-save>요청함 토큰 저장</button></div>`}
+        <div class="btns"><button class="btn wide" data-desk-save>요청함 토큰 저장</button></div>`}
     </div>`;
+}
+
+// One place for the settings: whose phone this is, AI keys, sync and reminders, the request box, the app itself.
+function settingsBody() {
+  const me = who();
+  const sec = (ic, title, html, cls = '') => `<section class="set-sec ${cls}"><div class="set-h">${secIcon(ic)}<span>${title}</span></div>${html}</section>`;
+  return `
+    <div class="sheet-head"><h3>설정</h3></div>
+    <div class="settings">
+      ${sec('home', '이 폰', `
+        <div class="card set-card">
+          <div class="set-row"><span class="grow"><b>누구 폰인가요</b><small>경비·기록을 남긴 사람과 동기화에 쓰여요</small></span></div>
+          <div class="seg-row">${PEOPLE.map((w) => `<button class="seg ${me === w ? 'on' : ''}" data-who="${w}">${w}폰</button>`).join('')}</div>
+          <button class="set-row tap" data-nick="${esc(me)}"><span class="grow"><b>부르는 이름</b><small>아침 준비 카드에서 이렇게 불러요</small></span><em>${esc(callOf(me))}</em>${icon('pen')}</button>
+        </div>`)}
+      ${sec('spark', 'AI 도우미', aiSettings())}
+      ${sec('refresh', '동기화 · 알림', `
+        <div class="card set-card">
+          <button class="set-row tap" data-go-sync><span class="grow"><b>예약정보 동기화</b><small>예약번호·자료·체크·지출을 두 폰이 나눠 가져요 (예약 탭)</small></span><i class="chev"></i></button>
+          <button class="set-row tap" data-alarm-sheet><span class="grow"><b>일정 알림 받기</b><small>아이폰 캘린더에 일정을 넣어 시작 전에 알려 줘요</small></span><i class="chev"></i></button>
+        </div>`)}
+      ${sec('talk', '개선 요청함', deskSettings())}
+      ${sec('checklist', '앱 정보', `
+        <div class="card set-card">
+          <div class="set-row"><span class="grow"><b>앱 버전 v${APP_VERSION}</b><small>${state.latest > APP_VERSION ? `새 버전 v${state.latest}이 있어요` : state.latest === APP_VERSION ? '최신 버전이에요' : '확인 중이에요'}</small></span>
+            <button class="btn ${state.latest > APP_VERSION ? 'primary' : ''}" data-update>${state.latest > APP_VERSION ? '지금 업데이트' : '다시 받기'}</button></div>
+          <div class="small muted set-note">키·예약번호·사진은 이 폰에만 저장되고 GitHub에 올라가지 않아요. 예산과 환전 현금은 경비 칸에서 바꿔요.</div>
+        </div>`)}
+    </div>`;
+}
+function openSettings() {
+  $('#sheet-body').innerHTML = settingsBody();
+  $('#sheet').hidden = false;
 }
 
 function openPlaceNew() {
@@ -4654,7 +4693,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 187;
+const APP_VERSION = 188;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -4692,6 +4731,9 @@ function render() {
   const stripKey = `${state.tab}:${state.dayIndex}:${Math.floor(tokyoNow().min / 60)}`;
   const stripAt = stripKey === state.stripKey ? $('.wx-strip')?.scrollLeft : null;
   $('#view').innerHTML = views[state.tab]() + versionLine();
+  if (!$('#top-gear').firstChild) $('#top-gear').innerHTML = icon('gear');
+  // The settings sheet follows the changes made in it (key saved, phone picked, name changed).
+  if (!$('#sheet').hidden && $('#sheet-body .settings')) { const y = $('#sheet-body').scrollTop; $('#sheet-body').innerHTML = settingsBody(); $('#sheet-body').scrollTop = y; }
   syncReqFab();
   state.stripKey = stripKey;
   placeWxStrip(stripAt);
@@ -4730,7 +4772,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-go-sync],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -4916,6 +4958,8 @@ document.addEventListener('click', async (e) => {
     $('.exp-form [name=memo]').focus();
     toast(`${yen(amount)} · 메모와 분류를 고르고 '기록'을 누르세요`);
   }
+  else if ('settings' in d) openSettings();
+  else if ('goSync' in d) { closeSheet(); state.syncOpen = true; go('wallet'); setTimeout(() => $('.card.sync')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 80); }
   else if ('syncToggle' in d) { state.syncOpen = !state.syncOpen; render(); }
   else if (d.transApp) {
     const dir = state.talkDir;
