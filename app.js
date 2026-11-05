@@ -1595,7 +1595,8 @@ function renderToday() {
   const queue = dueQueue(items, now);
   const current = queue[0];
   const started = current && isStarted(current, items);
-  const upcoming = items.filter((it) => it.startMin > now.min);
+  // A stop already marked done (early, or ahead of time) is over: it leaves the next card and the list.
+  const upcoming = items.filter((it) => it.startMin > now.min && !isDone(it.id));
   const next = upcoming[0];
   setHeader(`${dayIdx + 1}일차 · ${dayLabel(day.date)}`, stripEmoji(day.title), `일몰 ${day.sunset} · ${items.length}개 일정`);
 
@@ -4622,7 +4623,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 180;
+const APP_VERSION = 181;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
