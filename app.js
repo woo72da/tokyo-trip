@@ -210,6 +210,8 @@ function delayOf(it, now) {
   if (i === 0 && isStarted(q, items)) return now.min > q.endMin ? { kind: 'over', min: now.min - q.endMin } : null;
   const min = now.min - q.startMin;
   if (!Number.isFinite(min)) return null;
+  // Inside the entry window (Shibuya Sky: in by 13:59) it isn't late yet.
+  if (i === 0 && q.enterBy && now.min <= toMin(q.enterBy)) return null;
   return i === 0 && min < 10 ? null : { kind: i ? 'wait' : 'late', min };
 }
 const delayText = (d) => (d.kind === 'over' ? `${formatLeft(d.min)} 초과` : d.kind === 'late' ? `${formatLeft(d.min)} 늦음` : `밀림 · ${formatLeft(d.min)}`);
@@ -223,6 +225,7 @@ function travelMin(a, b) {
   if (pa && pa === pb) return 0;
   if (!pa?.lat || !pb?.lat) return 10;
   const km = kmBetween(pa, pb);
+  if (km < 0.15) return 0; // same building or next door
   return km <= 1.2 ? Math.max(1, Math.ceil((km * 1000 * 1.3) / 75)) : Math.ceil(km * 3 + 10);
 }
 // The knock-on changes when one stop takes [s, e] (idx -1: a new stop put in at s). Later stops keep their
@@ -1724,6 +1727,7 @@ function arrive(id) {
 // concrete times before anything changes: shorten (meals keep 40 min, others half or 20), move what doesn't
 // fit to after the fixed stop, or skip the least important. The stop under way keeps its start.
 const isMeal = (it) => ['meal', 'sushi', 'ramen', 'breakfast'].includes(glyph(it.icon)[0]) || /점심|저녁|식사/.test(it.title);
+const isShop = (it) => glyph(it.icon)[1] === 'shop' && glyph(it.icon)[0] !== 'money';
 const shortName = (it) => stripEmoji(it.title).split(' · ')[0];
 // A booked slot often lets you in a little late (Shibuya Sky: 13:40 slot, in by 13:59).
 const lastIn = (W) => (W.enterBy ? toMin(W.enterBy) : W.startMin);
@@ -1762,18 +1766,18 @@ function squeezeWays(q) {
   const room = lastIn(W);
   const fits = (seq, cut = {}) => packEnd(seq, cut, [], W) <= room;
   const started = (x) => isStarted(x, items) || x.startMin <= q.now.min;
-  const tier = (x) => (x.priority === 'optional' ? 0 : x.priority === 'must' ? 2 : 1);
-  // The least shortening that makes `seq` fit, or null: optional stops first, must-sees last; meals keep
-  // 40 min, others half or 20, the stop under way at least 15 more minutes.
+  // What gives way first: optional stops, then shopping (short or skipped is fine), then sights,
+  // then must-sees; meals last, and a meal is never skipped.
+  const tier = (x) => (isMeal(x) ? 4 : x.priority === 'optional' ? 0 : isShop(x) ? 1 : x.priority === 'must' ? 3 : 2);
+  const minLen = (x, len) => (isMeal(x) ? Math.min(len, 40) : isShop(x) ? Math.min(len, 15) : Math.max(20, Math.ceil(len / 2)));
+  // The least shortening that makes `seq` fit, or null, in 5-minute steps; the stop under way keeps 15 more minutes.
   const cutFor = (seq) => {
     let need = packEnd(seq, {}, [], W) - room;
     if (need <= 0) return {};
     const cut = {};
     for (const x of seq.filter((y) => !isMove(y)).sort((a, b) => tier(a) - tier(b))) {
       const len = x.endMin - x.startMin;
-      const keep = isMeal(x) ? Math.min(len, 40) : Math.max(20, Math.ceil(len / 2));
-      // In 5-minute steps, so nothing ends up '2분 줄임'.
-      const cap = Math.max(0, Math.min(len - keep, started(x) ? x.startMin + len - (q.now.min + 15) : len));
+      const cap = Math.max(0, Math.min(len - minLen(x, len), started(x) ? x.startMin + len - (q.now.min + 15) : len));
       const take = Math.min(cap, Math.ceil(need / 5) * 5);
       if (take > 0) { cut[x.id] = take; need -= take; }
       if (need <= 0) break;
@@ -1781,49 +1785,60 @@ function squeezeWays(q) {
     return need <= 0 && fits(seq, cut) ? cut : null;
   };
   const lay = (seq, cut) => { const out = []; packEnd(seq, cut, out); return out; };
-  const cutLines = (out, cut) => out.filter((o) => cut[o.it.id]).map((o) => `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)} · ${cut[o.it.id]}분 줄임`);
-  const moveLines = (out, cut) => out.filter((o) => !cut[o.it.id] && o.start !== o.it.startMin).map((o) => `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)}`);
+  const line = (o, cut) => `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)}${cut[o.it.id] ? ` · ${cut[o.it.id]}분 줄임` : ''}`;
+  // Every stop up to the fixed one, so the whole run to it can be checked at a glance.
+  const runLines = (out, cut) => [...out.filter((o) => cut[o.it.id] || o.start !== o.it.startMin || o.end !== o.it.endMin).map((o) => line(o, cut)),
+    `${shortName(W)} ${clock(Math.max(W.startMin, packEnd(out.map((o) => o.it), cut, [], W)))} 도착 (${W.enterBy || W.start}까지)`];
   const ways = [];
   // 1. Shorten.
   const c1 = cutFor(pend);
   if (c1) {
     const out = lay(pend, c1);
-    ways.push({ title: Object.keys(c1).length ? '조금씩 줄여서 맞추기' : '순서대로 다시 맞추기', out, skip: [], after: [], lines: [...cutLines(out, c1), ...moveLines(out, c1)] });
+    ways.push({ title: Object.keys(c1).length ? '조금씩 줄여서 맞추기' : '순서대로 다시 맞추기', out, skip: [], after: [], lines: runLines(out, c1) });
   }
-  // 2. Move what doesn't fit to after the fixed stop, last ones first, as few as a little shortening allows.
-  const stay = [...pend];
-  const moved = [];
-  let c2 = c1;
-  while (!c2) {
-    const k = stay.map((x, i) => i).reverse().find((i) => !isMove(stay[i]) && !started(stay[i]));
-    if (k == null) break;
-    moved.unshift(stay.splice(k, 1)[0]);
-    c2 = cutFor(stay);
+  // 2. Skip shopping or sights (never a meal), with a little shortening if needed.
+  const cand = pend.filter((x) => !isMove(x) && !started(x) && !isMeal(x) && (x.priority !== 'must' || isShop(x)))
+    .sort((a, b) => tier(a) - tier(b) || (a.endMin - a.startMin) - (b.endMin - b.startMin));
+  if (!c1) {
+    let skip = [];
+    let c3 = null;
+    const one = cand.find((x) => cutFor(pend.filter((y) => y !== x)));
+    if (one) { skip = [one]; c3 = cutFor(pend.filter((y) => y !== one)); }
+    else for (const x of cand) { skip.push(x); c3 = cutFor(pend.filter((y) => !skip.includes(y))); if (c3) break; }
+    if (skip.length && c3) {
+      const out = lay(pend.filter((y) => !skip.includes(y)), c3);
+      ways.push({ title: `${skip.map(shortName).join('·')} 건너뛰기`, out, skip, after: [], lines: [`${skip.map(shortName).join(', ')} 건너뜀`, ...runLines(out, c3)] });
+    }
   }
-  if (moved.length && c2) {
+  // 3. Move what doesn't fit to after the fixed stop: first the shopping/sights (keeping the meal on time),
+  //    then, as the other choice, the meal.
+  const moveWay = (pickMeal) => {
+    const stay = [...pend];
+    const moved = [];
+    let c2 = c1;
+    while (!c2) {
+      const idx = stay.map((x, i) => i).filter((i) => !isMove(stay[i]) && !started(stay[i]) && isMeal(stay[i]) === pickMeal);
+      if (!idx.length) return null;
+      const k = idx.sort((a, b) => tier(stay[a]) - tier(stay[b]) || b - a)[0];
+      moved.push(stay.splice(k, 1)[0]);
+      c2 = cutFor(stay);
+    }
+    if (!moved.length) return null;
+    moved.sort((a, b) => pend.indexOf(a) - pend.indexOf(b));
     const out = lay(stay, c2);
     let cur = W.endMin;
     let prev = W;
     // `past` marks a stop moved behind the fixed one on purpose, so it isn't read as out of order.
     const after = moved.map((x) => { const st = cur + travelMin(prev, x); const o = { it: x, start: st, end: st + x.endMin - x.startMin, past: W.id }; cur = o.end; prev = x; return o; });
     // Stops after the fixed one move along; free time soaks up the push, other fixed stops stop it.
-    const rest = ripple(items, w, W.startMin, cur + travelMin(prev, items[w + 1])).changes.filter((c) => !moved.includes(c.it) && !pend.includes(c.it));
+    const rest = ripple(items, w, W.startMin, cur + travelMin(prev, items.slice(w + 1).find((x) => !pend.includes(x)))).changes.filter((c) => !moved.includes(c.it) && !pend.includes(c.it));
     const most = rest.length ? Math.max(...rest.map((c) => c.start - c.it.startMin)) : 0;
-    ways.push({ title: `${moved.map(shortName).join('·')}${eulReul(shortName(moved[moved.length - 1]))} ${shortName(W)} 뒤로`, out, skip: [], after: [...after, ...rest],
-      lines: [...cutLines(out, c2), ...moveLines(out, c2), ...after.map((o) => `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)} · ${shortName(W)} 끝나고`), most ? `그 뒤 일정 ${rest.length}개 최대 ${formatLeft(most)} 밀림` : '그 뒤 일정은 그대로'] });
-  }
-  // 3. Skip the least important stop(s) that aren't under way, with a little shortening if needed.
-  const cand = pend.filter((x) => !isMove(x) && !started(x) && x.priority !== 'must').sort((a, b) => tier(a) - tier(b) || (a.endMin - a.startMin) - (b.endMin - b.startMin));
-  let skip = [];
-  let c3 = null;
-  const one = cand.find((x) => cutFor(pend.filter((y) => y !== x)));
-  if (one) { skip = [one]; c3 = cutFor(pend.filter((y) => y !== one)); }
-  else for (const x of cand) { skip.push(x); c3 = cutFor(pend.filter((y) => !skip.includes(y))); if (c3) break; }
-  if (skip.length && c3) {
-    const out = lay(pend.filter((y) => !skip.includes(y)), c3);
-    ways.push({ title: `${skip.map(shortName).join('·')} 건너뛰기`, out, skip, after: [],
-      lines: [`${skip.map(shortName).join(', ')} 건너뜀`, ...cutLines(out, c3), ...moveLines(out, c3)] });
-  }
+    const last = rest[rest.length - 1];
+    return { title: `${moved.map(shortName).join('·')}${eulReul(shortName(moved[moved.length - 1]))} ${shortName(W)} 뒤로`, out, skip: [], after: [...after, ...rest],
+      lines: [...runLines(out, c2), ...after.map((o) => `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)} · ${shortName(W)} ${W.end || clock(W.endMin)} 끝나고 ${travelMin(W, o.it) ? `${travelMin(W, o.it)}분 이동` : '바로'}`),
+        most ? `그 뒤 일정 ${rest.length}개 최대 ${formatLeft(most)} 밀림 · 하루 끝 ${clock(last.end)}` : '그 뒤 일정은 그대로'] };
+  };
+  for (const wy of [moveWay(false), moveWay(true)]) if (wy) ways.push(wy);
   return ways;
 }
 function openSqueeze(date) {
@@ -4540,7 +4555,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 165;
+const APP_VERSION = 166;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
