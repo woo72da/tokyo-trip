@@ -1616,3 +1616,7 @@ ol.alarm-note { padding-left: 18px; }
 .tl-skip .grow { text-decoration: line-through; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .tl-skip small { flex: none; font-size: 12px; }
 .tl-skip > .ico { flex: none; width: 18px; height: 18px; opacity: .7; }
+
+/* Arrived: the card's next step is 방문 완료, right there */
+.start-ask.in .grow { display: inline-flex; align-items: center; gap: 6px; color: var(--now); }
+.start-ask .done-yes { background: var(--now); color: #0d2a24; }

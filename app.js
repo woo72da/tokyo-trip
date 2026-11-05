@@ -1992,6 +1992,7 @@ function heroCard(it, kind, now, started = true) {
       ${kind === 'next' && canArrive(it, now) ? `<div class="start-ask"><span class="grow">벌써 도착했나요?</span><button class="start-yes" data-arrive="${esc(it.id)}">${icon('check')}${arriveLabel(it)}</button></div>` : ''}
       ${waiting ? `<div class="start-ask"><span class="grow">${isTransit(it) ? '출발했나요?' : '도착했나요?'}</span><button class="start-yes" data-arrive="${esc(it.id)}">${icon('check')}${arriveLabel(it)}</button><button data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button></div>` : ''}
       ${over > 0 ? `<div class="start-ask"><span class="grow">끝났나요?</span><button class="start-yes" data-done="${esc(it.id)}">${icon('check')}${doneLabel(it)}</button><button data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button></div>` : ''}
+      ${kind === 'now' && started && over <= 0 && !isDone(it.id) ? `<div class="start-ask in"><span class="grow">${icon('check')}${isBegun(it) ? `${arriveLabel(it)}${isTransit(it) ? '' : ' · 나갈 때 눌러요'}` : '진행 중 · 끝나면 눌러요'}</span><button class="start-yes done-yes" data-done="${esc(it.id)}">${icon('check')}${doneLabel(it)}</button></div>` : ''}
       ${kind === 'now' ? catchBtn(it, items, now) : ''}
       ${kind === 'now' && !waiting && over <= 0 ? `<div class="meter"><i style="width:${progress}%"></i></div>` : ''}
       ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
@@ -4649,7 +4650,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 173;
+const APP_VERSION = 174;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
