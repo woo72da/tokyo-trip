@@ -1608,3 +1608,11 @@ ol.alarm-note { padding-left: 18px; }
 .sq-way > b { display: block; font-size: 16px; }
 .sq-way ul { margin: 6px 0 10px; padding-left: 18px; font-size: 14px; line-height: 1.6; }
 .sq-bar .chev { transform: rotate(-45deg); margin-right: 4px; }
+
+/* A skipped stop: one slim struck-through line at its planned time */
+.tl-item.slim { padding-bottom: 6px; }
+.tl-item.slim .tl-time { color: var(--muted); opacity: .7; }
+.tl-skip { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px; border: 1px dashed var(--line); border-radius: 14px; color: var(--muted); font-size: 14px; }
+.tl-skip .grow { text-decoration: line-through; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tl-skip small { flex: none; font-size: 12px; }
+.tl-skip > .ico { flex: none; width: 18px; height: 18px; opacity: .7; }

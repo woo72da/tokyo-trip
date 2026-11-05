@@ -137,12 +137,21 @@ function planItems() {
     return swapped ? { ...it, ...swappedStop(it, swapped), ...edit } : { ...it, ...edit };
   });
   // A move renamed to '이동 → 시부야 스카이' goes there: directions follow the name, not the old place.
+  // Renamed off its train ('도보 → 숙소'), the old line and its '약 35분' go too; '숙소'/'호텔' is the hotel.
   return list.map((it) => {
     const edit = store.get('edit:' + it.id, null);
-    const to = edit?.title && glyph(it.icon)[1] === 'move' && /→\s*(.+)$/.exec(stripEmoji(edit.title))?.[1].trim();
-    if (!to) return it;
+    if (!edit?.title || glyph(it.icon)[1] !== 'move') return it;
+    const name = stripEmoji(edit.title);
+    let out = it;
+    if (it.line && !it.line.some((l) => name.includes(l.name))) {
+      out = { ...out, line: undefined, note: 'note' in edit ? edit.note : /^약 \d+분$/.test(it.note || '') ? '' : it.note };
+    }
+    const to = /→\s*(.+)$/.exec(name)?.[1].trim();
+    if (!to) return out;
+    const st = state.trip.stay;
+    if (/숙소|호텔/.test(to) || to.startsWith(st.name)) return { ...out, place: { nameJa: st.nameJa, query: st.address || st.query }, placeId: undefined };
     const dest = list.find((x) => x !== it && x.date === it.date && x.place && stripEmoji(x.title).startsWith(to));
-    return dest ? { ...it, place: dest.place, placeId: dest.placeId } : it;
+    return dest ? { ...out, place: dest.place, placeId: dest.placeId } : out;
   });
 }
 const effectiveItems = (day, withDeleted = false) => planItems().filter((it) => it.date === day.date && (withDeleted || !it.del));
@@ -1208,9 +1217,10 @@ function navigate(key) {
   if (findItem(key)?.place?.lang === 'ko') {
     return openApp(`nmap://search?query=${e}&appname=io.github.woo72da.tokyotrip`, `https://map.naver.com/p/search/${e}`, '네이버지도');
   }
+  const mode = /^도보/.test(stripEmoji(findItem(key)?.title || '')) ? 'walking' : 'transit';
   openApp(
-    `comgooglemaps://?daddr=${e}&directionsmode=transit`,
-    `https://www.google.com/maps/dir/?api=1&destination=${e}&travelmode=transit`,
+    `comgooglemaps://?daddr=${e}&directionsmode=${mode}`,
+    `https://www.google.com/maps/dir/?api=1&destination=${e}&travelmode=${mode}`,
     '구글맵',
   );
 }
@@ -2011,6 +2021,14 @@ function timeline(items, now, edit = false) {
     const sq = !edit && i && isToday && isFixed(it) && squeezeOf(it.date, now);
     const bar = sq && sq.W.id === it.id ? `<div class="tl-sq">${squeezeBar(sq)}</div>` : '';
     const tail = edit ? `<button class="tl-add" data-item-new="${esc(it.date)}" data-after="${esc(it.id)}">${icon('plus')}여기에 일정 넣기</button>` : gapLabel(it, items[i + 1]);
+    if (it.skip && !edit) {
+      const planned = rawItem(it.id)?.start || it.start;
+      return `${bar}
+      <div class="tl-item skipped slim ${it.priority || ''}">
+        <div class="tl-time">${esc(planned)}</div>
+        <div class="tl-skip" data-item="${esc(it.id)}" role="button" tabindex="0">${icon(glyph(it.icon)[0])}<span class="grow">${esc(stripEmoji(it.title))}</span><small>건너뜀</small></div>
+      </div>`;
+    }
     if (isTransit(it)) return bar + transitRow(it, cls, late, now, edit, tail);
     return `${bar}
       <div class="tl-item ${cls}">
@@ -4598,7 +4616,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 171;
+const APP_VERSION = 172;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
