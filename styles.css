@@ -1451,7 +1451,7 @@ ol.alarm-note { padding-left: 18px; }
 .menu-ask small { font-size: 12px; font-weight: 700; color: var(--accent); }
 .menu-ask b { font-size: 20px; }
 .menu-ask span { font-size: 13px; color: var(--muted); }
-.ai-plan-btn { margin: 2px 0 8px; }
+.ai-plan-btn { margin: 8px 0 16px; }
 .ai-ask { display: block; min-height: 84px; margin: 10px 0 8px; padding: 12px 14px; line-height: 1.5; font-size: 16px; resize: none; }
 .ai-eg { margin-bottom: 10px; } .ai-eg .chip { border: 0; font: inherit; font-size: 13px; }
 .ai-reply { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--soft); font-size: 14px; line-height: 1.5; }
