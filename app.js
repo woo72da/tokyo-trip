@@ -1340,9 +1340,25 @@ function speak(text) {
   };
   next();
 }
+// A tenth of a second of silence (WAV), played through <audio> inside the tap: on iPhone this moves the page's
+// audio to the 'playback' session, so the speech engine isn't muted by the silent switch either.
+const SILENCE = (() => {
+  const n = 800; const b = new Uint8Array(44 + n); const v = new DataView(b.buffer);
+  const w = (o, t) => [...t].forEach((c, i) => { b[o + i] = c.charCodeAt(0); });
+  w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true); b.fill(128, 44);
+  return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+})();
 function speakEngine(text) {
   const synth = window.speechSynthesis;
   if (!synth) return speakFallback(text, '이 기기 브라우저는 음성을 지원하지 않아요.');
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* older iPhone */ }
+  player.onended = null;
+  player.src = SILENCE;
+  player.play().catch(() => {});
+  // The engine gives no error when the phone is on silent, so say once what to try if nothing is heard.
+  clearTimeout(state.speakHint);
+  if (!state.speakHinted) state.speakHint = setTimeout(() => { if (!synth.speaking) return; state.speakHinted = true; toast('소리가 안 나면 폰 옆 무음 스위치를 끄고 다시 눌러 보세요', `https://translate.google.com/?sl=ja&tl=ko&text=${encodeURIComponent(text)}&op=translate`, 'Google 번역에서 듣기'); }, 1200);
   const voice = jaVoice();
   if (!voice && synth.getVoices().length) return speakFallback(text, '이 폰에 일본어 음성이 없어요.');
   if (synth.speaking || synth.pending) synth.cancel();
@@ -4744,7 +4760,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 197;
+const APP_VERSION = 198;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
