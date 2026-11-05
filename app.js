@@ -1730,10 +1730,13 @@ function squeezeOf(date, now) {
   for (let w = 0; w < items.length; w += 1) {
     const W = items[w];
     if (!isFixed(W) || isDone(W.id) || W.startMin <= now.min) continue;
-    const pend = items.slice(0, w).filter((x) => !isDone(x.id) && x.endMin > now.min);
+    // Stops planned before it, by the original plan: one already pushed past it (the walk there) still counts.
+    const planned = (x) => toMin(rawItem(x.id)?.start || x.start);
+    const pend = items.filter((x) => x !== W && planned(x) < planned(W) && store.get('edit:' + x.id, null)?.past !== W.id && !isFixed(x) && !isDone(x.id) && x.endMin > now.min)
+      .sort((a, b) => planned(a) - planned(b));
     if (!pend.some((x) => !isMove(x))) continue;
     const end = packEnd(pend, {}, [], W);
-    if (end > W.startMin) return { items, w, W, pend, buf: travelMin(pend[pend.length - 1], W), over: end - W.startMin, now };
+    if (end > W.startMin || pend.some((x) => x.startMin >= W.startMin)) return { items, w, W, pend, buf: travelMin(pend[pend.length - 1], W), over: Math.max(0, end - W.startMin), now };
   }
   return null;
 }
@@ -1780,9 +1783,9 @@ function squeezeWays(q) {
   const ways = [];
   // 1. Shorten.
   const c1 = cutFor(pend);
-  if (c1 && Object.keys(c1).length) {
+  if (c1) {
     const out = lay(pend, c1);
-    ways.push({ title: '조금씩 줄여서 맞추기', out, skip: [], after: [], lines: [...cutLines(out, c1), ...moveLines(out, c1)] });
+    ways.push({ title: Object.keys(c1).length ? '조금씩 줄여서 맞추기' : '순서대로 다시 맞추기', out, skip: [], after: [], lines: [...cutLines(out, c1), ...moveLines(out, c1)] });
   }
   // 2. Move what doesn't fit to after the fixed stop, last ones first, as few as a little shortening allows.
   const stay = [...pend];
@@ -1798,12 +1801,13 @@ function squeezeWays(q) {
     const out = lay(stay, c2);
     let cur = W.endMin;
     let prev = W;
-    const after = moved.map((x) => { const st = cur + travelMin(prev, x); const o = { it: x, start: st, end: st + x.endMin - x.startMin }; cur = o.end; prev = x; return o; });
+    // `past` marks a stop moved behind the fixed one on purpose, so it isn't read as out of order.
+    const after = moved.map((x) => { const st = cur + travelMin(prev, x); const o = { it: x, start: st, end: st + x.endMin - x.startMin, past: W.id }; cur = o.end; prev = x; return o; });
     // Stops after the fixed one move along; free time soaks up the push, other fixed stops stop it.
-    const rest = ripple(items, w, W.startMin, cur + travelMin(prev, items[w + 1])).changes.filter((c) => !moved.includes(c.it));
+    const rest = ripple(items, w, W.startMin, cur + travelMin(prev, items[w + 1])).changes.filter((c) => !moved.includes(c.it) && !pend.includes(c.it));
     const most = rest.length ? Math.max(...rest.map((c) => c.start - c.it.startMin)) : 0;
     ways.push({ title: `${moved.map(shortName).join('·')}${eulReul(shortName(moved[moved.length - 1]))} ${shortName(W)} 뒤로`, out, skip: [], after: [...after, ...rest],
-      lines: [...cutLines(out, c2), ...after.map((o) => `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)} · ${shortName(W)} 끝나고`), most ? `그 뒤 일정 ${rest.length}개 최대 ${formatLeft(most)} 밀림` : '그 뒤 일정은 그대로'] });
+      lines: [...cutLines(out, c2), ...moveLines(out, c2), ...after.map((o) => `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)} · ${shortName(W)} 끝나고`), most ? `그 뒤 일정 ${rest.length}개 최대 ${formatLeft(most)} 밀림` : '그 뒤 일정은 그대로'] });
   }
   // 3. Skip the least important stop(s) that aren't under way, with a little shortening if needed.
   const cand = pend.filter((x) => !isMove(x) && !started(x) && x.priority !== 'must').sort((a, b) => tier(a) - tier(b) || (a.endMin - a.startMin) - (b.endMin - b.startMin));
@@ -1825,7 +1829,7 @@ function openSqueeze(date) {
   state.squeeze = { date, ways: squeezeWays(q) };
   $('#sheet-body').innerHTML = `
     <div class="sheet-head"><h3>${esc(shortName(q.W))} ${esc(q.W.start)}에 맞추기</h3></div>
-    <div class="sq-why">${icon('warn')}<span>이대로면 <b>${formatLeft(q.over)}</b> 모자라요. ${esc(shortName(q.W))}${eunNeun(shortName(q.W))} 시간이 정해져 있어서 움직이지 않아요${q.buf ? ` (가는 시간 ${q.buf}분 포함)` : ''}.</span></div>
+    <div class="sq-why">${icon('warn')}<span>${q.over ? `이대로면 <b>${formatLeft(q.over)}</b> 모자라요.` : `${esc(q.pend.filter((x) => x.startMin >= q.W.startMin).map(shortName).join(', '))}${hasBatchim(shortName(q.pend.filter((x) => x.startMin >= q.W.startMin).pop())) ? '이' : '가'} ${esc(shortName(q.W))} 뒤로 밀려 있어요.`} ${esc(shortName(q.W))}${eunNeun(shortName(q.W))} 시간이 정해져 있어서 움직이지 않아요${q.buf ? ` (가는 시간 ${q.buf}분 포함)` : ''}.</span></div>
     <div class="sq-now small muted">지금 일정: ${q.pend.map((x) => `${esc(shortName(x))} ${clock(x.startMin)}–${clock(x.endMin)}`).join(' → ')}</div>
     ${state.squeeze.ways.map((wy, i) => `
       <div class="sq-way">
@@ -1845,7 +1849,7 @@ function applySqueeze(i) {
   };
   for (const o of [...wy.out, ...wy.after]) {
     const st = o.start; const en = o.end;
-    if (st !== o.it.startMin || en !== o.it.endMin) put(o.it.id, { start: clock(st), end: clock(Math.min(1439, en)), auto: true });
+    if (st !== o.it.startMin || en !== o.it.endMin || o.past) put(o.it.id, { start: clock(st), end: clock(Math.min(1439, en)), auto: true, ...(o.past ? { past: o.past } : {}) });
   }
   for (const x of wy.skip) put(x.id, { skip: true });
   closeSheet();
@@ -1853,7 +1857,7 @@ function applySqueeze(i) {
   toast(`${wy.title} · 적용했어요`, () => { for (const [k, v] of Object.entries(undo)) store.set('edit:' + k, v); render(); }, '되돌리기');
 }
 // Shown above the fixed stop in the day's list and on the today tab.
-const squeezeBar = (q) => `<button class="sq-bar" data-squeeze-open="${esc(q.W.date)}">${icon('warn')}<span class="grow"><b>${esc(shortName(q.W))} ${esc(q.W.start)}까지 ${formatLeft(q.over)} 모자라요</b><small>맞추는 방법 보기</small></span><i class="chev"></i></button>`;
+const squeezeBar = (q) => `<button class="sq-bar" data-squeeze-open="${esc(q.W.date)}">${icon('warn')}<span class="grow"><b>${esc(shortName(q.W))} ${esc(q.W.start)}${q.over ? `까지 ${formatLeft(q.over)} 모자라요` : ' 앞 일정 순서가 꼬였어요'}</b><small>맞추는 방법 보기</small></span><i class="chev"></i></button>`;
 
 function heroCard(it, kind, now, started = true) {
   const progress = kind === 'now'
@@ -4533,7 +4537,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 163;
+const APP_VERSION = 164;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
