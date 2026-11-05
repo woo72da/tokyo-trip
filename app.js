@@ -205,8 +205,11 @@ function delayOf(it, now) {
   const queue = dueQueue(items, now);
   const i = queue.findIndex((x) => x.id === it.id);
   if (i < 0) return null;
-  if (i === 0 && isStarted(it, items)) return now.min > it.endMin ? { kind: 'over', min: now.min - it.endMin } : null;
-  const min = now.min - it.startMin;
+  // The stop as the day computes it (a stop opened from elsewhere may lack the minute fields).
+  const q = queue[i];
+  if (i === 0 && isStarted(q, items)) return now.min > q.endMin ? { kind: 'over', min: now.min - q.endMin } : null;
+  const min = now.min - q.startMin;
+  if (!Number.isFinite(min)) return null;
   return i === 0 && min < 10 ? null : { kind: i ? 'wait' : 'late', min };
 }
 const delayText = (d) => (d.kind === 'over' ? `${formatLeft(d.min)} 초과` : d.kind === 'late' ? `${formatLeft(d.min)} 늦음` : `밀림 · ${formatLeft(d.min)}`);
@@ -2990,7 +2993,7 @@ async function runFind(w) {
   const name = given || shareName || (/https?:\/\//.test(raw) ? '' : raw);
   if (gKey()) {
     const pos = url.match(/!3d(-?[\d.]+)!4d(-?[\d.]+)/) || url.match(/@(-?[\d.]+),(-?[\d.]+)/);
-    out.innerHTML = '<div class="small muted ai-wait">찾는 중…</div>';
+    out.innerHTML = aiLoading('구글에서 찾고 있어요', ['장소를 찾는 중'], true);
     try {
       let id = pos ? await gNear(Number(pos[1]), Number(pos[2])) : null;
       if (!id && name) { state.gSession = state.gSession || crypto.randomUUID(); id = (await gSuggest(name, state.gSession))[0]?.id; }
@@ -3001,7 +3004,7 @@ async function runFind(w) {
   const local = name && localMatches(name)[0];
   if (local) return pickLocal(local.id, w, '앱에 이미 있는 장소라 그 정보를 썼어요');
   if (aiKey()) {
-    out.innerHTML = `<div class="ai-wait big">${icon('spark')}AI가 찾는 중… 10~30초</div>`;
+    out.innerHTML = aiLoading('AI가 장소를 찾고 있어요', ['링크를 열어 보는 중', '웹에서 장소를 찾는 중', '영업시간·팁을 정리하는 중', '거의 다 됐어요']);
     try { return useFound(w, await aiPlace(given && !raw.includes(given) ? `${given}\n${raw}` : raw), url); } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; return; }
   }
   if (!name) return toast('공유 내용에서 이름을 찾지 못했어요');
@@ -3012,7 +3015,7 @@ async function runFind(w) {
 async function gPick(id, w) {
   const out = $(`#${w}-out`);
   $(`#${w}-sugg`).innerHTML = '';
-  out.innerHTML = `<div class="ai-wait big ${aiKey() ? '' : 'plain'}">${icon(aiKey() ? 'spark' : 'refresh')}${aiKey() ? '구글 정보와 AI 설명을 가져오는 중… 5~15초' : '구글 정보를 가져오는 중…'}</div>`;
+  out.innerHTML = aiKey() ? aiLoading('구글 정보와 AI 설명을 가져오고 있어요', ['구글에서 장소 정보를 가져오는 중', '사진을 받는 중', 'AI가 설명과 팁을 쓰는 중', '거의 다 됐어요']) : aiLoading('구글 정보를 가져오고 있어요', ['장소 정보를 가져오는 중', '사진을 받는 중'], true);
   try {
     const g = await gPlace(id, state.gSession);
     state.gSession = null;
@@ -3154,13 +3157,31 @@ async function imgBlock(file) {
   const data = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
   return { type: 'image', source: { type: 'base64', media_type: blob.type === 'image/png' ? 'image/png' : 'image/jpeg', data } };
 }
-const sheetWait = (title, msg, file) => {
+// While Claude works: a pulsing sparkle, a moving bar, seconds counted and the step it is on (DESIGN.md › AI).
+// `plain` is the same thing in grey for waits that aren't AI (uploads, Google only).
+const aiLoading = (msg, steps = [], plain = false) => `
+  <div class="ai-wait ai-load ${plain ? 'plain' : ''}" role="status" aria-live="polite" data-start="${Date.now()}" data-steps="${esc(JSON.stringify(steps))}">
+    <div class="ai-load-top"><span class="ai-orb">${icon(plain ? 'refresh' : 'spark')}</span><b>${esc(msg)}</b><span class="ai-sec">0초</span></div>
+    <div class="ai-bar"><i></i></div>
+    ${steps.length ? `<small class="ai-step">${esc(steps[0])}</small>` : ''}
+  </div>`;
+setInterval(() => {
+  document.querySelectorAll('.ai-load').forEach((el) => {
+    const t = Math.floor((Date.now() - Number(el.dataset.start)) / 1000);
+    el.querySelector('.ai-sec').textContent = `${t}초`;
+    const steps = JSON.parse(el.dataset.steps || '[]');
+    const st = el.querySelector('.ai-step');
+    if (st && steps.length) st.textContent = steps[Math.min(steps.length - 1, Math.floor(t / 4))];
+  });
+}, 1000);
+const sheetWait = (title, msg, file, steps = []) => {
   $('#sheet-body').innerHTML = `<div class="sheet-head"><h3>${esc(title)}</h3></div>
-    ${file ? `<img class="ai-shot" src="${URL.createObjectURL(file)}" alt="">` : ''}
-    <div class="ai-wait big">${icon('spark')}${esc(msg)}</div><div id="ai-res"></div>`;
+    ${file ? `<div class="ai-shot-wrap scanning"><img class="ai-shot" src="${URL.createObjectURL(file)}" alt=""></div>` : ''}
+    ${aiLoading(msg, steps)}<div id="ai-res"></div>`;
   $('#sheet').hidden = false;
 };
-const sheetFail = (msg) => { const box = $('#ai-res') || $('#sheet-body'); $('.ai-wait')?.remove(); box.insertAdjacentHTML('beforeend', `<div class="ai-note">${esc(msg)}</div>`); };
+const doneWait = () => { $('.ai-wait')?.remove(); $('.ai-shot-wrap')?.classList.remove('scanning'); };
+const sheetFail = (msg) => { const box = $('#ai-res') || $('#sheet-body'); doneWait(); box.insertAdjacentHTML('beforeend', `<div class="ai-note">${esc(msg)}</div>`); };
 
 // ① Receipt photo → one expense, with the photo kept as its receipt.
 const RCPT_SCHEMA = {
@@ -3182,14 +3203,14 @@ date and time as printed. cat is one of the given categories. If it is not a rec
 async function rcptFromPhoto() {
   const file = await pickImage();
   if (!file) return;
-  sheetWait('영수증으로 지출 등록', 'AI가 영수증을 읽는 중… 5~15초', file);
+  sheetWait('영수증으로 지출 등록', 'AI가 영수증을 읽고 있어요', file, ['영수증 글자를 읽는 중', '합계·날짜·시간을 찾는 중', '품목을 한국어로 정리하는 중', '거의 다 됐어요']);
   try {
     const r = await aiAsk({ system: RCPT_SYSTEM, schema: RCPT_SCHEMA, content: [await imgBlock(file), { type: 'text', text: '이 영수증을 지출로 정리해 주세요.' }] });
     if (!r.found) return sheetFail(r.note || '영수증으로 읽지 못했어요.');
     const day = /^\d{4}-\d{2}-\d{2}$/.test(r.date) ? r.date : tokyoNow().date;
     const row = payRow({ date: day, time: /^\d{1,2}:\d{2}$/.test(r.time) ? r.time.padStart(5, '0') : '', shop: r.shop || '영수증', cur: r.currency, value: Math.round(r.total) });
     state.rcptAi = { file, row, pay: r.pay === 'unknown' ? payOf() : r.pay, items: r.items || [], taxfree: !!r.taxfree };
-    $('.ai-wait')?.remove();
+    doneWait();
     $('#ai-res').innerHTML = `
       <form class="exp-form rcpt-ai" data-rcpt-save>
         <label class="field"><span>가게</span><input class="input" name="shop" value="${esc(row.shop)}" maxlength="60"></label>
@@ -3235,7 +3256,7 @@ const CAP_SCHEMA = {
 async function smsFromPhoto() {
   const file = await pickImage();
   if (!file) return;
-  $('#sms-out').innerHTML = `<div class="ai-wait big">${icon('spark')}AI가 캡처를 읽는 중… 5~15초</div>`;
+  $('#sms-out').innerHTML = aiLoading('AI가 캡처를 읽고 있어요', ['캡처 속 결제를 찾는 중', '날짜·금액을 맞추는 중', '이미 있는 지출과 비교하는 중']);
   try {
     const r = await aiAsk({
       system: `You read a screenshot of a Korean card app or card text messages for a Tokyo trip in ${state.trip.trip.start.slice(0, 4)}. List every payment you can see: date (YYYY-MM-DD; the year is ${state.trip.trip.start.slice(0, 4)} if not shown), time, shop as shown, amount, currency (JPY for 해외/엔 amounts, else KRW), cancel true for 취소. Prefer the foreign-currency amount when both are shown. Skip balances and totals. note: Korean, what you could not read.`,
@@ -3260,7 +3281,7 @@ const MENU_SCHEMA = {
 async function menuFromPhoto() {
   const file = await pickImage();
   if (!file) return;
-  sheetWait('사진 번역', 'AI가 사진을 읽는 중… 5~15초', file);
+  sheetWait('사진 번역', 'AI가 사진을 읽고 있어요', file, ['사진 속 글자를 읽는 중', '한국어로 옮기는 중', '가격을 원으로 바꾸는 중', '거의 다 됐어요']);
   try {
     const r = await aiAsk({
       system: `You help a Korean traveler in Japan understand a photo of a menu, sign, notice or ticket machine. Reply in Korean.
@@ -3268,7 +3289,7 @@ title: what this is. summary: 1-2 lines of what matters (how to order, rules, wa
 ask: one useful Japanese sentence the traveler may want to say here (ja), its Korean-letter pronunciation (read), and meaning (ko).`,
       schema: MENU_SCHEMA, content: [await imgBlock(file), { type: 'text', text: '이 사진을 한국어로 정리해 주세요.' }],
     });
-    $('.ai-wait')?.remove();
+    doneWait();
     const rate = fxRate();
     $('#ai-res').innerHTML = `
       <div class="menu-ai">
@@ -3328,7 +3349,9 @@ async function aiPlanGo() {
   const items = dayItems(day);
   const stops = items.map((it) => ({ id: it.id, start: it.start, end: it.end || '', title: stripEmoji(it.title), kind: isMove(it) ? 'move' : '', fixed: isFixed(it), done: isDone(it.id), skipped: !!it.skip, place: placeOfItem(it.id)?.name || '' }));
   const known = allPlaces().filter((x) => x.lat).map((x) => `${x.name}|${x.area}|${x.cat}`).join('\n');
-  $('#ai-res').innerHTML = `<div class="ai-wait big">${icon('spark')}AI가 일정을 맞춰 보는 중… 5~20초</div>`;
+  $('#ai-res').innerHTML = aiLoading('AI가 일정을 맞춰 보고 있어요', ['오늘 일정을 살펴보는 중', '고정 일정을 확인하는 중', '바꿀 방법을 만드는 중', '거의 다 됐어요']);
+  const goBtn = $('[data-ai-plan-go]');
+  if (goBtn) { goBtn.disabled = true; goBtn.classList.add('busy'); }
   try {
     const r = await aiAsk({
       system: [{ type: 'text', text: PLAN_SYSTEM }, { type: 'text', text: `Known places (name|area|category):\n${known}`, cache_control: { type: 'ephemeral' } }],
@@ -3336,6 +3359,7 @@ async function aiPlanGo() {
       content: [{ type: 'text', text: JSON.stringify({ date, now: now.date === date ? clock(now.min) : null, stops, ask: q }) }],
     });
     state.aiPlan = { date, options: (r.options || []).map((o) => ({ ...o, ops: cleanOps(o.ops, items) })).filter((o) => o.ops.length) };
+    $('[data-ai-plan-go]')?.removeAttribute('disabled'); $('[data-ai-plan-go]')?.classList.remove('busy');
     $('#ai-res').innerHTML = `
       ${r.reply ? `<div class="ai-reply">${esc(r.reply)}</div>` : ''}
       ${state.aiPlan.options.map((o, i) => `
@@ -3344,7 +3368,7 @@ async function aiPlanGo() {
           <ul class="ai-diff">${o.ops.map((op) => `<li class="${op.warn ? 'warn' : ''}">${esc(op.text)}</li>`).join('')}</ul>
           <button class="btn primary wide" data-ai-plan-apply="${i}">${icon('check')}이대로 적용</button>
         </div>`).join('') || (r.reply ? '' : '<div class="ai-note">바꿀 내용을 찾지 못했어요. 조금 더 구체적으로 적어 주세요.</div>')}`;
-  } catch (e) { $('#ai-res').innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+  } catch (e) { $('#ai-res').innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; $('[data-ai-plan-go]')?.removeAttribute('disabled'); $('[data-ai-plan-go]')?.classList.remove('busy'); }
 }
 // Keep only ops on real stops with valid times, and describe each in words for the preview.
 function cleanOps(ops = [], items) {
@@ -3419,8 +3443,9 @@ async function aiDiary(date, btn) {
     visits, spent: { total: Math.round(spent.reduce((a, e) => a + e.amount, 0)), by: Object.entries(spent.reduce((m, e) => ({ ...m, [e.cat]: (m[e.cat] || 0) + e.amount }), {})).map(([c, n]) => `${c} ${Math.round(n)}엔`) },
     gear: gearText(gearLog(date, who())),
   };
-  const label = btn.textContent;
-  btn.disabled = true; btn.textContent = '정리하는 중…';
+  const wait = document.createElement('div');
+  wait.innerHTML = aiLoading('AI가 오늘 기록을 정리하고 있어요', ['방문한 곳과 평가를 모으는 중', '지출과 날씨를 정리하는 중', '일기를 쓰는 중']);
+  btn.replaceWith(wait);
   try {
     const r = await aiAsk({
       system: 'Write a short, warm Korean travel diary entry (5-8 sentences, plain prose, no emoji, no lists) for a couple\'s day in Tokyo from the given facts. Mention the places they actually went, their ratings and memos, the weather in a phrase, and spending in one light sentence. Don\'t invent events. title: a short Korean title for the day.',
@@ -3428,7 +3453,7 @@ async function aiDiary(date, btn) {
     });
     store.set('diary:' + date, { title: r.title, text: r.text, at: Date.now() });
     render();
-  } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = label; }
+  } catch (e) { toast(e.message); render(); }
 }
 const diaryCard = (date) => {
   const d = store.get('diary:' + date, null);
@@ -3509,14 +3534,14 @@ async function sendReq(btn) {
   try {
     const paths = [];
     for (const [i, f] of state.reqFiles.entries()) {
-      out.innerHTML = `<div class="ai-wait">첨부 올리는 중 ${i + 1}/${state.reqFiles.length}…</div>`;
+      out.innerHTML = aiLoading(`첨부 올리는 중 ${i + 1}/${state.reqFiles.length}`, [], true);
       const blob = f.type.startsWith('image') ? await shrink(f) : f;
       const ext = f.type.startsWith('image') ? 'jpg' : (f.name.split('.').pop() || 'mp4').toLowerCase();
       const path = `requests/${rid}/${i + 1}.${ext}`;
       await ghApi(`repos/${DESK}/contents/${path}`, { method: 'PUT', body: { message: `요청 ${rid} 첨부 ${i + 1}`, content: await fileB64(blob) } });
       paths.push(path);
     }
-    out.innerHTML = '<div class="ai-wait">요청 보내는 중…</div>';
+    out.innerHTML = aiLoading('요청 보내는 중', [], true);
     const ctx = state.reqCtx || reqContext();
     const title = (text.split('\n')[0] || '캡처로 보낸 요청').slice(0, 60);
     const body = `${text || '(내용 없이 캡처만 보냄)'}\n\n---\n**첨부 폴더:** \`requests/${rid}/\`${paths.length ? `\n${paths.map((x) => `- \`${x}\``).join('\n')}` : ' (없음)'}\n\n**보낸 곳:**\n\`\`\`json\n${JSON.stringify(ctx, null, 1)}\n\`\`\``;
@@ -4243,7 +4268,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 159;
+const APP_VERSION = 160;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
