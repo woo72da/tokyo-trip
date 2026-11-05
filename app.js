@@ -1623,7 +1623,8 @@ function backlogCard(queue, items, now) {
           <span class="grow"><b>${esc(it.title)}</b><small>${esc(when(it, i))}${isFixed(it) ? ' · 시간 고정' : ''}</small></span>
         </div>
         ${i ? '' : `<div class="bl-act">
-          <button class="btn primary" data-done="${esc(it.id)}">${icon('check')}${doneLabel(it)}</button>
+          ${started ? '' : `<button class="btn primary bl-arrive" data-arrive="${esc(it.id)}">${icon(isTransit(it) ? 'nav' : 'pin')}${arriveLabel(it)}</button>`}
+          <button class="btn ${started ? 'primary' : ''}" data-done="${esc(it.id)}">${icon('check')}${doneLabel(it)}</button>
           <button class="btn" data-item-skip="${esc(it.id)}">${icon('skip')}건너뛰기</button>
         </div>`}`).join('')}
       ${catchBtn(head, items, now)}
@@ -1650,8 +1651,53 @@ function catchBtn(it, items, now) {
   // Once every stop's time has passed there's nothing left to push; the day gets wrapped up instead.
   if (!items.some((x) => x.startMin > now.min)) return '';
   if (isStarted(it, items)) return now.min > it.endMin - 5 ? `<button class="catch-btn" data-catch="${esc(it.id)}">${icon('clock')}15분 더 · 뒤 일정 밀기</button>` : '';
+  // Not begun yet: '도착했어요' does the re-timing in one tap.
+  return '';
+}
+
+// '도착했어요' (a move: '출발했어요'). Tapped 10+ minutes late on a stop that can move, the stop is re-timed
+// to start now with the same length and the stops after it follow; a toast offers 되돌리기.
+const arriveLabel = (it) => (isTransit(it) ? '출발했어요' : '도착했어요');
+function canArrive(it, now) {
+  if (!now || now.date !== it.date || it.skip || isDone(it.id)) return false;
+  const items = dayItems(dayOf(it.date)).filter((x) => !x.skip);
+  const q = items.find((x) => x.id === it.id);
+  return !!q && q.startMin <= now.min && !isStarted(q, items);
+}
+function arrive(id) {
+  const now = tokyoNow();
+  const items = dayItems(dayOf(findItem(id).date)).filter((x) => !x.skip);
+  const idx = items.findIndex((x) => x.id === id);
+  const it = items[idx];
   const late = now.min - it.startMin;
-  return late >= 5 && !isFixed(it) ? `<button class="catch-btn" data-catch="${esc(it.id)}">${icon('clock')}지금부터 시작 · 뒤 일정 ${formatLeft(late)} 밀기</button>` : '';
+  store.set('start:' + id, true);
+  if (late < 10 || isFixed(it)) {
+    render();
+    if ($('#sheet') && !$('#sheet').hidden) openItem(id);
+    return toast(`${arriveLabel(it)} · ${clock(now.min)}`);
+  }
+  const s = now.min;
+  const e = Math.min(1439, s + it.endMin - it.startMin);
+  const plan = ripple(items, idx, s, e);
+  const undo = {};
+  const keep = (k) => { if (!(k in undo)) undo[k] = store.get('edit:' + k, null); };
+  keep(id);
+  store.set('edit:' + id, { ...(store.get('edit:' + id, null) || {}), start: clock(s), end: clock(e), auto: true });
+  for (const c of plan.changes) {
+    keep(c.it.id);
+    const old = store.get('edit:' + c.it.id, null) || {};
+    store.set('edit:' + c.it.id, { ...old, start: clock(c.start), ...(c.it.end || old.end ? { end: clock(c.end) } : {}), auto: true });
+  }
+  render();
+  if ($('#sheet') && !$('#sheet').hidden) openItem(id);
+  const wall = plan.walls[0];
+  const msg = `${clock(s)} ${arriveLabel(it)} · ${plan.changes.length ? `뒤 일정 ${plan.changes.length}개 ${formatLeft(late)} 밀림` : '뒤 일정은 그대로'}${wall ? ` · ${stripEmoji(wall.it.title).split(' · ')[0]} ${wall.it.start} 고정이라 ${formatLeft(wall.over)} 빠듯해요` : ''}`;
+  toast(msg, () => {
+    for (const [k, v] of Object.entries(undo)) store.set('edit:' + k, v);
+    store.set('start:' + id, false);
+    render();
+    if ($('#sheet') && !$('#sheet').hidden) openItem(id);
+  }, '되돌리기');
 }
 
 function heroCard(it, kind, now, started = true) {
@@ -1684,7 +1730,7 @@ function heroCard(it, kind, now, started = true) {
         <i class="chev" aria-label="자세히"></i>
       </div>
       ${chipsHtml(chipsFor(it, now, kind !== 'now').filter(noTag))}
-      ${waiting ? `<div class="start-ask"><span class="grow">시작했나요?</span><button class="start-yes" data-start="${esc(it.id)}">${icon('check')}시작했어요</button><button data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button></div>` : ''}
+      ${waiting ? `<div class="start-ask"><span class="grow">${isTransit(it) ? '출발했나요?' : '도착했나요?'}</span><button class="start-yes" data-arrive="${esc(it.id)}">${icon('check')}${arriveLabel(it)}</button><button data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button></div>` : ''}
       ${over > 0 ? `<div class="start-ask"><span class="grow">끝났나요?</span><button class="start-yes" data-done="${esc(it.id)}">${icon('check')}${doneLabel(it)}</button><button data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button></div>` : ''}
       ${kind === 'now' ? catchBtn(it, items, now) : ''}
       ${kind === 'now' && !waiting && over <= 0 ? `<div class="meter"><i style="width:${progress}%"></i></div>` : ''}
@@ -4248,6 +4294,7 @@ function openItem(id) {
         <button class="tool" data-ja="${esc(it.id)}">${icon('ja')}보여주기</button>
       </div>` : ''}
     <div class="act" role="group" aria-label="일정 상태">
+      ${canArrive(it, now) ? `<button class="act-arrive" data-arrive="${esc(it.id)}">${icon(isTransit(it) ? 'nav' : 'pin')}<span class="grow"><b>${arriveLabel(it)}</b><small>${delayOf(it, now) && !isFixed(it) && now.min - toMin(it.start) >= 10 ? `지금 ${clock(now.min)} 기준으로 이 일정과 뒤 일정을 다시 맞춰요` : '늦음 표시가 멈추고, 나갈 때 완료를 누르면 돼요'}</small></span></button>` : ''}
       <button class="act-done ${done ? 'on' : ''} ${it.skip ? 'off' : ''}" data-done="${esc(it.id)}" aria-pressed="${done}">
         <i class="act-check">${icon('check')}</i>
         <span class="grow"><b>${done ? `${doneLabel(it)}했어요` : doneLabel(it)}</b><small>${done ? '잘못 눌렀다면 한 번 더 누르면 취소돼요' : it.skip ? '건너뛴 일정이에요 · 누르면 완료로 바꿔요' : '누르면 다음 일정으로 넘어가요'}</small></span>
@@ -4329,7 +4376,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 161;
+const APP_VERSION = 162;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -4405,7 +4452,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-ai-board],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-arrive],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-ai-board],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -4469,6 +4516,7 @@ document.addEventListener('click', async (e) => {
   else if ('update' in d) updateApp();
   else if ('bandOff' in d) { state.bandOff = true; render(); }
   else if (d.start) { store.set('start:' + d.start, true); render(); }
+  else if (d.arrive) arrive(d.arrive);
   else if (d.seal) {
     store.set('seal:' + d.seal, true);
     state.sealHit = d.seal;

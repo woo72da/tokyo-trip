@@ -1583,3 +1583,13 @@ ol.alarm-note { padding-left: 18px; }
 .ln-to { font-style: normal; color: var(--muted); font-weight: 700; }
 .ln-x { font-style: normal; font-size: 11px; font-weight: 700; color: var(--muted); padding: 0 2px; }
 .ln-route > span:not(.ln) { margin-left: 2px; }
+
+/* Arrival (도착했어요): the first step while a stop is due, above 완료 */
+.act-arrive { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; margin-bottom: 6px; padding: 10px 14px; border: 0; border-radius: 15px; background: var(--accent-soft); color: var(--accent); text-align: left; font: inherit; box-shadow: inset 0 0 0 1.5px var(--accent); }
+.act-arrive:active { transform: scale(.985); }
+.act-arrive > .ico { flex: none; width: 24px; height: 24px; }
+.act-arrive b { display: block; font-size: 16px; }
+.act-arrive small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+/* A skipped stop's dot goes hollow grey, whatever its priority */
+.tl-item.skipped::before, .tl-item.skipped.must::before { background: var(--paper); border-color: var(--muted); opacity: .6; }
+.bl-act .bl-arrive { grid-column: 1 / -1; }
