@@ -848,12 +848,12 @@ function openExpEdit(id) {
 // Paid-at time has its own field; older card entries kept it at the end of the memo ('GINZASIX · 12:06').
 const expTime = (e) => e.time || /\s·\s(\d{1,2}:\d{2})$/.exec(e.memo || '')?.[1] || '';
 const expTitle = (e) => (e.time ? e.memo : String(e.memo || '').replace(/\s·\s\d{1,2}:\d{2}$/, '')) || e.cat;
-function expRow(e) {
+function expRow(e, inDay = false) {
   return `
     <div class="exp-row">
       <span class="exp-cat">${esc(e.cat)}</span>
       <button type="button" class="exp-open" data-exp-edit="${esc(e.id)}">
-        <span class="grow"><b>${esc(expTitle(e))}</b><small>${esc([`${expDateLabel(e.date)}${expTime(e) ? ' ' + expTime(e) : ''}`, person(e.by), e.pay ? { cash: '현금', card: '카드' }[e.pay] : ''].filter(Boolean).join(' · '))}</small></span>
+        <span class="grow"><b>${esc(expTitle(e))}</b><small>${esc([inDay ? expTime(e) : `${expDateLabel(e.date)}${expTime(e) ? ' ' + expTime(e) : ''}`, person(e.by), e.pay ? { cash: '현금', card: '카드' }[e.pay] : ''].filter(Boolean).join(' · '))}</small></span>
         <span class="exp-amt">${e.orig?.cur === 'KRW' ? `<b>${e.orig.value.toLocaleString('ko-KR')}원</b><small>${yen(e.amount)}</small>` : `<b>${yen(e.amount)}</b><small>${won(e.amount)}</small>`}</span>
       </button>
       ${hasRcpt(e.id) ? `<button type="button" class="exp-rcpt" data-doc-view="${rcptSlot(e.id)}" aria-label="영수증 보기">${icon('image')}</button>` : ''}
@@ -961,6 +961,37 @@ function addSms() {
   toast(`카드 결제 ${n}건을 등록했어요`);
 }
 
+// Spending grouped by day, newest day first: each day folds to one line with its count and total.
+// Today (or the latest day) starts open; what you open or close stays that way until the app reloads.
+function expDays(list) {
+  const { days, start } = { days: state.trip.days, start: state.trip.trip.start };
+  const today = tokyoNow().date;
+  const groups = [];
+  for (const e of list) {
+    const key = e.date < start ? 'pre' : e.date;
+    const g = groups.find((x) => x.key === key) || (groups.push({ key, rows: [] }), groups[groups.length - 1]);
+    g.rows.push(e);
+  }
+  const first = (groups.find((g) => g.key === today) || groups[0]).key;
+  state.expOpen ||= {};
+  return `<div class="exp-days">${groups.map((g) => {
+    const i = days.findIndex((d) => d.date === g.key);
+    const sum = g.rows.reduce((a, e) => a + e.amount, 0);
+    const open = g.key in state.expOpen ? state.expOpen[g.key] : g.key === first;
+    const cats = Object.entries(g.rows.reduce((m, e) => ({ ...m, [e.cat]: (m[e.cat] || 0) + e.amount }), {})).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c]) => c).join('·');
+    return `
+      <details class="exp-day" data-exp-day="${esc(g.key)}" ${open ? 'open' : ''}>
+        <summary>
+          <span class="ed-d">${g.key === 'pre' ? '<b>출발 전</b>' : `<b>${i + 1}일차</b><small>${esc(dayLabel(g.key))}${g.key === today ? ' · 오늘' : ''}</small>`}</span>
+          <span class="grow ed-m">${g.rows.length}건 · ${esc(cats)}</span>
+          <span class="ed-sum"><b>${yen(sum)}</b><small>${won(sum)}</small></span>
+          <i class="chev"></i>
+        </summary>
+        <div class="exp-list">${g.rows.map((e) => expRow(e, true)).join('')}</div>
+      </details>`;
+  }).join('')}</div>`;
+}
+
 function expenseSection() {
   const list = expenses().sort((a, b) => (a.date !== b.date ? b.date.localeCompare(a.date) : expTime(a) !== expTime(b) ? expTime(b).localeCompare(expTime(a)) : b.id.localeCompare(a.id)));
   const total = list.reduce((a, e) => a + e.amount, 0);
@@ -992,7 +1023,7 @@ function expenseSection() {
         ${aiKey() ? `<button class="btn ai" data-rcpt-ai>${aiLabel('영수증 사진으로', 'camera')}</button>` : ''}
         <button class="btn ${aiKey() ? '' : 'wide'}" data-sms-open>${icon('copy')}카드 문자로</button>
       </div>
-      ${list.length ? `<div class="exp-list">${list.map(expRow).join('')}</div>` : '<div class="small muted exp-empty">아직 기록이 없어요. 일정을 눌러서도 기록할 수 있어요.</div>'}`}
+      ${list.length ? expDays(list) : '<div class="small muted exp-empty">아직 기록이 없어요. 일정을 눌러서도 기록할 수 있어요.</div>'}`}
     </div>`;
 }
 
@@ -4706,7 +4737,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 194;
+const APP_VERSION = 195;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5285,6 +5316,10 @@ document.addEventListener('keydown', (e) => {
   else if (!$('#sheet').hidden) closeSheet();
 });
 
+document.addEventListener('toggle', (e) => {
+  const d = e.target.closest?.('.exp-day');
+  if (d) (state.expOpen ||= {})[d.dataset.expDay] = d.open;
+}, true);
 document.addEventListener('submit', (e) => {
   if (e.target.classList.contains('item-form')) { e.preventDefault(); return saveItemForm(); }
   if (e.target.classList.contains('exp-edit')) {
