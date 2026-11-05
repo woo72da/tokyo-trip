@@ -214,6 +214,17 @@ function delayOf(it, now) {
 }
 const delayText = (d) => (d.kind === 'over' ? `${formatLeft(d.min)} 초과` : d.kind === 'late' ? `${formatLeft(d.min)} 늦음` : `밀림 · ${formatLeft(d.min)}`);
 
+// Minutes to get from one stop to the next: none around a move row or within one place, the walk when
+// it's close (same estimate as the timeline), otherwise about 3 min/km + 10 by train; 10 when unknown.
+function travelMin(a, b) {
+  if (!a || !b || isMove(a) || isMove(b)) return 0;
+  const pa = placeOfItem(a.id);
+  const pb = placeOfItem(b.id);
+  if (pa && pa === pb) return 0;
+  if (!pa?.lat || !pb?.lat) return 10;
+  const km = kmBetween(pa, pb);
+  return km <= 1.2 ? Math.max(1, Math.ceil((km * 1000 * 1.3) / 75)) : Math.ceil(km * 3 + 10);
+}
 // The knock-on changes when one stop takes [s, e] (idx -1: a new stop put in at s). Later stops keep their
 // lengths and the gaps between them; free time soaks up the push, a fixed stop is a wall nothing moves past,
 // and `cut` shortens stops by the given minutes. Pulling earlier only moves stops that follow straight on.
@@ -223,10 +234,14 @@ function ripple(list, idx, s, e, cut = {}) {
   let prevEnd = t ? t.endMin : s;
   const changes = [];
   const walls = [];
+  let prev = t;
   for (const it of t ? list.slice(idx + 1) : list.filter((x) => x.startMin >= s)) {
     const gap = it.startMin - prevEnd;
     prevEnd = Math.max(prevEnd, it.endMin);
-    if (gap > 0) push = push > 0 ? Math.max(0, push - gap) : 0;
+    // Free time soaks up the push, but the time it takes to get there stays.
+    const slack = Math.max(0, gap - Math.min(gap, travelMin(prev, it)));
+    prev = it;
+    if (gap > 0) push = push > 0 ? Math.max(0, push - slack) : 0;
     if (isDone(it.id)) continue;
     if (isFixed(it)) {
       if (push > 0) walls.push({ it, over: push });
@@ -1529,7 +1544,8 @@ function renderToday() {
   const f = now.date === back.date ? back : flights[0];
   // Stops piling up, or one waiting to be confirmed, move up with the alerts.
   const top = queue.length > 1 ? backlogCard(queue, items, now) : current && !started ? heroCard(current, 'now', now, false) : '';
-  let html = updateBand() + (upcoming.length ? '' : wrapDayCard(queue)) + top + prepCard(day, items, now);
+  const sq = squeezeOf(day.date, now);
+  let html = updateBand() + (upcoming.length ? '' : wrapDayCard(queue)) + top + (sq ? squeezeBar(sq) : '') + prepCard(day, items, now);
   if (flightDay) html += `
     <div class="hero route-hero">
       ${flightRoute(now)}
@@ -1689,9 +1705,11 @@ function arrive(id) {
     store.set('edit:' + c.it.id, { ...old, start: clock(c.start), ...(c.it.end || old.end ? { end: clock(c.end) } : {}), auto: true });
   }
   render();
-  if ($('#sheet') && !$('#sheet').hidden) openItem(id);
-  const wall = plan.walls[0];
-  const msg = `${clock(s)} ${arriveLabel(it)} · ${plan.changes.length ? `뒤 일정 ${plan.changes.length}개 ${formatLeft(late)} 밀림` : '뒤 일정은 그대로'}${wall ? ` · ${stripEmoji(wall.it.title).split(' · ')[0]} ${wall.it.start} 고정이라 ${formatLeft(wall.over)} 빠듯해요` : ''}`;
+  const sq = squeezeOf(it.date, now);
+  if (sq) openSqueeze(it.date);
+  else if ($('#sheet') && !$('#sheet').hidden) openItem(id);
+  const wall = sq && plan.walls[0];
+  const msg = `${clock(s)} ${arriveLabel(it)} · ${plan.changes.length ? `뒤 일정 ${plan.changes.length}개 ${formatLeft(late)} 밀림` : '뒤 일정은 그대로'}${wall ? ` · ${shortName(wall.it)} 맞추는 방법을 골라 주세요` : ''}`;
   toast(msg, () => {
     for (const [k, v] of Object.entries(undo)) store.set('edit:' + k, v);
     store.set('start:' + id, false);
@@ -1699,6 +1717,143 @@ function arrive(id) {
     if ($('#sheet') && !$('#sheet').hidden) openItem(id);
   }, '되돌리기');
 }
+
+// ---------- a fixed stop squeezed: three ways to make it fit ----------
+// Stops still to do before a fixed stop (Shibuya Sky 13:40) that now run into it. Each way is worked out as
+// concrete times before anything changes: shorten (meals keep 40 min, others half or 20), move what doesn't
+// fit to after the fixed stop, or skip the least important. The stop under way keeps its start.
+const isMeal = (it) => ['meal', 'sushi', 'ramen', 'breakfast'].includes(glyph(it.icon)[0]) || /점심|저녁|식사/.test(it.title);
+const shortName = (it) => stripEmoji(it.title).split(' · ')[0];
+function squeezeOf(date, now) {
+  if (!now || now.date !== date) return null;
+  const items = dayItems(dayOf(date)).filter((x) => !x.skip);
+  for (let w = 0; w < items.length; w += 1) {
+    const W = items[w];
+    if (!isFixed(W) || isDone(W.id) || W.startMin <= now.min) continue;
+    const pend = items.slice(0, w).filter((x) => !isDone(x.id) && x.endMin > now.min);
+    if (!pend.some((x) => !isMove(x))) continue;
+    const end = packEnd(pend, {}, [], W);
+    if (end > W.startMin) return { items, w, W, pend, buf: travelMin(pend[pend.length - 1], W), over: end - W.startMin, now };
+  }
+  return null;
+}
+// Lay the stops back to back with the time to get between them; returns the end, and the times in `out`.
+// With `to`, the end includes getting to that stop.
+function packEnd(seq, cut, out, to) {
+  let cur = null;
+  let prev = null;
+  for (const x of seq) {
+    const len = x.endMin - x.startMin - (cut[x.id] || 0);
+    const st = cur == null ? x.startMin : cur + travelMin(prev, x);
+    out.push({ it: x, start: st, end: st + len });
+    cur = st + len;
+    prev = x;
+  }
+  return (cur ?? 0) + (to && prev ? travelMin(prev, to) : 0);
+}
+function squeezeWays(q) {
+  const { items, w, W, pend } = q;
+  const room = W.startMin;
+  const fits = (seq, cut = {}) => packEnd(seq, cut, [], W) <= room;
+  const started = (x) => isStarted(x, items) || x.startMin <= q.now.min;
+  const tier = (x) => (x.priority === 'optional' ? 0 : x.priority === 'must' ? 2 : 1);
+  // The least shortening that makes `seq` fit, or null: optional stops first, must-sees last; meals keep
+  // 40 min, others half or 20, the stop under way at least 15 more minutes.
+  const cutFor = (seq) => {
+    let need = packEnd(seq, {}, [], W) - room;
+    if (need <= 0) return {};
+    const cut = {};
+    for (const x of seq.filter((y) => !isMove(y)).sort((a, b) => tier(a) - tier(b))) {
+      const len = x.endMin - x.startMin;
+      const keep = isMeal(x) ? Math.min(len, 40) : Math.max(20, Math.ceil(len / 2));
+      // In 5-minute steps, so nothing ends up '2분 줄임'.
+      const cap = Math.max(0, Math.min(len - keep, started(x) ? x.startMin + len - (q.now.min + 15) : len));
+      const take = Math.min(cap, Math.ceil(need / 5) * 5);
+      if (take > 0) { cut[x.id] = take; need -= take; }
+      if (need <= 0) break;
+    }
+    return need <= 0 && fits(seq, cut) ? cut : null;
+  };
+  const lay = (seq, cut) => { const out = []; packEnd(seq, cut, out); return out; };
+  const cutLines = (out, cut) => out.filter((o) => cut[o.it.id]).map((o) => `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)} · ${cut[o.it.id]}분 줄임`);
+  const moveLines = (out, cut) => out.filter((o) => !cut[o.it.id] && o.start !== o.it.startMin).map((o) => `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)}`);
+  const ways = [];
+  // 1. Shorten.
+  const c1 = cutFor(pend);
+  if (c1 && Object.keys(c1).length) {
+    const out = lay(pend, c1);
+    ways.push({ title: '조금씩 줄여서 맞추기', out, skip: [], after: [], lines: [...cutLines(out, c1), ...moveLines(out, c1)] });
+  }
+  // 2. Move what doesn't fit to after the fixed stop, last ones first, as few as a little shortening allows.
+  const stay = [...pend];
+  const moved = [];
+  let c2 = c1;
+  while (!c2) {
+    const k = stay.map((x, i) => i).reverse().find((i) => !isMove(stay[i]) && !started(stay[i]));
+    if (k == null) break;
+    moved.unshift(stay.splice(k, 1)[0]);
+    c2 = cutFor(stay);
+  }
+  if (moved.length && c2) {
+    const out = lay(stay, c2);
+    let cur = W.endMin;
+    let prev = W;
+    const after = moved.map((x) => { const st = cur + travelMin(prev, x); const o = { it: x, start: st, end: st + x.endMin - x.startMin }; cur = o.end; prev = x; return o; });
+    // Stops after the fixed one move along; free time soaks up the push, other fixed stops stop it.
+    const rest = ripple(items, w, W.startMin, cur + travelMin(prev, items[w + 1])).changes.filter((c) => !moved.includes(c.it));
+    const most = rest.length ? Math.max(...rest.map((c) => c.start - c.it.startMin)) : 0;
+    ways.push({ title: `${moved.map(shortName).join('·')}${eulReul(shortName(moved[moved.length - 1]))} ${shortName(W)} 뒤로`, out, skip: [], after: [...after, ...rest],
+      lines: [...cutLines(out, c2), ...after.map((o) => `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)} · ${shortName(W)} 끝나고`), most ? `그 뒤 일정 ${rest.length}개 최대 ${formatLeft(most)} 밀림` : '그 뒤 일정은 그대로'] });
+  }
+  // 3. Skip the least important stop(s) that aren't under way, with a little shortening if needed.
+  const cand = pend.filter((x) => !isMove(x) && !started(x) && x.priority !== 'must').sort((a, b) => tier(a) - tier(b) || (a.endMin - a.startMin) - (b.endMin - b.startMin));
+  let skip = [];
+  let c3 = null;
+  const one = cand.find((x) => cutFor(pend.filter((y) => y !== x)));
+  if (one) { skip = [one]; c3 = cutFor(pend.filter((y) => y !== one)); }
+  else for (const x of cand) { skip.push(x); c3 = cutFor(pend.filter((y) => !skip.includes(y))); if (c3) break; }
+  if (skip.length && c3) {
+    const out = lay(pend.filter((y) => !skip.includes(y)), c3);
+    ways.push({ title: `${skip.map(shortName).join('·')} 건너뛰기`, out, skip, after: [],
+      lines: [`${skip.map(shortName).join(', ')} 건너뜀`, ...cutLines(out, c3), ...moveLines(out, c3)] });
+  }
+  return ways;
+}
+function openSqueeze(date) {
+  const q = squeezeOf(date, tokyoNow());
+  if (!q) { closeSheet(); return toast('지금은 고정 일정과 겹치는 게 없어요'); }
+  state.squeeze = { date, ways: squeezeWays(q) };
+  $('#sheet-body').innerHTML = `
+    <div class="sheet-head"><h3>${esc(shortName(q.W))} ${esc(q.W.start)}에 맞추기</h3></div>
+    <div class="sq-why">${icon('warn')}<span>이대로면 <b>${formatLeft(q.over)}</b> 모자라요. ${esc(shortName(q.W))}${eunNeun(shortName(q.W))} 시간이 정해져 있어서 움직이지 않아요${q.buf ? ` (가는 시간 ${q.buf}분 포함)` : ''}.</span></div>
+    <div class="sq-now small muted">지금 일정: ${q.pend.map((x) => `${esc(shortName(x))} ${clock(x.startMin)}–${clock(x.endMin)}`).join(' → ')}</div>
+    ${state.squeeze.ways.map((wy, i) => `
+      <div class="sq-way">
+        <b>${esc(wy.title)}</b>
+        <ul>${wy.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>
+        <button class="btn ${i ? '' : 'primary'} wide" data-squeeze="${i}">${icon('check')}이대로 적용</button>
+      </div>`).join('') || '<div class="ai-note">줄이거나 옮길 수 있는 일정이 없어요. 시간·내용 수정으로 직접 바꿔 주세요.</div>'}
+    ${aiKey() ? `<button class="btn ai wide" data-ai-plan="late">${aiLabel('다른 방법 AI에게 물어보기')}</button>` : ''}`;
+  $('#sheet').hidden = false;
+}
+function applySqueeze(i) {
+  const wy = state.squeeze.ways[i];
+  const undo = {};
+  const put = (id, patch) => {
+    if (!(id in undo)) undo[id] = store.get('edit:' + id, null);
+    store.set('edit:' + id, { ...(store.get('edit:' + id, null) || {}), ...patch });
+  };
+  for (const o of [...wy.out, ...wy.after]) {
+    const st = o.start; const en = o.end;
+    if (st !== o.it.startMin || en !== o.it.endMin) put(o.it.id, { start: clock(st), end: clock(Math.min(1439, en)), auto: true });
+  }
+  for (const x of wy.skip) put(x.id, { skip: true });
+  closeSheet();
+  render();
+  toast(`${wy.title} · 적용했어요`, () => { for (const [k, v] of Object.entries(undo)) store.set('edit:' + k, v); render(); }, '되돌리기');
+}
+// Shown above the fixed stop in the day's list and on the today tab.
+const squeezeBar = (q) => `<button class="sq-bar" data-squeeze-open="${esc(q.W.date)}">${icon('warn')}<span class="grow"><b>${esc(shortName(q.W))} ${esc(q.W.start)}까지 ${formatLeft(q.over)} 모자라요</b><small>맞추는 방법 보기</small></span><i class="chev"></i></button>`;
 
 function heroCard(it, kind, now, started = true) {
   const progress = kind === 'now'
@@ -1791,9 +1946,11 @@ function timeline(items, now, edit = false) {
       it.priority || '',
     ].join(' ');
     const warn = chipsFor(it, now).filter(([c]) => c === 'warn' || c === 'late');
+    const sq = !edit && i && isToday && isFixed(it) && squeezeOf(it.date, now);
+    const bar = sq && sq.W.id === it.id ? `<div class="tl-sq">${squeezeBar(sq)}</div>` : '';
     const tail = edit ? `<button class="tl-add" data-item-new="${esc(it.date)}" data-after="${esc(it.id)}">${icon('plus')}여기에 일정 넣기</button>` : gapLabel(it, items[i + 1]);
-    if (isTransit(it)) return transitRow(it, cls, late, now, edit, tail);
-    return `
+    if (isTransit(it)) return bar + transitRow(it, cls, late, now, edit, tail);
+    return `${bar}
       <div class="tl-item ${cls}">
         <div class="tl-time">${esc(it.start)}${it.auto ? '<i class="tl-moved">조정</i>' : ''}${tlWx(it)}</div>
         <div class="tl-card" ${edit ? 'data-item-edit' : 'data-item'}="${esc(it.id)}" role="button" tabindex="0">
@@ -4376,7 +4533,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 162;
+const APP_VERSION = 163;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -4452,7 +4609,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-arrive],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-ai-board],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-ai-board],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -4517,6 +4674,8 @@ document.addEventListener('click', async (e) => {
   else if ('bandOff' in d) { state.bandOff = true; render(); }
   else if (d.start) { store.set('start:' + d.start, true); render(); }
   else if (d.arrive) arrive(d.arrive);
+  else if (d.squeezeOpen) openSqueeze(d.squeezeOpen);
+  else if (d.squeeze) applySqueeze(Number(d.squeeze));
   else if (d.seal) {
     store.set('seal:' + d.seal, true);
     state.sealHit = d.seal;
