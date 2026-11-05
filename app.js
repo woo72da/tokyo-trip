@@ -2044,6 +2044,11 @@ function gapLabel(it, next) {
 // In edit mode a tap opens the change form, and a "put a stop here" row sits under each stop.
 function timeline(items, now, edit = false) {
   if (!items.length) return '';
+  // A skipped stop shows at its planned time, so it sits where that time falls (stable for the rest).
+  if (!edit) {
+    const at = (it) => (it.skip ? toMin(rawItem(it.id)?.start || it.start) : it.startMin);
+    items = items.map((it, i) => [it, i]).sort((a, b) => at(a[0]) - at(b[0]) || a[1] - b[1]).map(([it]) => it);
+  }
   return `<div class="tl ${edit ? 'editing' : ''}">${items.map((it, i) => {
     const isToday = now && now.date === it.date;
     // A stop still unfinished stays in full view, marked as running behind, however late it gets.
@@ -2051,7 +2056,7 @@ function timeline(items, now, edit = false) {
     const cls = [
       isDone(it.id) ? 'done' : '',
       isToday && it.endMin <= now.min && !late ? 'past' : '',
-      isToday && it.startMin <= now.min && now.min < it.endMin ? 'current' : '',
+      isToday && !isDone(it.id) && it.startMin <= now.min && now.min < it.endMin ? 'current' : '',
       late ? 'behind' : '',
       late && isFixed(it) ? 'late' : '',
       it.skip ? 'skipped' : '',
@@ -4623,7 +4628,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 181;
+const APP_VERSION = 182;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

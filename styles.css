@@ -1609,7 +1609,7 @@ ol.alarm-note { padding-left: 18px; }
 /* A skipped stop: one slim struck-through line at its planned time */
 .tl-item.slim { padding-bottom: 6px; }
 .tl-item.slim .tl-time { color: var(--muted); opacity: .7; }
-.tl-skip { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px; border: 1px dashed var(--line); border-radius: 14px; color: var(--muted); font-size: 14px; }
+.tl-skip { min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px; border: 1px dashed var(--line); border-radius: 14px; color: var(--muted); font-size: 14px; }
 .tl-skip .grow { text-decoration: line-through; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .tl-skip small { flex: none; font-size: 12px; }
 .tl-skip > .ico { flex: none; width: 18px; height: 18px; opacity: .7; }
@@ -1624,3 +1624,6 @@ ol.alarm-note { padding-left: 18px; }
 .btn .ai-mark .ico, .day-sum-row .ai-mark .ico { width: 16px; height: 16px; }
 .btn.ai.primary .ai-mark { background: color-mix(in srgb, var(--ai-ink) 22%, transparent); color: var(--ai-ink); }
 .btn.ai.ai-late .ai-mark { background: color-mix(in srgb, var(--ai-on-night) 18%, transparent); color: var(--ai-on-night); }
+
+.tl-item.slim { min-width: 0; }
+.tl-skip .grow { min-width: 0; }
