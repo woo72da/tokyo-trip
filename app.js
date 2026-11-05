@@ -526,10 +526,8 @@ function wxStory(date) {
   return { head, line: facts.filter(Boolean).join(' · '), icon, sky: runs.length ? rainWord : sky(hrs) };
 }
 
-// How things worked out on a day, per person: umbrella and sunglasses used / not needed / missed, and the coat.
+// How the day's clothes felt, per person — the one thing the forecast can't know (umbrella and sunglasses follow the forecast).
 const GEAR = [
-  ['umbrella', 'umbrella', '우산', [['used', '썼어요'], ['unused', '안 썼어요'], ['missed', '아쉬웠어요']]],
-  ['sun', 'wx-sun', '선글라스', [['used', '썼어요'], ['unused', '안 썼어요'], ['missed', '아쉬웠어요']]],
   ['coat', 'coat', '겉옷', [['hot', '더웠어요'], ['ok', '딱 맞았어요'], ['cold', '추웠어요']]],
 ];
 const PEOPLE = ['안드레아', '다희'];
@@ -540,15 +538,11 @@ const gearText = (g) => (g ? GEAR.map(([k, , label, opts]) => g[k] && `${label} 
 function gearBias(date, name) {
   const g = lastGear(date, name) || {};
   const notes = [];
-  if (g.umbrella === 'unused') notes.push(['umbrella', '지난번에 우산을 안 썼다고 남겨서, 비 확률이 낮은 오늘은 우산을 뺐어요.']);
-  if (g.umbrella === 'missed') notes.push(['umbrella', '지난번에 우산이 아쉬웠다고 남겨서, 비가 조금 와도 챙기게 했어요.']);
-  if (g.sun === 'missed') notes.push(['sun', '지난번에 선글라스가 아쉬웠다고 남겨서, 오늘은 챙기게 했어요.']);
-  if (g.sun === 'unused') notes.push(['sun', '지난번에 선글라스를 안 썼다고 남겨서, 오늘은 뺐어요.']);
   if (g.coat === 'cold') notes.push(['coat', '지난번에 추웠다고 남겨서, 겉옷을 한 단계 두껍게 골랐어요.']);
   if (g.coat === 'hot') notes.push(['coat', '지난번에 더웠다고 남겨서, 겉옷을 한 단계 얇게 골랐어요.']);
   return {
-    u: g.umbrella === 'unused' ? 15 : g.umbrella === 'missed' ? -15 : 0,
-    s: g.sun === 'missed' ? -1.5 : g.sun === 'unused' ? 1.5 : 0,
+    u: 0,
+    s: 0,
     c: g.coat === 'cold' ? 3 : g.coat === 'hot' ? -3 : 0,
     notes, memo: g.memo || '',
   };
@@ -2273,16 +2267,18 @@ function daySumWeather(date) {
   const g = gearLog(date, me) || {};
   const other = PEOPLE.find((p) => p !== me);
   const theirs = gearText(gearLog(date, other));
+  // The last day has no next morning to advise, so only the memo stays.
+  const last = date === state.trip.days[state.trip.days.length - 1].date;
   return `
     ${st ? `<div class="day-sum-row static">${wxIcon(st.icon)}<span class="grow"><b>${esc(st.head)}</b><small>${esc(st.line)}</small></span></div>` : ''}
     <div class="gear-fb">
-      <div class="gear-q">${esc(me)} · 챙긴 것 어땠나요?</div>
+      ${last ? `<div class="gear-q">${esc(me)} · 오늘 한 줄 메모</div>` : `<div class="gear-q">${esc(me)} · 오늘 옷차림 어땠나요?</div>
       ${GEAR.map(([k, ic, label, opts]) => `
         <div class="gear-row"><span class="gear-l">${icon(ic)}${label}</span>
-          <div class="gear-opts">${opts.map(([v, t]) => `<button type="button" class="${g[k] === v ? 'on' : ''}" data-gear="${esc(date)}|${k}|${v}">${t}</button>`).join('')}</div></div>`).join('')}
+          <div class="gear-opts">${opts.map(([v, t]) => `<button type="button" class="${g[k] === v ? 'on' : ''}" data-gear="${esc(date)}|${k}|${v}">${t}</button>`).join('')}</div></div>`).join('')}`}
       <input class="input gear-memo" data-gear-memo="${esc(date)}" value="${esc(g.memo || '')}" maxlength="120" placeholder="한 줄 메모 · 예: 맑아서 눈이 무척 부셨음" autocomplete="off">
       ${theirs.length ? `<div class="small muted gear-other">${esc(other)}: ${esc(theirs.join(' · '))}</div>` : ''}
-      <div class="small muted gear-note">남긴 기록은 다음 날 아침 준비 추천에 반영돼요.</div>
+      ${last ? '' : '<div class="small muted gear-note">추웠다·더웠다고 남기면 다음 날 겉옷 추천이 한 단계 바뀌어요.</div>'}
     </div>`;
 }
 
@@ -4628,7 +4624,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 183;
+const APP_VERSION = 184;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
