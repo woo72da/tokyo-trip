@@ -927,7 +927,7 @@ function openSmsSheet() {
     <p class="small muted sms-help">카드 승인 문자를 길게 눌러 복사하거나, 카드 앱 화면을 캡처한 사진에서 글자를 길게 눌러 복사해 붙여 넣으세요. 여러 건을 한 번에 넣어도 돼요. 카드 번호와 이름은 저장하지 않아요.</p>
     <textarea class="input sms-box" id="sms-text" placeholder="[Web발신]&#10;삼성1234해외승인 김*철&#10;JPY 2,860&#10;11/04 12:06 GINZASIX"></textarea>
     <div class="btns"><button class="btn" data-sms-paste>${icon('copy')}붙여넣기</button><button class="btn primary" data-sms-read>읽기</button>
-      ${aiKey() ? `<button class="btn ai wide" data-sms-photo>${aiLabel('카드 앱 캡처 사진으로 읽기', 'camera')}</button>` : ''}</div>
+      ${aiKey() ? `<button class="btn ai wide" data-sms-photo>${aiLabel('카드 앱 캡처 사진으로 읽기')}</button>` : ''}</div>
     <div id="sms-out"></div>`;
   $('#sheet').hidden = false;
 }
@@ -1020,7 +1020,7 @@ function expenseSection() {
       <div class="cash-left"><span>엔화 현금 남음</span><b>${yen(Math.max(0, cashTotal() - cashSpent()))}</b><small>환전 ${yen(cashTotal())} 중 ${yen(cashSpent())} 사용</small><button class="link" data-cash>환전액 바꾸기</button></div>
       ${expForm()}
       <div class="btns exp-quick">
-        ${aiKey() ? `<button class="btn ai" data-rcpt-ai>${aiLabel('영수증 사진으로', 'camera')}</button>` : ''}
+        ${aiKey() ? `<button class="btn ai" data-rcpt-ai>${aiLabel('영수증 사진으로')}</button>` : ''}
         <button class="btn ${aiKey() ? '' : 'wide'}" data-sms-open>${icon('copy')}카드 문자로</button>
       </div>
       ${list.length ? expDays(list) : '<div class="small muted exp-empty">아직 기록이 없어요. 일정을 눌러서도 기록할 수 있어요.</div>'}`}
@@ -1508,7 +1508,8 @@ const secIcon = (name) => `<span class="ii sm sec ${name === 'spark' ? 'ai' : ''
 // The AI badge alone (titles of AI sheets) and the small one inside result tags.
 const aiBadge = (cls = '') => `<span class="ii sm sec ai ai-mark ${cls}">${icon('spark')}</span>`;
 const aiTag = (text) => `<span class="ai-tag">${aiBadge('xs')}${text}</span>`;
-const aiLabel = (text, ic = 'spark') => `<span class="ii sm sec ai ai-mark">${icon(ic)}</span><span>${text}</span>`;
+// Every AI button gets the same sparkle badge; a photo feature says so in its words, not by swapping the badge.
+const aiLabel = (text) => `<span class="ii sm sec ai ai-mark">${icon('spark')}</span><span>${text}</span>`;
 const stripEmoji = (s) => String(s || '').replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '');
 const wxIcon = (name) => icon(name, 'wxi ' + name);
 const icon = (name, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">${ICONS[name] || ''}</svg>`;
@@ -2682,7 +2683,7 @@ function renderTalk() {
   setHeader('', '번역 · 회화', 'Google 번역 앱 · 파파고 웹');
   const groups = [...new Set(phrases.map((p) => p.group))];
   return `
-    ${aiKey() ? `<button class="btn ai primary wide menu-go" data-menu-ai>${aiLabel('메뉴판·안내문 사진 번역', 'camera')}</button>` : ''}
+    ${aiKey() ? `<button class="btn ai primary wide menu-go" data-menu-ai>${aiLabel('메뉴판·안내문 사진 번역')}</button>` : ''}
     <div class="sheet-tools two talk-top">${transTools('카메라 번역')}</div>
     ${talkBox()}
 
@@ -4743,7 +4744,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 196;
+const APP_VERSION = 197;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
