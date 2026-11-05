@@ -1540,7 +1540,7 @@ function dayEndCard(dayIdx, items) {
       <div class="day-end-ja ja">お疲れさまでした</div>
       <div class="day-end-ko">오츠카레사마데시타 · ${last ? '여행 내내 수고했어요' : '오늘도 수고했어요'}</div>
       <button class="seal-slot" data-seal="${esc(date)}" aria-label="오늘 도장 찍기" ${sealed ? 'disabled' : ''}>
-        ${sealed ? `<span class="seal ${hit ? 'hit' : ''}">${last ? '여행' : `${dayIdx + 1}일차`}<br>완료</span>` : '눌러서 찍기'}
+        ${sealed ? `<span class="seal ${hit ? 'hit' : ''}"><b>${last ? '여행' : `${dayIdx + 1}일차`}</b><b>완료</b></span>` : '눌러서 찍기'}
       </button>
       <div class="seal-days">${days.map((d, i) => `<span class="${isDayDone(d.date, date) ? 'on' : ''}">${i + 1}</span>`).join('')}</div>
       ${tally ? `<div class="day-end-sum">${esc(tally)}</div>` : ''}
@@ -2250,7 +2250,7 @@ function daySummary(day, items, now) {
   return `
     <div class="day-sum">
       <div class="day-sum-head">
-        ${sealed ? `<span class="seal mini">${dayIdx + 1}일차<br>완료</span>` : `<button class="seal-slot mini" data-seal="${esc(day.date)}">도장<br>찍기</button>`}
+        ${sealed ? `<span class="seal mini"><b>${dayIdx + 1}일차</b><b>완료</b></span>` : `<button class="seal-slot mini" data-seal="${esc(day.date)}">도장<br>찍기</button>`}
         <div class="grow">
           <b>${dayIdx + 1}일차 요약</b>
           <span>${[`일정 ${done.length}/${live.length} 완료`, visited ? `방문 ${visited}곳` : '', skipped ? `건너뜀 ${skipped}` : ''].filter(Boolean).join(' · ')}</span>
@@ -4628,7 +4628,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 182;
+const APP_VERSION = 183;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
