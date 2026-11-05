@@ -1547,3 +1547,39 @@ ol.alarm-note { padding-left: 18px; }
   .ai-orb .ico, .ai-orb::after, .ai-bar i, .ai-shot-wrap.scanning::after { animation: none; }
   .ai-bar i { left: 0; width: 100%; opacity: .5; }
 }
+
+/* Rail lines (DESIGN.md › 부품): the station-number square and line colour from the data */
+.ln { flex: none; display: inline-grid; place-items: center; align-content: center; width: 30px; height: 30px; border: 3px solid var(--ln); border-radius: 7px; background: #fff; color: #17191e; font-family: var(--mono); line-height: 1; }
+.ln i { font-style: normal; font-size: 9px; font-weight: 800; }
+.ln b { font-size: 12px; font-weight: 800; }
+.ln-pill { display: inline-block; padding: 3px 10px; border-radius: 6px; background: var(--ln); color: var(--ln-ink); font-size: 13px; font-weight: 800; }
+.mv-line { display: grid; gap: 4px; margin-top: 4px; }
+.ln-route { display: flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--ink); min-width: 0; }
+.ln-route .ln { width: 26px; height: 26px; border-width: 2.5px; border-radius: 6px; }
+.ln-route .ln b { font-size: 11px; }
+.ln-route > .ico { width: 11px; height: 11px; color: var(--muted); transform: rotate(45deg); flex: none; }
+.ln-route > span:not(.ln) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mv-board { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--ai); }
+.mv-board .ico { width: 13px; height: 13px; }
+.line-card { display: grid; gap: 10px; margin-top: 12px; }
+.ln-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ln-dir { font-size: 13.5px; font-weight: 700; }
+.ln-stops { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); align-items: center; gap: 6px; margin-top: 8px; }
+.ln-stops > div { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ln-stops .ln { width: 38px; height: 38px; border-width: 3.5px; border-radius: 8px; }
+.ln-stops .ln i { font-size: 10px; } .ln-stops .ln b { font-size: 15px; }
+.ln-stops small { display: block; font-size: 11px; color: var(--muted); }
+.ln-stops b { display: block; font-size: 14.5px; }
+.ln-arrow { height: 4px; border-radius: 2px; background: var(--ln); position: relative; }
+.ln-arrow::after { content: ''; position: absolute; right: -2px; top: -4px; border: 6px solid transparent; border-left-color: var(--ln); border-right: 0; }
+.ln-change { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; background: var(--soft); font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.ln-change .ico { width: 14px; height: 14px; }
+.ln-board { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ln-board-on b { display: flex; align-items: center; gap: 6px; font-size: 15px; }
+.ln-board-on b .ico { width: 17px; height: 17px; color: var(--ai); }
+.ln-board-on small { display: block; margin: 2px 0 6px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+
+.ln-route { flex-wrap: wrap; row-gap: 4px; }
+.ln-to { font-style: normal; color: var(--muted); font-weight: 700; }
+.ln-x { font-style: normal; font-size: 11px; font-weight: 700; color: var(--muted); padding: 0 2px; }
+.ln-route > span:not(.ln) { margin-left: 2px; }
