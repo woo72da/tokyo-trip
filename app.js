@@ -1349,13 +1349,17 @@ const SILENCE = (() => {
   v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true); b.fill(128, 44);
   return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
 })();
-function speakEngine(text) {
-  const synth = window.speechSynthesis;
-  if (!synth) return speakFallback(text, '이 기기 브라우저는 음성을 지원하지 않아요.');
+// Run inside the tap, right before the speech engine talks (Japanese phrases and the Korean morning briefing).
+function unmuteSpeech() {
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* older iPhone */ }
   player.onended = null;
   player.src = SILENCE;
   player.play().catch(() => {});
+}
+function speakEngine(text) {
+  const synth = window.speechSynthesis;
+  if (!synth) return speakFallback(text, '이 기기 브라우저는 음성을 지원하지 않아요.');
+  unmuteSpeech();
   // The engine gives no error when the phone is on silent, so say once what to try if nothing is heard.
   clearTimeout(state.speakHint);
   if (!state.speakHinted) state.speakHint = setTimeout(() => { if (!synth.speaking) return; state.speakHinted = true; toast('소리가 안 나면 폰 옆 무음 스위치를 끄고 다시 눌러 보세요', `https://translate.google.com/?sl=ja&tl=ko&text=${encodeURIComponent(text)}&op=translate`, 'Google 번역에서 듣기'); }, 1200);
@@ -1390,6 +1394,7 @@ function briefPlay(text) {
   if (!synth) return toast('이 기기 브라우저는 음성을 지원하지 않아요');
   if (state.briefing) return briefStop();
   synth.cancel(); synth.resume();
+  unmuteSpeech();
   const voice = koVoice();
   // One sentence per utterance: iPhone can cut off a long one.
   const parts = spoken(text).split(/(?<=[.?!])\s+/).filter(Boolean);
@@ -1404,7 +1409,7 @@ function briefPlay(text) {
     u.onerror = (e) => { if (e.error !== 'interrupted' && e.error !== 'canceled') { briefStop(); toast('음성이 재생되지 않았어요. 무음 모드를 꺼 주세요'); } };
     synth.speak(u);
   });
-  toast('소리가 안 나면 무음 모드를 꺼 주세요');
+  toast('소리가 안 나면 폰 옆 무음 스위치를 끄고 다시 눌러 보세요');
 }
 
 // No usable voice: Google 번역 reads Japanese aloud with its speaker button.
@@ -4760,7 +4765,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 198;
+const APP_VERSION = 199;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
