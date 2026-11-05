@@ -1453,3 +1453,29 @@ ol.alarm-note { padding-left: 18px; }
 .diary { padding: 12px 0; border-top: 1px solid var(--line); }
 .diary > b { display: block; font-size: 16px; }
 .diary p { margin: 6px 0 4px; font-size: 14.5px; line-height: 1.7; }
+
+/* 개선 요청 */
+.req-fab { position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom) + 84px); z-index: 30; width: 50px; height: 50px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--accent); color: #fff; box-shadow: 0 6px 18px rgba(20, 30, 50, .25); }
+.req-fab .ico { width: 24px; height: 24px; }
+#sheet:not([hidden]) ~ .req-fab { display: none; }
+.req-tabs { margin-bottom: 10px; }
+.req-files { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.req-files:empty { display: none; }
+.req-file { position: relative; display: grid; place-items: center; width: 72px; height: 72px; border-radius: 12px; overflow: hidden; background: var(--soft); font-size: 11px; color: var(--muted); text-align: center; }
+.req-file img { width: 100%; height: 100%; object-fit: cover; }
+.req-file i { font-style: normal; }
+.req-file button { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .55); color: #fff; }
+.req-file button .ico { width: 12px; height: 12px; }
+.req-ctx { margin: 10px 0 4px; }
+.req-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 0; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--ink); font: inherit; text-align: left; }
+.req-row b { display: block; font-size: 15px; }
+.req-row small { display: block; font-size: 12px; color: var(--muted); }
+.req-st { flex: none; display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--soft); color: var(--muted); }
+.req-st.work { background: var(--accent-soft); color: var(--accent); }
+.req-st.ask { background: var(--warn-soft); color: var(--warn); }
+.req-st.done { background: var(--now-soft); color: var(--now); }
+.req-msg { margin-top: 10px; padding: 10px 12px; border-radius: 14px; background: var(--soft); }
+.req-msg.bot { background: var(--now-soft); }
+.req-msg small { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.req-msg p { margin: 4px 0 0; font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
+.req-refresh { display: block; margin: 10px auto 0; }

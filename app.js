@@ -3434,6 +3434,141 @@ const diaryCard = (date) => {
     <div class="btns"><button class="btn" data-diary-share="${esc(date)}">${icon('ext')}공유·복사</button><button class="btn" data-ai-diary="${esc(date)}">${icon('refresh')}다시 쓰기</button></div></div>`;
 };
 
+
+// ---------- 개선 요청: requests go to a private GitHub repo, where Claude in the cloud fixes and deploys ----------
+// The token lives in localStorage under 'deskKey' (not synced). It only needs Contents and Issues on woo72da/tokyo-trip-desk.
+const DESK = 'woo72da/tokyo-trip-desk';
+const deskKey = () => store.get('deskKey', '');
+// The last few errors on this phone, sent along so the fix can start from them.
+const errLog = [];
+window.addEventListener('error', (e) => { errLog.push(`${e.message} @${(e.filename || '').split('/').pop()}:${e.lineno}`); errLog.splice(0, errLog.length - 8); });
+window.addEventListener('unhandledrejection', (e) => { errLog.push(`promise: ${e.reason?.message || e.reason}`); errLog.splice(0, errLog.length - 8); });
+async function ghApi(path, { method = 'GET', body } = {}) {
+  if (!navigator.onLine) throw new Error('인터넷이 연결되어 있지 않아요.');
+  let res;
+  try {
+    res = await fetch(`https://api.github.com/${path}`, { method, headers: { Authorization: `Bearer ${deskKey()}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  } catch { throw new Error('GitHub에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) return data;
+  if (res.status === 401) throw new Error('요청함 토큰이 맞지 않거나 만료됐어요. 예약 탭 AI 도우미에서 확인해 주세요.');
+  if (res.status === 403 || res.status === 404) throw new Error('토큰에 tokyo-trip-desk 저장소의 Contents·Issues 쓰기 권한이 있는지 확인해 주세요.');
+  if (res.status === 422 && /too large|size/i.test(data.message || '')) throw new Error('파일이 너무 커요. 영상은 20초 이내로 찍어 주세요.');
+  throw new Error(`GitHub 오류 (${res.status}) ${data.message || ''}`.trim());
+}
+const fileB64 = (blob) => new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+// Where the traveler was when they asked, so the fix starts in the right place.
+function reqContext() {
+  const now = tokyoNow();
+  const day = state.trip.days[state.dayIndex];
+  const sheet = !$('#sheet').hidden ? ($('#sheet-body h3')?.textContent || $('#sheet-body .eyebrow')?.textContent || '열린 화면') : '';
+  return { version: APP_VERSION, tab: { today: '오늘', days: '일정', explore: '탐색', wallet: '예약', talk: '번역', check: '체크' }[state.tab] || state.tab, day: day ? `${state.dayIndex + 1}일차 ${day.date}` : '', sheet, tokyo: `${now.date} ${clock(now.min)}`, who: who(), device: navigator.userAgent.replace(/\s*\(KHTML[^)]*\)/, '').slice(0, 120), errors: errLog.slice(-5) };
+}
+const REQ_STATUS = (labels) => { const n = labels.map((l) => l.name); return n.includes('working') ? ['work', '처리 중'] : n.includes('needs-confirm') ? ['ask', '확인 필요'] : n.includes('done') ? ['done', '반영됨'] : ['new', '접수됨']; };
+function openReq(view = 'new') {
+  if (view === 'new') state.reqCtx = reqContext();
+  state.reqFiles = view === 'new' ? [] : state.reqFiles || [];
+  const ctx = state.reqCtx || reqContext();
+  $('#sheet-body').innerHTML = `
+    <div class="sheet-head"><h3>개선 요청</h3></div>
+    <div class="exp-tabs req-tabs"><button class="seg ${view === 'new' ? 'on' : ''}" data-req-view="new">새 요청</button><button class="seg ${view === 'list' ? 'on' : ''}" data-req-view="list">내 요청</button></div>
+    ${view === 'new' ? `
+      <textarea class="input ai-ask" id="req-text" rows="4" placeholder="무엇이 이상한지, 어떻게 바뀌면 좋을지 적거나 🎤로 말해 주세요"></textarea>
+      <div class="req-files" id="req-files"></div>
+      <div class="btns"><button class="btn" data-req-attach>${icon('camera')}캡처·영상 첨부</button><button class="btn primary" data-req-send>${icon('check')}보내기</button></div>
+      <div class="small muted req-ctx">함께 보내는 정보: v${ctx.version} · ${esc(ctx.tab)} 탭${ctx.day ? ` · ${esc(ctx.day)}` : ''}${ctx.sheet ? ` · ${esc(ctx.sheet)}` : ''} · ${esc(ctx.tokyo)}${ctx.errors.length ? ` · 최근 오류 ${ctx.errors.length}건` : ''}</div>
+      <div class="small muted">화면 캡처는 아이폰 측면 버튼 + 볼륨 위 버튼, 영상은 제어 센터의 화면 기록으로 찍은 뒤 첨부하세요. 보통 5~15분 안에 반영되고, 결과는 '내 요청'에서 볼 수 있어요.</div>
+      <div id="req-out"></div>` : '<div id="req-list"><div class="ai-wait">불러오는 중…</div></div>'}`;
+  $('#sheet').hidden = false;
+  if (view === 'list') loadReqs();
+}
+function drawReqFiles() {
+  $('#req-files').innerHTML = state.reqFiles.map((f, i) => `<span class="req-file">${f.type.startsWith('video') ? `${icon('video')}<i>영상 ${Math.round(f.size / 1e6)}MB</i>` : `<img src="${URL.createObjectURL(f)}" alt="">`}<button type="button" data-req-unattach="${i}" aria-label="빼기">${icon('x')}</button></span>`).join('');
+}
+function attachReq() {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*,video/*'; inp.multiple = true; inp.hidden = true;
+  inp.onchange = () => {
+    for (const f of inp.files) {
+      if (f.type.startsWith('video') && f.size > 25e6) { toast('영상이 너무 커요. 20초 이내로 다시 찍어 주세요'); continue; }
+      if (state.reqFiles.length < 6) state.reqFiles.push(f);
+    }
+    inp.remove(); drawReqFiles();
+  };
+  document.body.appendChild(inp); inp.click();
+}
+async function sendReq(btn) {
+  const text = $('#req-text').value.trim();
+  if (!text && !state.reqFiles.length) return toast('내용을 적거나 캡처를 첨부해 주세요');
+  const rid = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace(/[-:T]/g, '') + Math.random().toString(36).slice(2, 5);
+  const out = $('#req-out');
+  btn.disabled = true;
+  try {
+    const paths = [];
+    for (const [i, f] of state.reqFiles.entries()) {
+      out.innerHTML = `<div class="ai-wait">첨부 올리는 중 ${i + 1}/${state.reqFiles.length}…</div>`;
+      const blob = f.type.startsWith('image') ? await shrink(f) : f;
+      const ext = f.type.startsWith('image') ? 'jpg' : (f.name.split('.').pop() || 'mp4').toLowerCase();
+      const path = `requests/${rid}/${i + 1}.${ext}`;
+      await ghApi(`repos/${DESK}/contents/${path}`, { method: 'PUT', body: { message: `요청 ${rid} 첨부 ${i + 1}`, content: await fileB64(blob) } });
+      paths.push(path);
+    }
+    out.innerHTML = '<div class="ai-wait">요청 보내는 중…</div>';
+    const ctx = state.reqCtx || reqContext();
+    const title = (text.split('\n')[0] || '캡처로 보낸 요청').slice(0, 60);
+    const body = `${text || '(내용 없이 캡처만 보냄)'}\n\n---\n**첨부 폴더:** \`requests/${rid}/\`${paths.length ? `\n${paths.map((x) => `- \`${x}\``).join('\n')}` : ' (없음)'}\n\n**보낸 곳:**\n\`\`\`json\n${JSON.stringify(ctx, null, 1)}\n\`\`\``;
+    const issue = await ghApi(`repos/${DESK}/issues`, { method: 'POST', body: { title, body, labels: ['ai-fix'] } });
+    store.set('reqLast', issue.number);
+    state.reqFiles = [];
+    toast('요청을 보냈어요. 처리 상태는 내 요청에서 볼 수 있어요');
+    openReq('list');
+  } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; btn.disabled = false; }
+}
+async function loadReqs() {
+  const box = $('#req-list');
+  try {
+    const list = await ghApi(`repos/${DESK}/issues?state=all&labels=ai-fix&per_page=15&sort=created`);
+    box.innerHTML = list.length ? list.map((x) => { const [k, t] = REQ_STATUS(x.labels); return `
+      <button class="req-row" data-req-open-one="${x.number}"><span class="req-st ${k}">${t}</span><span class="grow"><b>${esc(x.title)}</b><small>#${x.number} · ${esc(new Date(x.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }))}${x.comments ? ` · 답글 ${x.comments}` : ''}</small></span></button>`; }).join('')
+      : '<div class="small muted">아직 보낸 요청이 없어요.</div>';
+    box.insertAdjacentHTML('beforeend', '<button class="link req-refresh" data-req-view="list">새로 고침</button>');
+  } catch (e) { box.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+}
+async function openReqOne(n) {
+  $('#sheet-body').innerHTML = `<button class="sheet-back" data-req-view="list">‹ 내 요청</button><div id="req-one"><div class="ai-wait">불러오는 중…</div></div>`;
+  try {
+    const [x, cs] = await Promise.all([ghApi(`repos/${DESK}/issues/${n}`), ghApi(`repos/${DESK}/issues/${n}/comments?per_page=30`)]);
+    const [k, t] = REQ_STATUS(x.labels);
+    const mine = (x.body || '').split('\n---\n')[0];
+    $('#req-one').innerHTML = `
+      <div class="sheet-head"><h3>${esc(x.title)}</h3></div>
+      <span class="req-st ${k}">${t}</span>
+      <div class="req-msg me"><small>보낸 내용</small><p>${esc(mine)}</p></div>
+      ${cs.map((c) => `<div class="req-msg ${c.user?.type === 'Bot' || /\[bot\]$/.test(c.user?.login || '') ? 'bot' : 'me'}"><small>${c.user?.type === 'Bot' || /\[bot\]$/.test(c.user?.login || '') ? 'Claude' : '나'} · ${esc(new Date(c.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' }))}</small><p>${esc(c.body)}</p></div>`).join('')}
+      ${k === 'work' ? '<div class="ai-wait">Claude가 처리하는 중이에요. 잠시 뒤 새로 고쳐 보세요.</div>' : ''}
+      <textarea class="input ai-ask" id="req-reply" rows="2" placeholder="${k === 'ask' ? '질문에 답하면 이어서 처리해요' : '추가로 고칠 점이나 의견을 적어 주세요'}"></textarea>
+      <div class="btns"><button class="btn" data-req-open-one="${n}">${icon('refresh')}새로 고침</button><button class="btn primary" data-req-reply="${n}">${icon('check')}답하기</button></div>
+      ${k === 'done' ? `<button class="btn wide" data-req-undo="${n}">이 변경 되돌려 달라고 요청</button>` : ''}`;
+  } catch (e) { $('#req-one').innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+}
+async function replyReq(n, text) {
+  if (!text) return toast('내용을 적어 주세요');
+  try { await ghApi(`repos/${DESK}/issues/${n}/comments`, { method: 'POST', body: { body: text } }); toast('답을 보냈어요. 이어서 처리해요'); openReqOne(n); }
+  catch (e) { toast(e.message); }
+}
+// The round button that opens the request sheet, shown once a token is saved.
+function syncReqFab() {
+  let fab = $('#req-fab');
+  if (!deskKey()) { fab?.remove(); return; }
+  if (!fab) {
+    fab = document.createElement('button');
+    fab.id = 'req-fab'; fab.className = 'req-fab'; fab.setAttribute('aria-label', '개선 요청');
+    fab.dataset.reqOpen = '';
+    fab.innerHTML = icon('talk');
+    document.body.appendChild(fab);
+  }
+}
+
 // Settings card in the 예약 tab.
 function aiCard() {
   const key = aiKey();
@@ -3459,6 +3594,14 @@ function aiCard() {
         <div class="btns"><button class="btn wide" data-g-forget>구글 키 지우기</button></div>` : `
         <input class="input" id="g-key" type="password" autocomplete="off" placeholder="AIza로 시작하는 구글 API 키">
         <div class="btns"><button class="btn primary wide" data-g-save>구글 키 저장</button></div>`}
+      <div class="ai-sub">개선 요청함 토큰 (GitHub)</div>
+      <div class="small muted">넣으면 화면 오른쪽 아래에 💬 버튼이 생겨요. 캡처·영상과 함께 요청하면 클라우드의 Claude가 검토해서 고치고 배포해요. tokyo-trip-desk 저장소에만 Contents·Issues 쓰기 권한을 준 토큰을 넣어 주세요.</div>
+      ${deskKey() ? `
+        <div class="ai-on">${icon('check')}<span class="grow"><b>요청함 토큰 저장됨</b><small>토큰 끝자리 ••••${esc(deskKey().slice(-4))}</small></span>
+          <button class="btn" data-desk-test>연결 확인</button></div>
+        <div class="btns"><button class="btn wide" data-desk-forget>요청함 토큰 지우기</button></div>` : `
+        <input class="input" id="desk-key" type="password" autocomplete="off" placeholder="github_pat_로 시작하는 토큰">
+        <div class="btns"><button class="btn primary wide" data-desk-save>요청함 토큰 저장</button></div>`}
     </div>`;
 }
 
@@ -4097,7 +4240,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 157;
+const APP_VERSION = 158;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -4135,6 +4278,7 @@ function render() {
   const stripKey = `${state.tab}:${state.dayIndex}:${Math.floor(tokyoNow().min / 60)}`;
   const stripAt = stripKey === state.stripKey ? $('.wx-strip')?.scrollLeft : null;
   $('#view').innerHTML = views[state.tab]() + versionLine();
+  syncReqFab();
   state.stripKey = stripKey;
   placeWxStrip(stripAt);
   $('#top-add').hidden = state.tab !== 'explore';
@@ -4172,7 +4316,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-seal],[data-start],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -4421,6 +4565,21 @@ document.addEventListener('click', async (e) => {
   }
   else if ('brief' in d) briefPlay(state.brief || '');
   else if ('smsOpen' in d) openSmsSheet();
+  else if ('reqOpen' in d) openReq('new');
+  else if (d.reqView) openReq(d.reqView);
+  else if ('reqAttach' in d) attachReq();
+  else if (d.reqUnattach) { state.reqFiles.splice(Number(d.reqUnattach), 1); drawReqFiles(); }
+  else if ('reqSend' in d) sendReq(el);
+  else if (d.reqOpenOne) openReqOne(d.reqOpenOne);
+  else if (d.reqReply) replyReq(d.reqReply, $('#req-reply').value.trim());
+  else if (d.reqUndo) replyReq(d.reqUndo, '방금 반영한 변경을 되돌려 주세요. 이전 상태로 돌려 놓고 새 버전으로 배포해 주세요.');
+  else if ('deskSave' in d) {
+    const k = $('#desk-key').value.trim();
+    if (!/^(github_pat_|ghp_)/.test(k)) return toast('github_pat_로 시작하는 토큰을 넣어 주세요');
+    store.set('deskKey', k); render(); toast('개선 요청함을 켰어요. 오른쪽 아래 💬 버튼을 눌러 보세요');
+  }
+  else if ('deskForget' in d) { if (confirm('이 폰에서 요청함 토큰을 지울까요?')) { store.set('deskKey', ''); render(); } }
+  else if ('deskTest' in d) ghApi(`repos/${DESK}`).then((r) => toast(r.private ? '요청함에 연결됐어요' : '연결됐지만 요청함이 공개 저장소예요. 비공개로 바꿔 주세요')).catch((e) => toast(e.message));
   else if ('smsPhoto' in d) smsFromPhoto();
   else if ('rcptAi' in d) rcptFromPhoto();
   else if ('menuAi' in d) menuFromPhoto();
