@@ -1768,3 +1768,8 @@ ol.alarm-note { padding-left: 18px; }
 .ai-mark.xs .ico { width: 11px; height: 11px; }
 .ai-tag { gap: 5px; padding: 3px 9px 3px 4px; }
 .rcpt-ai > .ai-tag, .menu-ai > .ai-tag { justify-self: start; margin-bottom: -4px; }
+
+/* 앱 개선 요청: a labelled pill instead of a bare speech bubble */
+.req-fab { width: auto; height: 44px; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px 0 8px; border-radius: 999px; font: 700 14px/1 var(--sans); }
+.req-fab .ai-mark { width: 28px; height: 28px; border-radius: 9px; background: color-mix(in srgb, var(--ai-ink) 22%, transparent); color: var(--ai-ink); }
+.req-fab .ai-mark .ico { width: 17px; height: 17px; }

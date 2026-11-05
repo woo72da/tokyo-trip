@@ -4050,7 +4050,8 @@ function syncReqFab() {
     fab = document.createElement('button');
     fab.id = 'req-fab'; fab.className = 'req-fab'; fab.setAttribute('aria-label', '개선 요청');
     fab.dataset.reqOpen = '';
-    fab.innerHTML = `${icon('talk')}<i class="req-fab-spark">${icon('spark')}</i>`;
+    // Says what it is: a request to change the app, which Claude picks up (so it wears the AI badge).
+    fab.innerHTML = `${aiBadge()}<span>앱 개선 요청</span>`;
     document.body.appendChild(fab);
   }
 }
@@ -4085,7 +4086,7 @@ function aiSettings() {
 function deskSettings() {
   return `
     <div class="card ai-set">
-            <div class="small muted">넣으면 화면 오른쪽 아래에 💬 버튼이 생겨요. 캡처·영상과 함께 요청하면 클라우드의 Claude가 검토해서 고치고 배포해요. tokyo-trip-desk 저장소에만 Contents·Issues 쓰기 권한을 준 토큰을 넣어 주세요.</div>
+            <div class="small muted">넣으면 화면 오른쪽 아래에 '앱 개선 요청' 버튼이 생겨요. 캡처·영상과 함께 요청하면 클라우드의 Claude가 검토해서 고치고 배포해요. tokyo-trip-desk 저장소에만 Contents·Issues 쓰기 권한을 준 토큰을 넣어 주세요.</div>
       ${deskKey() ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>요청함 토큰 저장됨</b><small>토큰 끝자리 ••••${esc(deskKey().slice(-4))}</small></span>
           <button class="btn" data-desk-test>연결 확인</button><button class="btn key-del" data-desk-forget aria-label="요청함 토큰 삭제">삭제</button></div>` : `
@@ -4765,7 +4766,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 199;
+const APP_VERSION = 200;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5108,7 +5109,7 @@ document.addEventListener('click', async (e) => {
   else if ('deskSave' in d) {
     const k = $('#desk-key').value.trim();
     if (!/^(github_pat_|ghp_)/.test(k)) return toast('github_pat_로 시작하는 토큰을 넣어 주세요');
-    store.set('deskKey', k); render(); toast('개선 요청함을 켰어요. 오른쪽 아래 💬 버튼을 눌러 보세요');
+    store.set('deskKey', k); render(); toast('개선 요청함을 켰어요. 오른쪽 아래 ‘앱 개선 요청’ 버튼을 눌러 보세요');
   }
   else if ('deskForget' in d) { if (confirm('이 폰에서 요청함 토큰을 지울까요?')) { store.set('deskKey', ''); render(); } }
   else if ('deskTest' in d) ghApi(`repos/${DESK}`).then((r) => toast(r.private ? '요청함에 연결됐어요' : '연결됐지만 요청함이 공개 저장소예요. 비공개로 바꿔 주세요')).catch((e) => toast(e.message));
