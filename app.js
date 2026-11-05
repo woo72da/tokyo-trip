@@ -1749,10 +1749,13 @@ function squeezeOf(date, now) {
     if (!isFixed(W) || isDone(W.id) || W.startMin <= now.min) continue;
     // Stops planned before it, by the original plan: one already pushed past it (the walk there) still counts.
     const planned = (x) => toMin(rawItem(x.id)?.start || x.start);
-    const pend = items.filter((x) => x !== W && planned(x) < planned(W) && store.get('edit:' + x.id, null)?.past !== W.id && !isFixed(x) && !isDone(x.id) && (x.endMin > now.min || isBegun(x)))
-      .sort((a, b) => planned(a) - planned(b));
-    if (!pend.some((x) => !isMove(x))) continue;
     const from = items.filter((x) => isDone(x.id) && x.startMin <= now.min).pop() || null;
+    // Still to do: anything planned after the last stop done (even if its time has passed), the one
+    // under way first.
+    const pend = items.filter((x) => x !== W && planned(x) < planned(W) && store.get('edit:' + x.id, null)?.past !== W.id && !isFixed(x) && !isDone(x.id)
+      && (x.endMin > now.min || isBegun(x) || (from && planned(x) > planned(from))))
+      .sort((a, b) => isBegun(b) - isBegun(a) || planned(a) - planned(b));
+    if (!pend.some((x) => !isMove(x))) continue;
     const end = packEnd(pend, {}, [], W, now.min, from);
     if (end > lastIn(W) || pend.some((x) => x.startMin >= W.startMin)) return { items, w, W, pend, from, buf: travelMin(pend[pend.length - 1], W), over: Math.max(0, end - lastIn(W)), now };
   }
@@ -1785,7 +1788,7 @@ function squeezeWays(q) {
   const nowMin = q.now.min;
   const fits = (seq, cut = {}) => packEnd(seq, cut, [], W, nowMin, q.from) <= room;
   // Only a stop marked started (도착했어요) is under way; one whose time has merely passed can still give way.
-  const started = (x) => isStarted(x, items);
+  const started = (x) => isBegun(x);
   // What gives way first (meals keep 35 min): optional stops, then shopping (short or skipped is fine), then sights,
   // then must-sees; meals last, and a meal is never skipped.
   // A walk can become a taxi (10 min) before a meal gets shorter.
@@ -1890,7 +1893,7 @@ function applySqueeze(i) {
   for (const o of [...wy.out, ...wy.after]) {
     const st = o.start; const en = o.end;
     const taxi = isMove(o.it) && glyph(o.it.icon)[0] === 'walk' && en - st < o.it.endMin - o.it.startMin;
-    if (st !== o.it.startMin || en !== o.it.endMin || o.past) put(o.it.id, { start: clock(st), end: clock(Math.min(1439, en)), auto: true, ...(o.past ? { past: o.past } : {}), ...(taxi ? { note: `택시로 ${en - st}분 (시간 맞추기)` } : {}) });
+    if (st !== o.it.startMin || en !== o.it.endMin || o.past) put(o.it.id, { start: clock(st), end: clock(Math.min(1439, en)), auto: true, ...(o.past ? { past: o.past, skip: false } : {}), ...(taxi ? { note: `택시로 ${en - st}분 (시간 맞추기)` } : {}) });
   }
   for (const x of wy.skip) put(x.id, { skip: true });
   // Arriving inside the entry window: the fixed stop starts when we get there, so the list stays in order.
@@ -4210,6 +4213,9 @@ function toggleSkip(id) {
   store.set('edit:' + id, { ...old, skip: !old.skip });
   closeSheet();
   render();
+  // Bringing a stop back can squeeze a fixed one; the ways to fit it open right away.
+  const it = findItem(id);
+  if (old.skip && it && squeezeOf(it.date, tokyoNow())) openSqueeze(it.date);
 }
 // Deleting only hides the stop, so it can come back from the day's edit mode.
 function deleteItem(id) {
@@ -4584,7 +4590,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 169;
+const APP_VERSION = 170;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
