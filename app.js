@@ -1623,10 +1623,24 @@ function dayEndCard(dayIdx, items) {
 // Nothing new is asked for: done marks, visits and ratings, expenses, stamps and the weather log are the material.
 // Settlement splits what was shared; shopping is each person's own and stays out of it.
 const OWN_CATS = ['쇼핑'];
+// Bookings paid before leaving (항공·숙소…) live in the trip's cost guide in won, not in the spending log.
+// The whole trip's cost is those plus what was spent there; a pre-trip expense that repeats one of them counts once.
+const prepaidList = () => state.trip.guides.find((g) => g.costs)?.paid || [];
+const isPrepaidDup = (e) => e.date < state.trip.trip.start && prepaidList().some((c) => c.won > 0 && (
+  (e.orig?.cur === 'KRW' && Math.abs(e.orig.value - c.won) <= 100)
+  || String(e.memo || '').split(/[\s·(]/).filter((w) => w.length >= 3).some((w) => c.label.includes(w))));
+function tripCost() {
+  const paid = prepaidList().filter((c) => c.won > 0);
+  const prepaid = paid.reduce((a, c) => a + c.won, 0);
+  const local = expenses().filter((e) => !isPrepaidDup(e)).reduce((a, e) => a + e.amount, 0);
+  return { paid, prepaid, local, totalWon: prepaid + local * fxRate() };
+}
 function tripReport(preview = false) {
   const { trip, days } = state.trip;
   const today = tokyoNow().date;
-  const exp = expenses();
+  // Spending totals leave out a pre-trip entry that repeats a booking (it's in the total trip cost already);
+  // settlement still sees every entry.
+  const exp = expenses().filter((e) => !isPrepaidDup(e));
   const total = exp.reduce((a, e) => a + e.amount, 0);
   const shopping = exp.filter((e) => OWN_CATS.includes(e.cat)).reduce((a, e) => a + e.amount, 0);
   const budget = store.get('budget', state.trip.budget?.yen || 0);
@@ -1643,6 +1657,7 @@ function tripReport(preview = false) {
   const doneN = perDay.reduce((a, x) => a + x.done.length, 0);
   const rainy = perDay.filter((x) => (x.wx?.rain || 0) >= 1).length;
   const stamps = perDay.filter((x) => x.sealed).length;
+  const cost = tripCost();
   const got = store.get('syncGot', null);
   const synced = got && got.at >= Date.parse(`${trip.end}T00:00:00+09:00`);
   setHeader(preview ? '미리 보기' : `${dayLabel(trip.start)} – ${dayLabel(trip.end)}`, '여행 리포트', `${trip.title} · ${trip.travelers}명`);
@@ -1651,17 +1666,17 @@ function tripReport(preview = false) {
     ${synced ? '' : `<button class="rp-sync" data-settings="sync">${icon('refresh')}<span class="grow"><b>다른 폰 기록을 합치면 더 정확해요</b><small>${got ? `마지막으로 합친 때 ${shortDate(new Date(got.at).toISOString().slice(0, 10))}` : '아직 합친 적이 없어요'} · 설정 › 동기화</small></span><i class="chev"></i></button>`}
     <div class="rp-hero">
       <div class="rp-hero-top"><b>${esc(trip.title)}</b><span>도장 ${stamps}/${days.length}</span></div>
-      <div class="rp-line">${days.length}일 동안 ${visited.size}곳, ${yen(total)}</div>
+      <div class="rp-line">${days.length}일 동안 ${visited.size}곳 · 총 여행 경비 약 ${wan(cost.totalWon)}</div>
       <div class="rp-tiles">
         <div><b>${visited.size}</b><span>방문한 곳</span></div>
         <div><b>${doneN}<small>/${planned}</small></b><span>마친 일정</span></div>
-        <div><b>${Math.round(total / 1000).toLocaleString('ko-KR')}<small>천엔</small></b><span>${esc(manwon(total))}</span></div>
+        <div><b>${Math.round(cost.totalWon / 10000).toLocaleString('ko-KR')}<small>만원</small></b><span>총 여행 경비</span></div>
         <div><b>${rainy}</b><span>비 온 날</span></div>
       </div>
     </div>
     ${reportDays(perDay, today)}
     ${reportSpend(exp, total, shopping, budget, days)}
-    ${reportSettle(exp)}
+    ${reportSettle(expenses())}
     ${reportPlaces(visited)}
     ${reportPlan(days)}
     ${reportWeather(perDay)}
@@ -1746,7 +1761,7 @@ function reportFacts() {
     const p = placeOfItem(it.id); if (p) visited.add(p.id);
   }
   const best = allPlaces().filter((p) => visitOf(p.id)?.again === 'best').map((p) => p.name).slice(0, 3);
-  return { trip, days, total, visited: visited.size, done, best, stamps: days.filter((d) => store.get('seal:' + d.date, false)).length };
+  return { trip, days, total, cost: tripCost(), visited: visited.size, done, best, stamps: days.filter((d) => store.get('seal:' + d.date, false)).length };
 }
 async function reportImage() {
   const f = reportFacts();
@@ -1761,7 +1776,7 @@ async function reportImage() {
   g.fillStyle = '#c9a66b'; g.font = font(700, 34); g.fillText(`${dayLabel(f.trip.start)} – ${dayLabel(f.trip.end)}`, 80, 140);
   g.fillStyle = '#f4f1ea'; g.font = font(800, 92); g.fillText(f.trip.title, 80, 250);
   g.font = font(500, 38); g.fillStyle = 'rgba(244,241,234,.7)'; g.fillText(`${f.days.length}일 동안 ${f.visited}곳을 다녀왔어요`, 80, 320);
-  const tiles = [[`${f.visited}`, '방문한 곳'], [`${f.done}`, '마친 일정'], [yen(f.total), `지출 · 약 ${won(f.total)}`], [`${f.stamps}/${f.days.length}`, '받은 도장']];
+  const tiles = [[`${f.visited}`, '방문한 곳'], [`${f.done}`, '마친 일정'], [`${Math.round(f.cost.totalWon / 10000).toLocaleString('ko-KR')}만원`, '총 여행 경비'], [`${f.stamps}/${f.days.length}`, '받은 도장']];
   tiles.forEach(([v, l], i) => {
     const x = 80 + (i % 2) * 470, y = 420 + Math.floor(i / 2) * 230;
     g.fillStyle = 'rgba(255,255,255,.07)'; g.beginPath(); g.roundRect(x, y, 450, 200, 28); g.fill();
@@ -1821,7 +1836,9 @@ function reportSpend(exp, total, shopping, budget, days) {
   const bar = (label, v, max, sub = '') => `<div class="rp-bar"><span class="rp-bar-l">${esc(label)}</span><span class="rp-bar-t"><i style="width:${Math.max(2, Math.round((v / max) * 100))}%"></i></span><span class="rp-bar-v">${yen(v)}${sub}</span></div>`;
   return `
     <div class="section-title"><span>지출</span></div>
+    ${reportCost()}
     <div class="card rp-card">
+      <div class="rp-sub" style="margin-top:0">현지 지출 (내 지출 기록)</div>
       <div class="rp-total"><b>${yen(total)}</b><span>${won(total)} · 1인 약 ${esc(manwon(total / state.trip.trip.travelers))}</span></div>
       ${budget ? `<div class="meter rp-meter"><i style="width:${Math.min(100, pct)}%"></i></div><div class="small muted">예산 ${yen(budget)} 중 ${pct}% 사용 (쇼핑 제외)${pct > 100 ? ` · ${yen(used - budget)} 넘음` : ` · ${yen(budget - used)} 남음`}</div>` : ''}
       <div class="rp-sub">분류별</div>
@@ -1831,6 +1848,23 @@ function reportSpend(exp, total, shopping, budget, days) {
       <div class="rp-split"><span>카드 <b>${yen(card)}</b></span><span>현금 <b>${yen(total - card)}</b></span><span>남은 엔화 <b>${yen(Math.max(0, cashTotal() - cashSpent()))}</b></span></div>
       <div class="rp-sub">가장 큰 지출</div>
       ${biggest.map((e, i) => `<button class="rp-big" data-exp-edit="${esc(e.id)}"><i>${i + 1}</i><span class="grow"><b>${esc(expTitle(e))}</b><small>${esc(expDateLabel(e.date))} · ${esc(e.cat)}</small></span><b>${yen(e.amount)}</b></button>`).join('')}
+    </div>`;
+}
+function reportCost() {
+  const c = tripCost();
+  if (!c.prepaid && !c.local) return '';
+  const pct = (v) => Math.round((v / c.totalWon) * 100);
+  const localWon = c.local * fxRate();
+  return `
+    <div class="card rp-card rp-cost">
+      <div class="rp-sub" style="margin-top:0">총 여행 경비 · 2인</div>
+      <div class="rp-total"><b>${(Math.round(c.totalWon / 1000) * 1000).toLocaleString('ko-KR')}원</b><span>약 ${wan(c.totalWon)} · 1인 약 ${wan(c.totalWon / state.trip.trip.travelers)}</span></div>
+      <div class="rp-stack" aria-hidden="true"><i style="width:${pct(c.prepaid)}%"></i><i style="width:${pct(localWon)}%"></i></div>
+      <div class="rp-stack-l"><span><i></i>출발 전 결제 <b>${wan(c.prepaid)}</b></span><span><i></i>현지 지출 <b>${wan(localWon)}</b> (${yen(c.local)})</span></div>
+      <details class="rp-paid"><summary>출발 전 결제 ${c.paid.length}건 보기</summary>
+        ${c.paid.map((x) => `<div class="rp-paid-row"><span>${esc(x.label)}</span><b>${x.won.toLocaleString('ko-KR')}원</b></div>`).join('')}
+        <div class="small muted">예약 탭 › 경비 › 여행 비용의 출발 전 결제 목록이에요. 내 지출에 같은 결제를 따로 등록했다면 한 번만 셌어요.</div>
+      </details>
     </div>`;
 }
 function reportSettle(exp) {
@@ -5054,7 +5088,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 204;
+const APP_VERSION = 205;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
