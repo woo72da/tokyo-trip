@@ -1980,3 +1980,15 @@ ol.alarm-note { padding-left: 18px; }
 }
 .wx-strip > div.now { outline: 2.5px solid var(--accent); outline-offset: 2px; }
 .wx-strip { padding-top: 5px; padding-bottom: 6px; }
+
+/* 날씨 카드 접힘: one line */
+.wx-mini { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 8px 14px; border: 0; font: inherit; color: var(--ink); cursor: pointer; }
+.wx-mini-ic { flex: none; display: grid; place-items: center; }
+.wx-mini-ic .ico { width: 28px; height: 28px; }
+.wx-mini > b { flex: none; font: 700 21px/1 var(--mono); }
+.wx-mini-t { flex: none; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.wx-mini-pill { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 9px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font-size: 12px; font-weight: 700; }
+.wx-mini-pill.rain { background: var(--accent-soft); color: var(--accent); }
+.wx-mini .chev { flex: none; margin-left: auto; }
+.wx-head[data-wx-fold] { cursor: pointer; }
+.wx-head[data-wx-fold]::after { content: ''; flex: none; align-self: flex-start; width: 9px; height: 9px; margin: 6px 2px 0 0; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-135deg); }

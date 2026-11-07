@@ -607,8 +607,8 @@ function wxAge() {
   return m < 1440 ? `${Math.round(m / 60)}시간 전` : `${Math.round(m / 1440)}일 전`;
 }
 
-// The hourly strip folds away; the choice is kept on this phone only.
-const wxStripOpen = () => { try { return localStorage.getItem('wxStripOpen') !== '0'; } catch { return true; } };
+// The weather card folds to one line (the schedule matters more day to day); the choice is kept on this phone only.
+const wxCardOpen = () => { try { return localStorage.getItem('wxCard') === '1'; } catch { return false; } };
 // Weather card for one day: now (if `now` is that day) or the day overall, advice, hourly strip.
 function wxCard(date, now) {
   const day = wxDay(date);
@@ -618,9 +618,23 @@ function wxCard(date, now) {
   const cur = now ? wxHour(date, now.min) : null;
   const strip = wxHours(date, Math.min(cur?.hour ?? 8, 8), Math.max(cur?.hour ?? 22, 22));
   const tips = date < tokyoNow().date ? [] : wxTips(date);
+  if (!wxCardOpen()) {
+    // One line: icon, temperature, sky and rain chance, and the one thing to act on — rain coming up beats a clothing tip.
+    const from = cur ? cur.hour : 8;
+    const ahead = strip.filter((h) => h.hour >= from);
+    const wet = ahead.find((h) => h.pop >= 30);
+    const peak = wet ? Math.max(...ahead.filter((h) => h.hour >= wet.hour && h.hour < wet.hour + 4).map((h) => h.pop)) : 0;
+    const pill = wet ? `<span class="wx-mini-pill rain">${cur && wet.hour === cur.hour ? '지금' : `${wet.hour}시부터`} 비 ${peak}% · 우산</span>`
+      : tips.length ? `<span class="wx-mini-pill">${esc(String(tips[0][1]).split(' · ').pop())}</span>` : '';
+    return `
+    <button class="wx wx-mini" data-wx-fold aria-expanded="false" aria-label="날씨 자세히 보기">
+      <span class="wx-mini-ic">${wxIcon((cur || day).icon)}</span><b>${cur ? cur.temp : day.max}°</b>
+      <span class="wx-mini-t">${esc((cur || day).label)} · 비 ${cur ? cur.pop : day.pop}%</span>${pill}<i class="chev"></i>
+    </button>`;
+  }
   return `
     <div class="wx">
-      <div class="wx-head">
+      <div class="wx-head" data-wx-fold role="button" tabindex="0" aria-expanded="true" aria-label="날씨 접기">
         <div class="wx-big">${wxIcon((cur || day).icon)}</div>
         <div class="grow">
           <div class="wx-temp">${cur ? cur.temp : day.max}°<span>${esc((cur || day).label)}${cur ? '' : ' · 낮 최고'}</span></div>
@@ -629,8 +643,7 @@ function wxCard(date, now) {
         <button class="wx-refresh" data-wx-refresh aria-label="날씨 새로고침">${icon('refresh')}${wxAge()}</button>
       </div>
       ${chipsHtml(tips)}
-      ${strip.length ? `<button class="wx-fold ${wxStripOpen() ? 'open' : ''}" data-wx-fold aria-expanded="${wxStripOpen()}">${icon('clock')}<span class="grow">시간대별 날씨</span><span class="wx-fold-t">${wxStripOpen() ? '접기' : '펼치기'}</span><i class="chev"></i></button>` : ''}
-      ${strip.length && wxStripOpen() ? `<div class="wx-strip">${strip.map((h) => `
+      ${strip.length ? `<div class="wx-strip">${strip.map((h) => `
         <div class="${[h.pop >= 30 ? 'wet' : '', cur && h.hour === cur.hour ? 'now' : ''].join(' ')}"><small>${cur && h.hour === cur.hour ? '지금' : h.hour + '시'}</small><span>${wxIcon(h.icon)}</span><b>${h.temp}°</b><i>${h.pop >= 10 ? h.pop + '%' : ''}</i>${h.rain >= 0.1 ? `<em>${mm(h.rain)}</em>` : ''}</div>`).join('')}
       </div>` : ''}
     </div>`;
@@ -5115,7 +5128,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 215;
+const APP_VERSION = 216;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5387,7 +5400,7 @@ document.addEventListener('click', async (e) => {
   }
   else if ('settings' in d) openSettings(d.settings);
   else if ('reportPreview' in d) { state.reportPreview = true; window.scrollTo(0, 0); render(); }
-  else if ('wxFold' in d) { try { localStorage.setItem('wxStripOpen', wxStripOpen() ? '0' : '1'); } catch { /* private mode */ } render(); }
+  else if ('wxFold' in d) { try { localStorage.setItem('wxCard', wxCardOpen() ? '0' : '1'); } catch { /* private mode */ } render(); }
   else if (d.rpRate) { state.rpRate = d.rpRate; render(); }
   else if ('reportImage' in d) reportImage();
   else if ('reportText' in d) reportText();
