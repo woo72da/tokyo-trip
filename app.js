@@ -1533,6 +1533,8 @@ const aiTag = (text) => `<span class="ai-tag">${aiBadge('xs')}${text}</span>`;
 const aiLabel = (text) => `<span class="ii sm sec ai ai-mark">${icon('spark')}</span><span>${text}</span>`;
 const stripEmoji = (s) => String(s || '').replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '');
 const wxIcon = (name) => icon(name, 'wxi ' + name);
+// 쌍따봉: two thumbs-up side by side, for 강력 추천.
+ICONS.thumbs2 = `<g transform="translate(-6 38) scale(.71)" opacity=".55">${ICONS.thumb}</g><g transform="translate(74 38) scale(.71)">${ICONS.thumb}</g>`;
 const icon = (name, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 
 // ---------- views ----------
@@ -1819,7 +1821,7 @@ function reportDays(perDay, today) {
         <span class="rp-day-t">${esc(stripEmoji(x.d.title))}</span>
         ${x.wx ? `<span class="rp-day-w">${wxIcon(x.wx.icon)}${x.wx.min}~${x.wx.max}°${x.wx.rain >= 1 ? ` · 비 ${Math.round(x.wx.rain)}mm` : ''}</span>` : ''}
         <span class="rp-day-n"><span><b>${x.places.length}</b>곳</span><span><b>${yen(x.spent)}</b></span></span>
-        ${x.best ? `<span class="rp-day-best">${icon('heart')}${esc(x.best.name)}</span>` : ''}
+        ${x.best ? `<span class="rp-day-best">${icon('thumbs2')}${esc(x.best.name)}</span>` : ''}
       </button>`).join('')}</div>`;
 }
 function reportSpend(exp, total, shopping, budget, days) {
@@ -1896,7 +1898,7 @@ function reportSettle(exp) {
 }
 // Rated places grouped by how much we'd go back: a tally strip on top, then one group per rating with its own
 // mark and colour, each place with its memo; places saved but never reached close the card as next-trip ideas.
-const RATE_KIND = [['best', '강력 추천', 'heart', '다시 가고 싶은 곳'], ['yes', '추천', 'thumb', '가 볼 만한 곳'], ['no', '비추천', 'thumb-down', '다음엔 빼도 될 곳']];
+const RATE_KIND = [['best', '강력 추천', 'thumbs2', '다시 가고 싶은 곳'], ['yes', '추천', 'thumb', '가 볼 만한 곳'], ['no', '비추천', 'thumb-down', '다음엔 빼도 될 곳']];
 function reportPlaces(visited) {
   const all = allPlaces();
   const groups = RATE_KIND.map(([k, l, ic, hint]) => ({ k, l, ic, hint, list: all.filter((p) => visitOf(p.id)?.again === k) }));
@@ -5106,7 +5108,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 208;
+const APP_VERSION = 209;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
