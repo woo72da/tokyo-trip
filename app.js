@@ -631,7 +631,7 @@ function wxCard(date, now) {
       ${chipsHtml(tips)}
       ${strip.length ? `<button class="wx-fold ${wxStripOpen() ? 'open' : ''}" data-wx-fold aria-expanded="${wxStripOpen()}">${icon('clock')}<span class="grow">시간대별 날씨</span><span class="wx-fold-t">${wxStripOpen() ? '접기' : '펼치기'}</span><i class="chev"></i></button>` : ''}
       ${strip.length && wxStripOpen() ? `<div class="wx-strip">${strip.map((h) => `
-        <div class="${[h.pop >= 50 ? 'wet' : '', cur && h.hour === cur.hour ? 'now' : ''].join(' ')}"><small>${cur && h.hour === cur.hour ? '지금' : h.hour + '시'}</small><span>${wxIcon(h.icon)}</span><b>${h.temp}°</b><i>${h.pop >= 10 ? h.pop + '%' : ''}</i>${h.rain >= 0.1 ? `<em>${mm(h.rain)}</em>` : ''}</div>`).join('')}
+        <div class="${[h.pop >= 30 ? 'wet' : '', cur && h.hour === cur.hour ? 'now' : ''].join(' ')}"><small>${cur && h.hour === cur.hour ? '지금' : h.hour + '시'}</small><span>${wxIcon(h.icon)}</span><b>${h.temp}°</b><i>${h.pop >= 10 ? h.pop + '%' : ''}</i>${h.rain >= 0.1 ? `<em>${mm(h.rain)}</em>` : ''}</div>`).join('')}
       </div>` : ''}
     </div>`;
 }
@@ -656,7 +656,7 @@ function wxTrip() {
   return `
     <div class="wx">
       <div class="wx-days">${rows.map((r) => `
-        <div class="${r.w && r.w.pop >= 50 ? 'wet' : ''}">
+        <div class="${r.w && r.w.pop >= 30 ? 'wet' : ''}">
           <small>${esc(shortDate(r.date))} ${WEEKDAYS[dowOf(r.date)]}</small>
           ${r.w ? `<span>${wxIcon(r.w.icon)}</span><b>${r.w.max}°<em>${r.w.min}°</em></b><i>비 ${r.w.pop}%</i>` : '<span>·</span><i>예보 전</i>'}
         </div>`).join('')}
@@ -1739,7 +1739,7 @@ function reportWeather(perDay) {
   return `
     <div class="section-title"><span>날씨 · 옷차림</span></div>
     <div class="card rp-card">
-      <div class="rp-wx">${wx.map((x) => `<div><small>${x.i + 1}일차</small>${wxIcon(x.wx.icon)}<b>${x.wx.max}°</b><span>${x.wx.min}°</span>${x.wx.rain >= 1 ? `<em>${Math.round(x.wx.rain)}mm</em>` : '<em></em>'}</div>`).join('')}</div>
+      <div class="rp-wx">${wx.map((x) => `<div class="${x.wx.rain >= 1 || x.wx.pop >= 30 ? 'wet' : ''}"><small>${x.i + 1}일차</small>${wxIcon(x.wx.icon)}<b>${x.wx.max}°</b><span>${x.wx.min}°</span>${x.wx.rain >= 1 ? `<em>${Math.round(x.wx.rain)}mm</em>` : '<em></em>'}</div>`).join('')}</div>
       <div class="small muted">최저 ${lo}° · 최고 ${hi}° · 비 온 날 ${rain.length}일${said ? ` · 옷차림 기록 ${said}번 (더움 ${feel.hot} · 딱 맞음 ${feel.ok} · 추움 ${feel.cold})` : ''}</div>
       <div class="rp-note">${icon('coat')}<span><b>다음 ${month}월 여행 팁</b><small>${esc(tip)}</small></span></div>
     </div>`;
@@ -5115,7 +5115,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 214;
+const APP_VERSION = 215;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

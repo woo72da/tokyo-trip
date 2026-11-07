@@ -38,6 +38,8 @@
   --stat-edge: #5f5e5a;
   --stat-ink: #ffffff;
   --stat-label: #d3d1c7;
+  --stat-rain: #378add;
+  --stat-rain-ink: #85b7eb;
   --on-now: #ffffff;
   /* AI: one violet family used only for things Claude does (DESIGN.md › AI) */
   --ai: #6a4fc4;
@@ -1957,3 +1959,24 @@ ol.alarm-note { padding-left: 18px; }
 .cost-pay > div:not(.cash) { border-bottom: 4px solid var(--stat-info); }
 .cost-pay span, .cost-pay small { color: var(--stat-label); }
 .cost-pay b { color: var(--stat-ink); font-family: var(--mono); }
+
+/* Weather tiles follow the 숫자 칸 rule: black tile, grey edge, white temperature;
+   now = thick white edge; rain likely (30%+) = blue bar along the bottom; icons in their light tints */
+.wx-strip > div, .wx-strip > div.wet, .wx-strip > div.now, .wx-strip > div.wet.now, .wx-days > div, .wx-days > div.wet, .rp-wx div {
+  background: var(--stat-bg); color: var(--stat-ink); border: 1.5px solid var(--stat-edge); box-shadow: none;
+  --wx-sun: #fac775; --wx-rain: var(--stat-rain-ink); --wx-cloud: #d3d1c7;
+}
+.wx-strip > div.wet, .wx-days > div.wet, .rp-wx div.wet { border-bottom: 4px solid var(--stat-rain); }
+.wx-strip > div.now { border: 2.5px solid var(--stat-ink); }
+.wx-strip > div.now.wet { border-bottom: 4px solid var(--stat-rain); }
+.wx-strip small, .wx-days small, .rp-wx small, .wx-strip > div.now small { color: var(--stat-label); }
+.wx-strip > div.now small { color: var(--stat-ink); font-weight: 800; }
+.wx-strip b, .wx-days b, .rp-wx b { color: var(--stat-ink); font-family: var(--mono); }
+.wx-days b em, .rp-wx span { color: var(--stat-label); }
+.wx-strip i, .wx-days i, .wx-strip > div.now i, .rp-wx em { color: var(--stat-rain-ink); }
+.wx-strip em, .wx-strip > div.now em { color: var(--stat-label); }
+@media (prefers-color-scheme: dark) {
+  .wx-strip > div.now, .dp[aria-pressed="true"] { --wx-sun: #fac775; --wx-rain: var(--stat-rain-ink); --wx-cloud: #d3d1c7; }
+}
+.wx-strip > div.now { outline: 2.5px solid var(--accent); outline-offset: 2px; }
+.wx-strip { padding-top: 5px; padding-bottom: 6px; }
