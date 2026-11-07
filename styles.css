@@ -1992,3 +1992,4 @@ ol.alarm-note { padding-left: 18px; }
 .wx-mini .chev { flex: none; margin-left: auto; }
 .wx-head[data-wx-fold] { cursor: pointer; }
 .wx-head[data-wx-fold]::after { content: ''; flex: none; align-self: flex-start; width: 9px; height: 9px; margin: 6px 2px 0 0; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-135deg); }
+.wx-label { cursor: default; }
