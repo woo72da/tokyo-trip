@@ -1903,3 +1903,7 @@ ol.alarm-note { padding-left: 18px; }
 .rp-rate-tally button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .rp-day-best .ico { width: 18px; height: 15px; }
 .rp-rate-tally .rk-best .ico { width: 28px; height: 28px; margin-block: -4px; } .rp-rate.rk-best .rp-rate-ic .ico { width: 25px; height: 25px; }
+
+.rp-nopay summary { min-height: 40px; display: flex; align-items: center; font-size: 13.5px; font-weight: 700; color: var(--warn); cursor: pointer; list-style: none; }
+.rp-nopay summary::-webkit-details-marker { display: none; }
+.rp-nopay .rp-big > i { background: var(--warn-soft); color: var(--warn); }

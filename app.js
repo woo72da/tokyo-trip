@@ -1853,6 +1853,10 @@ function reportSpend(exp, total, shopping, budget, days) {
       <div class="rp-sub">날짜별</div>
       ${pre ? bar('출발 전', pre, dayTop) : ''}${byDay.map(([d, v], i) => bar(`${i + 1}일차`, v, dayTop)).join('')}
       <div class="rp-split"><span>카드 <b>${yen(card)}</b></span><span>엔화 현금 <b>${yen(cashYen)}</b></span>${cashWon.length ? `<span>원화 현금 <b>${cashWon.reduce((a, e) => a + e.orig.value, 0).toLocaleString('ko-KR')}원</b></span>` : ''}${other ? `<span>결제수단 없음 <b>${yen(other)}</b></span>` : ''}</div>
+      ${other ? `<details class="rp-nopay"><summary>결제수단 없는 지출 ${exp.filter((e) => e.pay !== 'card' && e.pay !== 'cash').length}건 보기 · 눌러서 카드/현금 정하기</summary>
+        <div class="small muted">결제수단 칸은 11/2 밤에 생겨서, 그 전에 등록한 지출은 비어 있어요.</div>
+        ${exp.filter((e) => e.pay !== 'card' && e.pay !== 'cash').sort((a, b) => a.date.localeCompare(b.date)).map((e) => `<button class="rp-big" data-exp-edit="${esc(e.id)}"><i>?</i><span class="grow"><b>${esc(expTitle(e))}</b><small>${esc(expDateLabel(e.date))}${expTime(e) ? ' ' + esc(expTime(e)) : ''} · ${esc(e.cat)}${e.orig?.cur === 'KRW' ? ` · ${e.orig.value.toLocaleString('ko-KR')}원` : ''}</small></span><b>${yen(e.amount)}</b></button>`).join('')}
+      </details>` : ''}
       <div class="small muted">환전한 엔화 ${yen(cashTotal())} 중 ${yen(cashSpent())} 사용 · 남은 엔화 ${yen(Math.max(0, cashTotal() - cashSpent()))}${cashSpent() > cashTotal() ? ' · 환전액보다 많이 썼어요. 경비 칸에서 환전액을 확인해 주세요' : ''}</div>
       <div class="rp-sub">가장 큰 지출</div>
       ${biggest.map((e, i) => `<button class="rp-big" data-exp-edit="${esc(e.id)}"><i>${i + 1}</i><span class="grow"><b>${esc(expTitle(e))}</b><small>${esc(expDateLabel(e.date))} · ${esc(e.cat)}</small></span><b>${yen(e.amount)}</b></button>`).join('')}
@@ -5108,7 +5112,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 209;
+const APP_VERSION = 210;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
