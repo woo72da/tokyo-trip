@@ -30,6 +30,10 @@
   --sel-muted: var(--on-night-muted);
   --sel-accent: var(--accent);
   --night-edge: transparent;
+  /* number tiles: the dark card colour, numbers in light; meaning colours readable on dark */
+  --stat-ok: #8fd9bf;
+  --stat-warn: #e8c07d;
+  --stat-info: #a9c4ef;
   --on-now: #ffffff;
   /* AI: one violet family used only for things Claude does (DESIGN.md › AI) */
   --ai: #6a4fc4;
@@ -1913,3 +1917,21 @@ ol.alarm-note { padding-left: 18px; }
 .wx-fold > .ico { width: 16px; height: 16px; }
 .wx-fold-t { font-size: 12.5px; color: var(--accent); }
 .wx-fold.open .chev { transform: rotate(-135deg) translate(-2px, -2px); }
+
+/* Stat tiles: numbers on the app's dark card colour for contrast, in both themes */
+.rp-plan-n div, .rp-people div { background: var(--night); color: var(--on-night); box-shadow: inset 0 0 0 1px var(--night-edge); }
+.rp-plan-n div { padding: 10px 4px 9px; }
+.rp-plan-n b { font-size: 22px; }
+.rp-plan-n span, .rp-people span, .rp-people small { color: var(--on-night-muted); }
+.rp-plan-n .ok b { color: var(--stat-ok); }
+.rp-plan-n .skip b { color: var(--stat-warn); }
+.rp-plan-n .moved b { color: var(--stat-info); }
+.rp-people div { padding: 12px 14px; }
+.rp-people b { color: var(--on-night); }
+/* On the hero (already dark), tiles go deeper with a faint edge */
+.rp-tiles div { background: rgba(0,0,0,.34); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); padding: 12px 4px 10px; }
+.rp-tiles b { white-space: nowrap; font-size: clamp(18px, 5.4vw, 24px); }
+.rp-tiles b small { font-size: 11px; }
+.rp-tiles span { color: var(--on-night-muted); }
+.rp-tiles > div > span { display: block; }
+.rp-tiles b small { display: inline; margin-left: 1px; color: var(--on-night-muted); }

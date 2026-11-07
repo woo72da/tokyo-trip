@@ -1709,9 +1709,9 @@ function reportPlan(days) {
     <div class="card rp-card">
       <div class="rp-plan-n">
         <div><b>${sum('planned')}</b><span>계획</span></div>
-        <div><b>${sum('done')}</b><span>마침</span></div>
-        <div><b>${sum('skipped')}</b><span>건너뜀</span></div>
-        <div><b>${sum('moved')}</b><span>시간 바뀜</span></div>
+        <div class="ok"><b>${sum('done')}</b><span>마침</span></div>
+        <div class="skip"><b>${sum('skipped')}</b><span>건너뜀</span></div>
+        <div class="moved"><b>${sum('moved')}</b><span>시간 바뀜</span></div>
         <div><b>${sum('added')}</b><span>추가</span></div>
       </div>
       ${worst && worst.moved.length ? `<div class="rp-note">${icon('clock')}<span><b>${worst.i + 1}일차가 가장 많이 바뀌었어요</b><small>일정 ${worst.moved.length}개의 시간이 바뀌었고, 가장 크게는 ${formatLeft(worst.late)} 밀렸어요</small></span></div>` : ''}
@@ -5115,7 +5115,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 211;
+const APP_VERSION = 212;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
