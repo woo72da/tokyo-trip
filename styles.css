@@ -1950,3 +1950,10 @@ ol.alarm-note { padding-left: 18px; }
 .rp-plan-n .moved { border-bottom: 4px solid var(--stat-info); }
 .rp-dots i.ok, .rp-legend i.ok { background: var(--stat-ok); }
 .rp-dots i.skip, .rp-legend i.skip { background: var(--stat-warn); }
+
+/* 여행 비용 결제 방법 칸도 숫자 칸 규칙으로 */
+.cost-pay > div, .cost-pay > .cash { background: var(--stat-bg); border: 1.5px solid var(--stat-edge); color: var(--stat-ink); }
+.cost-pay > .cash { border-bottom: 4px solid var(--stat-ok); }
+.cost-pay > div:not(.cash) { border-bottom: 4px solid var(--stat-info); }
+.cost-pay span, .cost-pay small { color: var(--stat-label); }
+.cost-pay b { color: var(--stat-ink); font-family: var(--mono); }
