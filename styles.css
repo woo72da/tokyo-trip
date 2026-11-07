@@ -1768,3 +1768,59 @@ ol.alarm-note { padding-left: 18px; }
 .ver-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 22px; flex-wrap: wrap; }
 .ver-row .app-ver { width: auto; margin-top: 0; }
 .req-btn { min-height: 44px; padding: 0 14px 0 8px; gap: 7px; font-size: 14px; }
+
+/* 여행 리포트 (오늘 탭, after the trip) */
+.rp-back { margin: 4px 0 12px; }
+.rp-sync { display: flex; align-items: center; gap: 10px; width: 100%; margin: 4px 0 12px; padding: 12px 14px; border: 0; border-radius: 14px; background: var(--warn-soft); color: var(--warn); font: inherit; text-align: left; }
+.rp-sync b { display: block; font-size: 14.5px; }
+.rp-sync small { display: block; font-size: 12.5px; opacity: .85; }
+.rp-sync > .ico { flex: none; width: 20px; height: 20px; }
+.rp-hero { padding: 20px 18px 18px; border-radius: var(--radius); background: var(--night); color: var(--on-night); box-shadow: var(--shadow); }
+.rp-hero-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.rp-hero-top b { font-size: 20px; font-weight: 800; }
+.rp-hero-top span { font-size: 13px; font-weight: 700; color: var(--gold); }
+.rp-line { margin-top: 4px; font-size: 14px; color: var(--on-night-muted); }
+.rp-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 14px; }
+.rp-tiles div { padding: 10px 8px; border-radius: 12px; background: rgba(255,255,255,.07); text-align: center; min-width: 0; }
+.rp-tiles b { display: block; font: 700 21px/1.2 var(--mono); }
+.rp-tiles b small { font: 600 11px var(--sans); opacity: .7; margin-left: 1px; }
+.rp-tiles span { display: block; margin-top: 2px; font-size: 11.5px; color: var(--on-night-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp-days { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 72%); gap: 10px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x mandatory; }
+.rp-day { display: grid; gap: 6px; align-content: start; padding: 14px; border: 0; border-radius: 16px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); font: inherit; text-align: left; scroll-snap-align: start; }
+.rp-day-h { display: flex; align-items: baseline; gap: 6px; }
+.rp-day-h b { font-size: 16px; font-weight: 800; }
+.rp-day-h small { font-size: 12px; color: var(--muted); }
+.rp-seal { margin-left: auto; padding: 1px 7px; border: 1.5px solid #d06a5d; border-radius: 999px; color: #d06a5d; font-size: 11px; font-weight: 800; font-style: normal; transform: rotate(-6deg); }
+.rp-day-t { font-size: 13.5px; font-weight: 700; line-height: 1.4; }
+.rp-day-w { display: flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.rp-day-w .ico { width: 16px; height: 16px; }
+.rp-day-n { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.rp-day-n b { font: 700 15px var(--mono); color: var(--ink); margin-right: 2px; }
+.rp-day-best { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--accent); font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rp-day-best .ico { flex: none; width: 13px; height: 13px; }
+.rp-card { display: grid; gap: 8px; }
+.rp-total b { display: block; font: 700 28px/1.2 var(--mono); }
+.rp-total span { font-size: 13px; color: var(--muted); }
+.rp-meter { margin-top: 4px; }
+.rp-sub { margin-top: 10px; font-size: 13px; font-weight: 800; color: var(--muted); }
+.rp-bar { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 13px; }
+.rp-bar-l { color: var(--muted); white-space: nowrap; }
+.rp-bar-t { height: 10px; border-radius: 5px; background: var(--soft); overflow: hidden; }
+.rp-bar-t i { display: block; height: 100%; border-radius: 5px; background: var(--accent); }
+.rp-bar-v { font: 700 13px var(--mono); font-variant-numeric: tabular-nums; }
+.rp-split { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+.rp-split b { font: 700 13.5px var(--mono); color: var(--ink); margin-left: 3px; }
+.rp-big, .rp-place { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 0; border: 0; border-top: 1px solid var(--line); background: none; color: var(--ink); font: inherit; text-align: left; }
+.rp-big > i { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--soft); font: 700 12px var(--mono); font-style: normal; }
+.rp-big b, .rp-place b { display: block; font-size: 14.5px; }
+.rp-big small, .rp-place small { display: block; font-size: 12px; color: var(--muted); }
+.rp-big > b { flex: none; font: 700 14px var(--mono); }
+.rp-owe { font-size: 18px; font-weight: 700; line-height: 1.5; }
+.rp-owe b { font-family: var(--mono); color: var(--accent); }
+.rp-people { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.rp-people div { padding: 10px 12px; border-radius: 12px; background: var(--soft); }
+.rp-people span { display: block; font-size: 13px; font-weight: 700; color: var(--muted); }
+.rp-people b { display: block; font: 700 18px var(--mono); }
+.rp-people small { display: block; font-size: 11.5px; color: var(--muted); }
+.rp-open { margin-left: 6px; }
+.rp-place .chev { transform: rotate(-45deg); margin-right: 4px; }

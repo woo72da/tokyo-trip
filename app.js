@@ -1614,7 +1614,128 @@ function dayEndCard(dayIdx, items) {
       <div class="seal-days">${days.map((d, i) => `<span class="${isDayDone(d.date, date) ? 'on' : ''}">${i + 1}</span>`).join('')}</div>
       ${tally ? `<div class="day-end-sum">${esc(tally)}</div>` : ''}
       <button class="day-end-log" data-day-sum="${dayIdx}">${icon('pen')}날씨·옷차림 기록 남기기</button>
+      ${last ? `<button class="day-end-log rp-open" data-report-preview>${icon('checklist')}여행 리포트 미리 보기</button>` : ''}
       <div class="day-end-next">${tomorrow ? `내일 첫 일정 ${esc(tomorrow.start)} ${esc(stripEmoji(tomorrow.title))}` : '도쿄 여행을 모두 마쳤어요'}</div>
+    </div>`;
+}
+
+// ---------- trip report: after the trip, the 오늘 tab sums up everything both phones recorded ----------
+// Nothing new is asked for: done marks, visits and ratings, expenses, stamps and the weather log are the material.
+// Settlement splits what was shared; shopping is each person's own and stays out of it.
+const OWN_CATS = ['쇼핑'];
+function tripReport(preview = false) {
+  const { trip, days } = state.trip;
+  const today = tokyoNow().date;
+  const exp = expenses();
+  const total = exp.reduce((a, e) => a + e.amount, 0);
+  const shopping = exp.filter((e) => OWN_CATS.includes(e.cat)).reduce((a, e) => a + e.amount, 0);
+  const budget = store.get('budget', state.trip.budget?.yen || 0);
+  const perDay = days.map((d, i) => {
+    const items = dayItems(d).filter((it) => !it.skip && !isMove(it));
+    const done = items.filter((it) => isDone(it.id));
+    const places = [...new Map(done.map((it) => [placeOfItem(it.id), it]).filter(([p]) => p)).keys()];
+    const spent = exp.filter((e) => e.date === d.date).reduce((a, e) => a + e.amount, 0);
+    const best = places.find((p) => visitOf(p.id)?.again === 'best');
+    return { d, i, items, done, places, spent, wx: wxDay(d.date), sealed: store.get('seal:' + d.date, false), best };
+  });
+  const visited = new Set(perDay.flatMap((x) => x.places.map((p) => p.id)));
+  const planned = perDay.reduce((a, x) => a + x.items.length, 0);
+  const doneN = perDay.reduce((a, x) => a + x.done.length, 0);
+  const rainy = perDay.filter((x) => (x.wx?.rain || 0) >= 1).length;
+  const stamps = perDay.filter((x) => x.sealed).length;
+  const got = store.get('syncGot', null);
+  const synced = got && got.at >= Date.parse(`${trip.end}T00:00:00+09:00`);
+  setHeader(preview ? '미리 보기' : `${dayLabel(trip.start)} – ${dayLabel(trip.end)}`, '여행 리포트', `${trip.title} · ${trip.travelers}명`);
+  return `
+    ${preview ? `<button class="btn wide rp-back" data-report-close>${icon('x')}오늘 화면으로 돌아가기</button>` : ''}
+    ${synced ? '' : `<button class="rp-sync" data-settings="sync">${icon('refresh')}<span class="grow"><b>다른 폰 기록을 합치면 더 정확해요</b><small>${got ? `마지막으로 합친 때 ${shortDate(new Date(got.at).toISOString().slice(0, 10))}` : '아직 합친 적이 없어요'} · 설정 › 동기화</small></span><i class="chev"></i></button>`}
+    <div class="rp-hero">
+      <div class="rp-hero-top"><b>${esc(trip.title)}</b><span>도장 ${stamps}/${days.length}</span></div>
+      <div class="rp-line">${days.length}일 동안 ${visited.size}곳, ${yen(total)}</div>
+      <div class="rp-tiles">
+        <div><b>${visited.size}</b><span>방문한 곳</span></div>
+        <div><b>${doneN}<small>/${planned}</small></b><span>마친 일정</span></div>
+        <div><b>${Math.round(total / 1000).toLocaleString('ko-KR')}<small>천엔</small></b><span>${esc(manwon(total))}</span></div>
+        <div><b>${rainy}</b><span>비 온 날</span></div>
+      </div>
+    </div>
+    ${reportDays(perDay, today)}
+    ${reportSpend(exp, total, shopping, budget, days)}
+    ${reportSettle(exp)}
+    ${reportPlaces(visited)}`;
+}
+function reportDays(perDay, today) {
+  return `
+    <div class="section-title"><span>하루씩 돌아보기</span></div>
+    <div class="rp-days">${perDay.map((x) => `
+      <button class="rp-day" data-tomorrow="${x.i}">
+        <span class="rp-day-h"><b>${x.i + 1}일차</b><small>${esc(dayLabel(x.d.date))}${x.d.date === today ? ' · 오늘' : ''}</small>${x.sealed ? '<i class="rp-seal">완료</i>' : ''}</span>
+        <span class="rp-day-t">${esc(stripEmoji(x.d.title))}</span>
+        ${x.wx ? `<span class="rp-day-w">${wxIcon(x.wx.icon)}${x.wx.min}~${x.wx.max}°${x.wx.rain >= 1 ? ` · 비 ${Math.round(x.wx.rain)}mm` : ''}</span>` : ''}
+        <span class="rp-day-n"><span><b>${x.places.length}</b>곳</span><span><b>${yen(x.spent)}</b></span></span>
+        ${x.best ? `<span class="rp-day-best">${icon('heart')}${esc(x.best.name)}</span>` : ''}
+      </button>`).join('')}</div>`;
+}
+function reportSpend(exp, total, shopping, budget, days) {
+  if (!exp.length) return '';
+  const used = total - shopping;
+  const pct = budget ? Math.round((used / budget) * 100) : 0;
+  const cats = Object.entries(exp.reduce((m, e) => ({ ...m, [e.cat]: (m[e.cat] || 0) + e.amount }), {})).sort((a, b) => b[1] - a[1]);
+  const top = cats[0]?.[1] || 1;
+  const byDay = days.map((d) => [d, exp.filter((e) => e.date === d.date).reduce((a, e) => a + e.amount, 0)]);
+  const pre = exp.filter((e) => e.date < state.trip.trip.start).reduce((a, e) => a + e.amount, 0);
+  const dayTop = Math.max(1, pre, ...byDay.map(([, v]) => v));
+  const card = exp.filter((e) => e.pay === 'card').reduce((a, e) => a + e.amount, 0);
+  const biggest = [...exp].sort((a, b) => b.amount - a.amount).slice(0, 3);
+  const bar = (label, v, max, sub = '') => `<div class="rp-bar"><span class="rp-bar-l">${esc(label)}</span><span class="rp-bar-t"><i style="width:${Math.max(2, Math.round((v / max) * 100))}%"></i></span><span class="rp-bar-v">${yen(v)}${sub}</span></div>`;
+  return `
+    <div class="section-title"><span>지출</span></div>
+    <div class="card rp-card">
+      <div class="rp-total"><b>${yen(total)}</b><span>${won(total)} · 1인 약 ${esc(manwon(total / state.trip.trip.travelers))}</span></div>
+      ${budget ? `<div class="meter rp-meter"><i style="width:${Math.min(100, pct)}%"></i></div><div class="small muted">예산 ${yen(budget)} 중 ${pct}% 사용 (쇼핑 제외)${pct > 100 ? ` · ${yen(used - budget)} 넘음` : ` · ${yen(budget - used)} 남음`}</div>` : ''}
+      <div class="rp-sub">분류별</div>
+      ${cats.map(([c, v]) => bar(c, v, top)).join('')}
+      <div class="rp-sub">날짜별</div>
+      ${pre ? bar('출발 전', pre, dayTop) : ''}${byDay.map(([d, v], i) => bar(`${i + 1}일차`, v, dayTop)).join('')}
+      <div class="rp-split"><span>카드 <b>${yen(card)}</b></span><span>현금 <b>${yen(total - card)}</b></span><span>남은 엔화 <b>${yen(Math.max(0, cashTotal() - cashSpent()))}</b></span></div>
+      <div class="rp-sub">가장 큰 지출</div>
+      ${biggest.map((e, i) => `<button class="rp-big" data-exp-edit="${esc(e.id)}"><i>${i + 1}</i><span class="grow"><b>${esc(expTitle(e))}</b><small>${esc(expDateLabel(e.date))} · ${esc(e.cat)}</small></span><b>${yen(e.amount)}</b></button>`).join('')}
+    </div>`;
+}
+function reportSettle(exp) {
+  if (!exp.length) return '';
+  const [a, b] = PEOPLE;
+  const shared = exp.filter((e) => !OWN_CATS.includes(e.cat));
+  const unknown = shared.filter((e) => !PEOPLE.includes(person(e.by)));
+  const paid = (p) => shared.filter((e) => person(e.by) === p).reduce((s, e) => s + e.amount, 0);
+  const own = (p) => exp.filter((e) => OWN_CATS.includes(e.cat) && person(e.by) === p).reduce((s, e) => s + e.amount, 0);
+  const pa = paid(a), pb = paid(b);
+  const half = (pa + pb) / 2;
+  const diff = Math.round(pa - half);
+  const line = Math.abs(diff) < 100 ? '거의 같아요. 따로 보낼 돈이 없어요'
+    : `${diff > 0 ? b : a} → ${diff > 0 ? a : b} <b>${yen(Math.abs(diff))}</b> (약 ${esc(won(Math.abs(diff)))})`;
+  return `
+    <div class="section-title"><span>정산</span><em class="muted">함께 쓴 돈을 반반, 쇼핑은 각자</em></div>
+    <div class="card rp-card rp-settle">
+      <div class="rp-owe">${line}</div>
+      <div class="rp-people">${[a, b].map((p) => `<div><span>${esc(p)}</span><b>${yen(paid(p))}</b><small>함께 쓴 돈에서 낸 금액</small>${own(p) ? `<small>쇼핑 ${yen(own(p))} (각자)</small>` : ''}</div>`).join('')}</div>
+      <div class="small muted">함께 쓴 돈 ${yen(pa + pb)} ÷ 2 = 1인 ${yen(half)}${unknown.length ? ` · 누가 냈는지 모르는 지출 ${unknown.length}건(${yen(unknown.reduce((s, e) => s + e.amount, 0))})은 빼고 계산했어요` : ''}</div>
+      ${Math.abs(diff) >= 100 ? `<button class="btn wide" data-copy-text="${esc(`${diff > 0 ? b : a} → ${diff > 0 ? a : b} ${Math.abs(diff).toLocaleString('ko-KR')}엔 (약 ${won(Math.abs(diff))})`)}">${icon('copy')}정산 금액 복사</button>` : ''}
+    </div>`;
+}
+function reportPlaces(visited) {
+  const all = allPlaces();
+  const rated = (k) => all.filter((p) => visitOf(p.id)?.again === k);
+  const groups = [['best', '강력 추천'], ['yes', '추천'], ['no', '비추천']].map(([k, l]) => [l, rated(k)]).filter(([, l]) => l.length);
+  const next = all.filter((p) => isSaved(p.id) && !visited.has(p.id) && !visitOf(p.id));
+  if (!groups.length && !next.length && !visited.size) return '';
+  const row = (p) => { const v = visitOf(p.id); return `<button class="rp-place" data-place="${esc(p.id)}"><span class="grow"><b>${esc(p.name)}</b>${v?.memo ? `<small>${esc(v.memo)}</small>` : p.area ? `<small>${esc(p.area)}</small>` : ''}</span><i class="chev"></i></button>`; };
+  return `
+    <div class="section-title"><span>좋았던 곳 · 다음에 갈 곳</span></div>
+    <div class="card rp-card">
+      ${groups.length ? groups.map(([l, list]) => `<div class="rp-sub">${l} ${list.length}</div>${list.map(row).join('')}`).join('')
+        : `<div class="small muted">평가를 남긴 곳이 없어요. 방문한 ${visited.size}곳은 탐색 › 기록에서 볼 수 있어요.</div>`}
+      ${next.length ? `<div class="rp-sub">저장했지만 못 간 곳 ${next.length} · 다음 여행 후보</div>${next.slice(0, 12).map(row).join('')}` : ''}
     </div>`;
 }
 
@@ -1654,10 +1775,9 @@ function renderToday() {
       ${timeline(dayItems(days[0]).slice(0, 4), null)}
     `;
   }
-  if (dayIdx === -1) {
-    setHeader('', trip.title, '여행이 끝났어요');
-    return `<div class="empty">おつかれさまでした<br>즐거운 여행이었기를!</div>`;
-  }
+  if (dayIdx === -1) return tripReport();
+  // On the last day the report can be opened early (after the day's stops are done, or any time from the card).
+  if (state.reportPreview && dayIdx === days.length - 1) return tripReport(true);
 
   const day = days[dayIdx];
   const items = dayItems(day).filter((it) => !it.skip);
@@ -4755,7 +4875,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 201;
+const APP_VERSION = 202;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -4839,7 +4959,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -4886,7 +5006,7 @@ document.addEventListener('click', async (e) => {
   }
   else if (d.copy) copy(d.copy);
   else if (d.copyText) {
-    try { await navigator.clipboard.writeText(d.copyText); toast('복사했어요 · Safari 주소창에 붙여넣으세요'); }
+    try { await navigator.clipboard.writeText(d.copyText); toast(/^https?:/.test(d.copyText) ? '복사했어요 · Safari 주소창에 붙여넣으세요' : '복사했어요'); }
     catch { toast('복사하지 못했어요'); }
   }
   else if (d.openSecret) {
@@ -5026,6 +5146,8 @@ document.addEventListener('click', async (e) => {
     toast(`${yen(amount)} · 메모와 분류를 고르고 '기록'을 누르세요`);
   }
   else if ('settings' in d) openSettings(d.settings);
+  else if ('reportPreview' in d) { state.reportPreview = true; window.scrollTo(0, 0); render(); }
+  else if ('reportClose' in d) { state.reportPreview = false; window.scrollTo(0, 0); render(); }
   else if ('syncToggle' in d) { state.syncOpen = !state.syncOpen; render(); }
   else if (d.transApp) {
     const dir = state.talkDir;
