@@ -31,9 +31,13 @@
   --sel-accent: var(--accent);
   --night-edge: transparent;
   /* number tiles: the dark card colour, numbers in light; meaning colours readable on dark */
-  --stat-ok: #8fd9bf;
-  --stat-warn: #e8c07d;
-  --stat-info: #a9c4ef;
+  --stat-ok: #5dcaa5;
+  --stat-warn: #ef9f27;
+  --stat-info: #85b7eb;
+  --stat-bg: #0b0b0b;
+  --stat-edge: #5f5e5a;
+  --stat-ink: #ffffff;
+  --stat-label: #d3d1c7;
   --on-now: #ffffff;
   /* AI: one violet family used only for things Claude does (DESIGN.md › AI) */
   --ai: #6a4fc4;
@@ -1935,3 +1939,14 @@ ol.alarm-note { padding-left: 18px; }
 .rp-tiles span { color: var(--on-night-muted); }
 .rp-tiles > div > span { display: block; }
 .rp-tiles b small { display: inline; margin-left: 1px; color: var(--on-night-muted); }
+
+/* Stat tiles (B): near-black, light grey edge, white numbers; meaning shown by a colour bar along the bottom */
+.rp-plan-n div, .rp-people div, .rp-tiles div { background: var(--stat-bg); color: var(--stat-ink); box-shadow: none; border: 1.5px solid var(--stat-edge); }
+.rp-plan-n b, .rp-people b, .rp-tiles b { color: var(--stat-ink); }
+.rp-plan-n .ok b, .rp-plan-n .skip b, .rp-plan-n .moved b { color: var(--stat-ink); }
+.rp-plan-n span, .rp-people span, .rp-people small, .rp-tiles span, .rp-tiles b small { color: var(--stat-label); }
+.rp-plan-n .ok { border-bottom: 4px solid var(--stat-ok); }
+.rp-plan-n .skip { border-bottom: 4px solid var(--stat-warn); }
+.rp-plan-n .moved { border-bottom: 4px solid var(--stat-info); }
+.rp-dots i.ok, .rp-legend i.ok { background: var(--stat-ok); }
+.rp-dots i.skip, .rp-legend i.skip { background: var(--stat-warn); }
