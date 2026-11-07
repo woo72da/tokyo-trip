@@ -1831,7 +1831,12 @@ function reportSpend(exp, total, shopping, budget, days) {
   const byDay = days.map((d) => [d, exp.filter((e) => e.date === d.date).reduce((a, e) => a + e.amount, 0)]);
   const pre = exp.filter((e) => e.date < state.trip.trip.start).reduce((a, e) => a + e.amount, 0);
   const dayTop = Math.max(1, pre, ...byDay.map(([, v]) => v));
-  const card = exp.filter((e) => e.pay === 'card').reduce((a, e) => a + e.amount, 0);
+  // Same rule as the 경비 card: yen cash is cash paid in yen; won paid in cash and entries with no method are shown apart.
+  const sumOf = (f) => exp.filter(f).reduce((a, e) => a + e.amount, 0);
+  const card = sumOf((e) => e.pay === 'card');
+  const cashYen = sumOf((e) => e.pay === 'cash' && e.orig?.cur !== 'KRW');
+  const cashWon = exp.filter((e) => e.pay === 'cash' && e.orig?.cur === 'KRW');
+  const other = sumOf((e) => e.pay !== 'card' && e.pay !== 'cash');
   const biggest = [...exp].sort((a, b) => b.amount - a.amount).slice(0, 3);
   const bar = (label, v, max, sub = '') => `<div class="rp-bar"><span class="rp-bar-l">${esc(label)}</span><span class="rp-bar-t"><i style="width:${Math.max(2, Math.round((v / max) * 100))}%"></i></span><span class="rp-bar-v">${yen(v)}${sub}</span></div>`;
   return `
@@ -1845,7 +1850,8 @@ function reportSpend(exp, total, shopping, budget, days) {
       ${cats.map(([c, v]) => bar(c, v, top)).join('')}
       <div class="rp-sub">날짜별</div>
       ${pre ? bar('출발 전', pre, dayTop) : ''}${byDay.map(([d, v], i) => bar(`${i + 1}일차`, v, dayTop)).join('')}
-      <div class="rp-split"><span>카드 <b>${yen(card)}</b></span><span>현금 <b>${yen(total - card)}</b></span><span>남은 엔화 <b>${yen(Math.max(0, cashTotal() - cashSpent()))}</b></span></div>
+      <div class="rp-split"><span>카드 <b>${yen(card)}</b></span><span>엔화 현금 <b>${yen(cashYen)}</b></span>${cashWon.length ? `<span>원화 현금 <b>${cashWon.reduce((a, e) => a + e.orig.value, 0).toLocaleString('ko-KR')}원</b></span>` : ''}${other ? `<span>결제수단 없음 <b>${yen(other)}</b></span>` : ''}</div>
+      <div class="small muted">환전한 엔화 ${yen(cashTotal())} 중 ${yen(cashSpent())} 사용 · 남은 엔화 ${yen(Math.max(0, cashTotal() - cashSpent()))}${cashSpent() > cashTotal() ? ' · 환전액보다 많이 썼어요. 경비 칸에서 환전액을 확인해 주세요' : ''}</div>
       <div class="rp-sub">가장 큰 지출</div>
       ${biggest.map((e, i) => `<button class="rp-big" data-exp-edit="${esc(e.id)}"><i>${i + 1}</i><span class="grow"><b>${esc(expTitle(e))}</b><small>${esc(expDateLabel(e.date))} · ${esc(e.cat)}</small></span><b>${yen(e.amount)}</b></button>`).join('')}
     </div>`;
@@ -5088,7 +5094,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 205;
+const APP_VERSION = 206;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
