@@ -1665,6 +1665,7 @@ function tripReport(preview = false) {
     ${reportPlaces(visited)}
     ${reportPlan(days)}
     ${reportWeather(perDay)}
+    ${reportStory()}
     ${reportShare(exp)}`;
 }
 // What was planned against what happened: done, skipped, re-timed, added on the way.
@@ -4163,6 +4164,54 @@ async function aiDiary(date, btn) {
     render();
   } catch (e) { toast(e.message); render(); }
 }
+// ⑦ The whole trip as a short story, plus tips for next time, from the same records the report uses.
+// Kept under diary:trip, so it syncs to the other phone like the daily entries.
+const TRIP_STORY_SCHEMA = { type: 'object', additionalProperties: false, required: ['title', 'text', 'tips'], properties: {
+  title: { type: 'string' }, text: { type: 'string', description: 'Korean prose, 3-4 short paragraphs separated by a blank line' },
+  tips: { type: 'array', items: { type: 'string' }, description: '3-5 short Korean tips for the next trip, each from what actually happened' } } };
+async function aiTripStory(btn) {
+  const { trip, days } = state.trip;
+  const exp = expenses();
+  const facts = {
+    trip: trip.title, dates: `${dayLabel(trip.start)} ~ ${dayLabel(trip.end)}`, travelers: trip.travelers,
+    days: days.map((d, i) => {
+      const items = dayItems(d).filter((it) => !isMove(it));
+      const visits = items.filter((it) => isDone(it.id)).map((it) => [it, placeOfItem(it.id)]).filter(([, p]) => p)
+        .map(([, p]) => { const v = visitOf(p.id); return { name: p.name, rating: v?.again ? AGAIN[v.again] : '', memo: v?.memo || '' }; });
+      const diary = store.get('diary:' + d.date, null);
+      return { day: i + 1, date: dayLabel(d.date), title: stripEmoji(d.title), weather: wxStory(d.date)?.head || '',
+        visits, skipped: items.filter((it) => it.skip).map((it) => stripEmoji(it.title)), spent: Math.round(exp.filter((e) => e.date === d.date).reduce((a, e) => a + e.amount, 0)),
+        clothes: PEOPLE.map((p) => gearLog(d.date, p)?.coat).filter(Boolean), memos: PEOPLE.map((p) => gearLog(d.date, p)?.memo).filter(Boolean), diary: diary ? diary.text : '' };
+    }),
+    spent: { total: Math.round(exp.reduce((a, e) => a + e.amount, 0)), by: Object.entries(exp.reduce((m, e) => ({ ...m, [e.cat]: (m[e.cat] || 0) + e.amount }), {})).map(([c, n]) => `${c} ${Math.round(n)}엔`) },
+    budget: store.get('budget', state.trip.budget?.yen || 0),
+  };
+  const wait = document.createElement('div');
+  wait.innerHTML = aiLoading('AI가 여행기를 쓰고 있어요', ['5일 동안의 기록을 모으는 중', '좋았던 곳과 바뀐 일정을 살피는 중', '여행기를 쓰는 중', '다음 여행 팁을 고르는 중']);
+  btn.replaceWith(wait);
+  try {
+    const r = await aiAsk({
+      system: 'Write a short, warm Korean travel story for a couple\'s whole trip from the given facts: 3-4 short paragraphs (about 12-16 sentences in all), plain prose, no emoji, no lists, no headings. Follow the days in order, name the places they actually went and how they rated them, mention the weather and changed plans lightly, and spending in one sentence. Use the daily diary entries and memos where they exist. Don\'t invent events or numbers. title: a short Korean title for the trip. tips: 3-5 short, concrete tips for their next trip drawn only from what happened (skipped stops, weather and clothes, spending against budget, places worth returning to).',
+      schema: TRIP_STORY_SCHEMA, effort: 'medium', content: [{ type: 'text', text: JSON.stringify(facts) }],
+    });
+    store.set('diary:trip', { title: r.title, text: r.text, tips: r.tips || [], at: Date.now() });
+    render();
+  } catch (e) { toast(e.message); render(); }
+}
+function reportStory() {
+  const d = store.get('diary:trip', null);
+  const body = d
+    ? `${aiTag('AI가 쓴 여행기')}<b class="rp-story-t">${esc(d.title)}</b>
+      ${String(d.text).split(/\n\s*\n/).map((x) => `<p class="rp-story-p">${esc(x.trim())}</p>`).join('')}
+      ${d.tips?.length ? `<div class="rp-sub">다음 여행 팁</div><ul class="rp-tips">${d.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
+      <div class="btns"><button class="btn" data-diary-share="trip">${icon('ext')}공유·복사</button><button class="btn ai" data-ai-trip-story>${aiLabel('다시 쓰기')}</button></div>`
+    : aiKey()
+      ? `<button class="btn ai primary wide" data-ai-trip-story>${aiLabel('여행기 쓰기')}</button><div class="small muted">5일 동안의 방문·평가·메모·지출·날씨와 하루 기록으로 짧은 여행기와 다음 여행 팁을 써요. 쓰고 나면 다른 폰에도 동기화돼요.</div>`
+      : `<div class="small muted">AI 키를 넣으면 5일 동안의 기록으로 여행기와 다음 여행 팁을 써 드려요.</div><button class="btn wide" data-settings>${icon('gear')}설정 › AI 도우미</button>`;
+  return `
+    <div class="section-title"><span>여행기</span></div>
+    <div class="card rp-card rp-story">${body}</div>`;
+}
 const diaryCard = (date) => {
   const d = store.get('diary:' + date, null);
   if (!d) return aiKey() ? `<button class="day-sum-row ai" data-ai-diary="${esc(date)}"><span class="ii sm sec ai ai-mark">${icon('spark')}</span><span class="grow"><b>오늘 기록 정리하기</b><small>방문·평가·지출·날씨로 짧은 여행 일기를 만들어요 (AI)</small></span></button>` : '';
@@ -4187,7 +4236,7 @@ async function ghApi(path, { method = 'GET', body } = {}) {
   } catch { throw new Error('GitHub에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
   const data = await res.json().catch(() => ({}));
   if (res.ok) return data;
-  if (res.status === 401) throw new Error('요청함 토큰이 맞지 않거나 만료됐어요. 설정 › AI 도우미에서 확인해 주세요.');
+  if (res.status === 401) throw new Error('요청함 토큰이 맞지 않거나 만료됐어요. 설정 › 개선 요청함에서 확인해 주세요.');
   if (res.status === 403 || res.status === 404) throw new Error('토큰에 tokyo-trip-desk 저장소의 Contents·Issues 쓰기 권한이 있는지 확인해 주세요.');
   if (res.status === 422 && /too large|size/i.test(data.message || '')) throw new Error('파일이 너무 커요. 영상은 20초 이내로 찍어 주세요.');
   throw new Error(`GitHub 오류 (${res.status}) ${data.message || ''}`.trim());
@@ -5005,7 +5054,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 203;
+const APP_VERSION = 204;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5089,7 +5138,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -5377,10 +5426,11 @@ document.addEventListener('click', async (e) => {
   else if ('aiPlanApply' in d) aiPlanApply(Number(d.aiPlanApply));
   else if (d.aiEg) { $('#ai-plan-q').value = d.aiEg; $('#ai-plan-q').focus(); }
   else if (d.aiDiary) aiDiary(d.aiDiary, el);
+  else if ('aiTripStory' in d) aiTripStory(el);
   else if (d.diaryShare) {
     const x = store.get('diary:' + d.diaryShare, null);
     if (x) {
-      const text = `${x.title}\n\n${x.text}`;
+      const text = `${x.title}\n\n${x.text}${x.tips?.length ? `\n\n다음 여행 팁\n${x.tips.map((t) => `· ${t}`).join('\n')}` : ''}`;
       if (navigator.share) navigator.share({ text }).catch(() => {});
       else navigator.clipboard?.writeText(text).then(() => toast('복사했어요'));
     }

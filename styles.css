@@ -1851,3 +1851,9 @@ ol.alarm-note { padding-left: 18px; }
 .rp-wx b { font: 700 15px var(--mono); }
 .rp-wx span { font: 600 12px var(--mono); color: var(--muted); }
 .rp-wx em { min-height: 14px; font-style: normal; font-size: 11px; font-weight: 700; color: var(--accent); }
+
+/* 여행 리포트 3차: AI 여행기 */
+.rp-story .ai-tag { justify-self: start; }
+.rp-story-t { display: block; font-size: 19px; font-weight: 800; line-height: 1.4; }
+.rp-story-p { margin: 0; font-size: 15px; line-height: 1.85; }
+.rp-tips { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14.5px; }
