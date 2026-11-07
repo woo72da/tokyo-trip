@@ -4486,7 +4486,13 @@ function settingsBody() {
 function openSettings(at = '') {
   $('#sheet-body').innerHTML = settingsBody();
   $('#sheet').hidden = false;
-  if (at === 'sync') setTimeout(() => $('#sheet-body .sync-panel')?.closest('.set-sec').scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
+  // Bring the 동기화 heading to the top of the sheet (beside the close button), not the section above it.
+  if (at === 'sync') setTimeout(() => {
+    const sec = $('#sheet-body .sync-panel')?.closest('.set-sec');
+    const box = $('.sheet-panel');
+    if (!sec || !box) return;
+    box.scrollTo({ top: box.scrollTop + sec.getBoundingClientRect().top - box.getBoundingClientRect().top - 14, behavior: 'smooth' });
+  }, 60);
 }
 
 function openPlaceNew() {
@@ -5129,7 +5135,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 218;
+const APP_VERSION = 219;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
