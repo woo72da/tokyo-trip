@@ -1901,17 +1901,19 @@ function reportPlaces(visited) {
   const all = allPlaces();
   const groups = RATE_KIND.map(([k, l, ic, hint]) => ({ k, l, ic, hint, list: all.filter((p) => visitOf(p.id)?.again === k) }));
   const rated = groups.filter((g) => g.list.length);
+  // One rating at a time: tap a count above to list its places below (starts on the first with places).
+  const pick = rated.find((g) => g.k === state.rpRate) || rated[0];
   const next = all.filter((p) => isSaved(p.id) && !visited.has(p.id) && !visitOf(p.id));
   if (!rated.length && !next.length && !visited.size) return '';
   const row = (p, k) => { const v = visitOf(p.id); return `<button class="rp-place ${k || ''}" data-place="${esc(p.id)}"><span class="grow"><b>${esc(p.name)}</b>${v?.memo ? `<small class="memo">“${esc(v.memo)}”</small>` : p.area ? `<small>${esc(p.area)}</small>` : ''}</span><i class="chev"></i></button>`; };
   return `
     <div class="section-title"><span>좋았던 곳 · 다음에 갈 곳</span></div>
-    ${rated.length ? `<div class="rp-rate-tally">${groups.map((g) => `<div class="rk-${g.k} ${g.list.length ? '' : 'none'}">${icon(g.ic)}<b>${g.list.length}</b><span>${g.l}</span></div>`).join('')}</div>` : ''}
-    ${rated.length ? rated.map((g) => `
-      <div class="card rp-card rp-rate rk-${g.k}">
-        <div class="rp-rate-h"><span class="rp-rate-ic">${icon(g.ic)}</span><span class="grow"><b>${g.l}</b><small>${g.hint}</small></span><em>${g.list.length}곳</em></div>
-        ${g.list.map((p) => row(p, g.k)).join('')}
-      </div>`).join('')
+    ${rated.length ? `<div class="rp-rate-tally" role="tablist">${groups.map((g) => `<button type="button" role="tab" class="rk-${g.k} ${g.list.length ? '' : 'none'} ${g.k === pick.k ? 'on' : ''}" data-rp-rate="${g.k}" aria-selected="${g.k === pick.k}" ${g.list.length ? '' : 'disabled'}>${icon(g.ic)}<b>${g.list.length}</b><span>${g.l}</span></button>`).join('')}</div>` : ''}
+    ${rated.length ? `
+      <div class="card rp-card rp-rate rk-${pick.k}" role="tabpanel">
+        <div class="rp-rate-h"><span class="rp-rate-ic">${icon(pick.ic)}</span><span class="grow"><b>${pick.l}</b><small>${pick.hint}</small></span><em>${pick.list.length}곳</em></div>
+        ${pick.list.map((p) => row(p, pick.k)).join('')}
+      </div>`
       : `<div class="card rp-card"><div class="small muted">평가를 남긴 곳이 없어요. 방문한 ${visited.size}곳은 탐색 › 기록에서 볼 수 있어요.</div></div>`}
     ${next.length ? `
       <div class="card rp-card rp-rate rk-next">
@@ -5104,7 +5106,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 207;
+const APP_VERSION = 208;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5188,7 +5190,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -5376,6 +5378,7 @@ document.addEventListener('click', async (e) => {
   }
   else if ('settings' in d) openSettings(d.settings);
   else if ('reportPreview' in d) { state.reportPreview = true; window.scrollTo(0, 0); render(); }
+  else if (d.rpRate) { state.rpRate = d.rpRate; render(); }
   else if ('reportImage' in d) reportImage();
   else if ('reportText' in d) reportText();
   else if ('reportClose' in d) { state.reportPreview = false; window.scrollTo(0, 0); render(); }
