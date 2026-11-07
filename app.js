@@ -1894,20 +1894,30 @@ function reportSettle(exp) {
       ${Math.abs(diff) >= 100 ? `<button class="btn wide" data-copy-text="${esc(`${diff > 0 ? b : a} → ${diff > 0 ? a : b} ${Math.abs(diff).toLocaleString('ko-KR')}엔 (약 ${won(Math.abs(diff))})`)}">${icon('copy')}정산 금액 복사</button>` : ''}
     </div>`;
 }
+// Rated places grouped by how much we'd go back: a tally strip on top, then one group per rating with its own
+// mark and colour, each place with its memo; places saved but never reached close the card as next-trip ideas.
+const RATE_KIND = [['best', '강력 추천', 'heart', '다시 가고 싶은 곳'], ['yes', '추천', 'thumb', '가 볼 만한 곳'], ['no', '비추천', 'thumb-down', '다음엔 빼도 될 곳']];
 function reportPlaces(visited) {
   const all = allPlaces();
-  const rated = (k) => all.filter((p) => visitOf(p.id)?.again === k);
-  const groups = [['best', '강력 추천'], ['yes', '추천'], ['no', '비추천']].map(([k, l]) => [l, rated(k)]).filter(([, l]) => l.length);
+  const groups = RATE_KIND.map(([k, l, ic, hint]) => ({ k, l, ic, hint, list: all.filter((p) => visitOf(p.id)?.again === k) }));
+  const rated = groups.filter((g) => g.list.length);
   const next = all.filter((p) => isSaved(p.id) && !visited.has(p.id) && !visitOf(p.id));
-  if (!groups.length && !next.length && !visited.size) return '';
-  const row = (p) => { const v = visitOf(p.id); return `<button class="rp-place" data-place="${esc(p.id)}"><span class="grow"><b>${esc(p.name)}</b>${v?.memo ? `<small>${esc(v.memo)}</small>` : p.area ? `<small>${esc(p.area)}</small>` : ''}</span><i class="chev"></i></button>`; };
+  if (!rated.length && !next.length && !visited.size) return '';
+  const row = (p, k) => { const v = visitOf(p.id); return `<button class="rp-place ${k || ''}" data-place="${esc(p.id)}"><span class="grow"><b>${esc(p.name)}</b>${v?.memo ? `<small class="memo">“${esc(v.memo)}”</small>` : p.area ? `<small>${esc(p.area)}</small>` : ''}</span><i class="chev"></i></button>`; };
   return `
     <div class="section-title"><span>좋았던 곳 · 다음에 갈 곳</span></div>
-    <div class="card rp-card">
-      ${groups.length ? groups.map(([l, list]) => `<div class="rp-sub">${l} ${list.length}</div>${list.map(row).join('')}`).join('')
-        : `<div class="small muted">평가를 남긴 곳이 없어요. 방문한 ${visited.size}곳은 탐색 › 기록에서 볼 수 있어요.</div>`}
-      ${next.length ? `<div class="rp-sub">저장했지만 못 간 곳 ${next.length} · 다음 여행 후보</div>${next.slice(0, 12).map(row).join('')}` : ''}
-    </div>`;
+    ${rated.length ? `<div class="rp-rate-tally">${groups.map((g) => `<div class="rk-${g.k} ${g.list.length ? '' : 'none'}">${icon(g.ic)}<b>${g.list.length}</b><span>${g.l}</span></div>`).join('')}</div>` : ''}
+    ${rated.length ? rated.map((g) => `
+      <div class="card rp-card rp-rate rk-${g.k}">
+        <div class="rp-rate-h"><span class="rp-rate-ic">${icon(g.ic)}</span><span class="grow"><b>${g.l}</b><small>${g.hint}</small></span><em>${g.list.length}곳</em></div>
+        ${g.list.map((p) => row(p, g.k)).join('')}
+      </div>`).join('')
+      : `<div class="card rp-card"><div class="small muted">평가를 남긴 곳이 없어요. 방문한 ${visited.size}곳은 탐색 › 기록에서 볼 수 있어요.</div></div>`}
+    ${next.length ? `
+      <div class="card rp-card rp-rate rk-next">
+        <div class="rp-rate-h"><span class="rp-rate-ic">${icon('pin')}</span><span class="grow"><b>저장했지만 못 간 곳</b><small>다음 여행 후보</small></span><em>${next.length}곳</em></div>
+        ${next.slice(0, 12).map((p) => row(p)).join('')}
+      </div>` : ''}`;
 }
 
 function renderToday() {
@@ -5094,7 +5104,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 206;
+const APP_VERSION = 207;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

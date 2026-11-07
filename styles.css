@@ -1873,3 +1873,24 @@ ol.alarm-note { padding-left: 18px; }
 .rp-paid summary::-webkit-details-marker { display: none; }
 .rp-paid-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
 .rp-paid-row b { font: 700 13.5px var(--mono); white-space: nowrap; }
+
+/* 좋았던 곳: one colour and mark per rating */
+.rp-rate-tally { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.rp-rate-tally div { display: grid; justify-items: center; gap: 2px; padding: 12px 6px; border-radius: 14px; background: var(--rk-soft); color: var(--rk); }
+.rp-rate-tally div.none { opacity: .45; }
+.rp-rate-tally .ico { width: 20px; height: 20px; }
+.rp-rate-tally b { font: 700 22px/1.1 var(--mono); }
+.rp-rate-tally span { font-size: 12.5px; font-weight: 700; }
+.rk-best { --rk: var(--alert); --rk-soft: var(--alert-soft); }
+.rk-yes { --rk: var(--now); --rk-soft: var(--now-soft); }
+.rk-no { --rk: var(--muted); --rk-soft: var(--soft); }
+.rk-next { --rk: var(--accent); --rk-soft: var(--soft); }
+.rp-rate { margin-bottom: 10px; gap: 0; }
+.rp-rate-h { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; }
+.rp-rate-ic { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--rk-soft); color: var(--rk); }
+.rp-rate-ic .ico { width: 19px; height: 19px; }
+.rp-rate-h b { display: block; font-size: 16px; color: var(--rk); }
+.rp-rate-h small { display: block; font-size: 12.5px; color: var(--muted); }
+.rp-rate-h em { flex: none; font-style: normal; font: 700 13px var(--mono); color: var(--rk); }
+.rp-place .memo { color: var(--ink); opacity: .8; }
+.rp-place.no b { color: var(--muted); font-weight: 600; }
