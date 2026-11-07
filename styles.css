@@ -1993,3 +1993,12 @@ ol.alarm-note { padding-left: 18px; }
 .wx-head[data-wx-fold] { cursor: pointer; }
 .wx-head[data-wx-fold]::after { content: ''; flex: none; align-self: flex-start; width: 9px; height: 9px; margin: 6px 2px 0 0; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-135deg); }
 .wx-label { cursor: default; }
+
+/* Refresh: plain arrows (no filled disc), turning while the forecast loads */
+.wx-refresh .ico .d, .wx-foot button .ico .d { display: none; }
+.ico.spin { animation: wx-spin .9s linear infinite; }
+@keyframes wx-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ico.spin { animation-duration: 2.4s; } }
+/* 시간대별 날씨 title sits close to its tiles */
+.wx-label { min-height: 34px; margin-top: 8px; }
+.wx-label + .wx-strip { margin-top: 0; padding-top: 4px; }

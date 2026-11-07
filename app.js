@@ -640,7 +640,7 @@ function wxCard(date, now) {
           <div class="wx-temp">${cur ? cur.temp : day.max}°<span>${esc((cur || day).label)}${cur ? '' : ' · 낮 최고'}</span></div>
           <div class="wx-sub">최고 ${day.max}° · 최저 ${day.min}° · 비 ${day.pop}%${day.rain >= 1 ? ` · ${day.rain.toFixed(0)}mm` : ''}${cur ? ` · 체감 ${cur.feels}°` : ''}</div>
         </div>
-        <button class="wx-refresh" data-wx-refresh aria-label="날씨 새로고침">${icon('refresh')}${wxAge()}</button>
+        <button class="wx-refresh" data-wx-refresh aria-label="날씨 새로고침" ${state.wxBusy ? 'aria-busy="true"' : ''}>${icon('refresh', state.wxBusy ? 'spin' : '')}${state.wxBusy ? '받는 중' : wxAge()}</button>
       </div>
       ${chipsHtml(tips)}
       ${strip.length ? `<div class="wx-fold wx-label">${icon('clock')}<span class="grow">시간대별 날씨</span></div>` : ''}
@@ -676,7 +676,7 @@ function wxTrip() {
         </div>`).join('')}
       </div>
       ${chipsHtml(tips)}
-      <div class="wx-foot"><span>예보는 바뀔 수 있어요 · 앱을 열 때마다 새로 받아요</span><button data-wx-refresh>${icon('refresh')}${wxAge()}</button></div>
+      <div class="wx-foot"><span>예보는 바뀔 수 있어요 · 앱을 열 때마다 새로 받아요</span><button data-wx-refresh>${icon('refresh', state.wxBusy ? 'spin' : '')}${state.wxBusy ? '받는 중' : wxAge()}</button></div>
     </div>`;
 }
 
@@ -5129,7 +5129,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 217;
+const APP_VERSION = 218;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5422,7 +5422,15 @@ document.addEventListener('click', async (e) => {
   else if (d.phrase) { const p = state.trip.phrases[d.phrase]; showJa({ ja: p.ja, read: p.read, ko: p.ko }); }
   else if (d.speak) speak(state.trip.phrases[d.speak].ja);
   else if (d.speakText) speak(d.speakText);
-  else if ('wxRefresh' in d) loadWeather(true);
+  else if ('wxRefresh' in d) {
+    if (!state.wxBusy) {
+      state.wxBusy = true;
+      el.querySelector('.ico')?.classList.add('spin');
+      if (el.lastChild?.nodeType === 3) el.lastChild.textContent = '받는 중';
+      const t = Date.now();
+      loadWeather(true).finally(() => setTimeout(() => { state.wxBusy = false; render(); }, Math.max(0, 700 - (Date.now() - t))));
+    }
+  }
   else if (d.talkSheet) openTalkSheet(d.talkSheet);
   else if ('phraseStep' in d) {
     const card = el.closest('.talk-card');
