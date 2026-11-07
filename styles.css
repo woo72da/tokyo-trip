@@ -1907,3 +1907,9 @@ ol.alarm-note { padding-left: 18px; }
 .rp-nopay summary { min-height: 40px; display: flex; align-items: center; font-size: 13.5px; font-weight: 700; color: var(--warn); cursor: pointer; list-style: none; }
 .rp-nopay summary::-webkit-details-marker { display: none; }
 .rp-nopay .rp-big > i { background: var(--warn-soft); color: var(--warn); }
+
+/* 시간대별 날씨 접기·펼치기 */
+.wx-fold { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 10px; padding: 0 4px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--muted); font: inherit; font-size: 13.5px; font-weight: 700; text-align: left; }
+.wx-fold > .ico { width: 16px; height: 16px; }
+.wx-fold-t { font-size: 12.5px; color: var(--accent); }
+.wx-fold.open .chev { transform: rotate(-135deg) translate(-2px, -2px); }
