@@ -1662,7 +1662,137 @@ function tripReport(preview = false) {
     ${reportDays(perDay, today)}
     ${reportSpend(exp, total, shopping, budget, days)}
     ${reportSettle(exp)}
-    ${reportPlaces(visited)}`;
+    ${reportPlaces(visited)}
+    ${reportPlan(days)}
+    ${reportWeather(perDay)}
+    ${reportShare(exp)}`;
+}
+// What was planned against what happened: done, skipped, re-timed, added on the way.
+function reportPlan(days) {
+  const rows = days.map((d, i) => {
+    const items = dayItems(d).filter((it) => !isMove(it));
+    const raw = new Map(d.items.map((x) => [x.id, x]));
+    const skipped = items.filter((it) => it.skip);
+    const live = items.filter((it) => !it.skip);
+    const moved = live.filter((it) => raw.has(it.id) && raw.get(it.id).start !== it.start);
+    const added = live.filter((it) => !raw.has(it.id));
+    const late = Math.max(0, ...moved.map((it) => toMin(it.start) - toMin(raw.get(it.id).start)));
+    return { d, i, planned: items.filter((it) => raw.has(it.id)).length, done: live.filter((it) => isDone(it.id)).length, skipped, moved, added, late };
+  });
+  const sum = (k) => rows.reduce((a, r) => a + (Array.isArray(r[k]) ? r[k].length : r[k]), 0);
+  if (!sum('planned')) return '';
+  const worst = [...rows].sort((a, b) => b.moved.length - a.moved.length || b.late - a.late)[0];
+  const skippedAll = rows.flatMap((r) => r.skipped.map((it) => ({ it, r })));
+  return `
+    <div class="section-title"><span>계획 vs 실제</span></div>
+    <div class="card rp-card">
+      <div class="rp-plan-n">
+        <div><b>${sum('planned')}</b><span>계획</span></div>
+        <div><b>${sum('done')}</b><span>마침</span></div>
+        <div><b>${sum('skipped')}</b><span>건너뜀</span></div>
+        <div><b>${sum('moved')}</b><span>시간 바뀜</span></div>
+        <div><b>${sum('added')}</b><span>추가</span></div>
+      </div>
+      ${worst && worst.moved.length ? `<div class="rp-note">${icon('clock')}<span><b>${worst.i + 1}일차가 가장 많이 바뀌었어요</b><small>일정 ${worst.moved.length}개의 시간이 바뀌었고, 가장 크게는 ${formatLeft(worst.late)} 밀렸어요</small></span></div>` : ''}
+      <div class="rp-sub">하루별</div>
+      ${rows.map((r) => `<div class="rp-plan-row"><span class="rp-bar-l">${r.i + 1}일차</span><span class="rp-dots">${'<i class="ok"></i>'.repeat(r.done)}${'<i class="skip"></i>'.repeat(r.skipped.length)}${'<i></i>'.repeat(Math.max(0, r.planned + r.added.length - r.done - r.skipped.length))}</span><span class="rp-bar-v">${r.done}/${r.planned + r.added.length}</span></div>`).join('')}
+      <div class="rp-legend"><span><i class="ok"></i>마침</span><span><i class="skip"></i>건너뜀</span><span><i></i>남음</span></div>
+      ${skippedAll.length ? `<div class="rp-sub">건너뛴 일정 ${skippedAll.length} · 다음엔 빼거나 넉넉히</div>${skippedAll.map(({ it, r }) => `<div class="rp-skip"><span>${r.i + 1}일차 ${esc(rawItem(it.id)?.start || it.start)}</span><b>${esc(stripEmoji(it.title))}</b></div>`).join('')}` : ''}
+    </div>`;
+}
+// The five days' weather and how the clothes felt, folded into one tip for the next trip.
+function reportWeather(perDay) {
+  const wx = perDay.filter((x) => x.wx);
+  if (!wx.length) return '';
+  const lo = Math.min(...wx.map((x) => x.wx.min));
+  const hi = Math.max(...wx.map((x) => x.wx.max));
+  const rain = wx.filter((x) => x.wx.rain >= 1);
+  const feel = { hot: 0, ok: 0, cold: 0 };
+  for (const x of perDay) for (const p of PEOPLE) { const c = gearLog(x.d.date, p)?.coat; if (c in feel) feel[c] += 1; }
+  const said = feel.hot + feel.ok + feel.cold;
+  const month = Number(state.trip.trip.start.slice(5, 7));
+  const tip = !said ? `기온 ${lo}~${hi}° · 아침저녁엔 가벼운 겉옷이 있으면 좋아요`
+    : feel.cold > feel.hot ? `추웠다는 기록이 ${feel.cold}번 · 다음엔 한 단계 두꺼운 겉옷을`
+      : feel.hot > feel.cold ? `더웠다는 기록이 ${feel.hot}번 · 다음엔 얇은 겉옷과 겹쳐 입기로`
+        : `딱 맞았다는 기록이 많아요 · 이번 옷차림 그대로 괜찮아요`;
+  return `
+    <div class="section-title"><span>날씨 · 옷차림</span></div>
+    <div class="card rp-card">
+      <div class="rp-wx">${wx.map((x) => `<div><small>${x.i + 1}일차</small>${wxIcon(x.wx.icon)}<b>${x.wx.max}°</b><span>${x.wx.min}°</span>${x.wx.rain >= 1 ? `<em>${Math.round(x.wx.rain)}mm</em>` : '<em></em>'}</div>`).join('')}</div>
+      <div class="small muted">최저 ${lo}° · 최고 ${hi}° · 비 온 날 ${rain.length}일${said ? ` · 옷차림 기록 ${said}번 (더움 ${feel.hot} · 딱 맞음 ${feel.ok} · 추움 ${feel.cold})` : ''}</div>
+      <div class="rp-note">${icon('coat')}<span><b>다음 ${month}월 여행 팁</b><small>${esc(tip)}</small></span></div>
+    </div>`;
+}
+// One summary card to send to family and friends (no names, booking numbers or photos), and the spending as text.
+function reportShare(exp) {
+  return `
+    <div class="section-title"><span>공유 · 내보내기</span></div>
+    <div class="card rp-card">
+      <button class="btn primary wide" data-report-image>${icon('image')}요약 카드 이미지로 공유</button>
+      ${exp.length ? `<button class="btn wide" data-report-text>${icon('copy')}지출 목록 텍스트 복사</button>` : ''}
+      <div class="small muted">요약 카드에는 여행 날짜·방문한 곳·지출 총액·추천 장소만 들어가요. 이름·예약번호·사진은 넣지 않아요.</div>
+    </div>`;
+}
+function reportFacts() {
+  const { trip, days } = state.trip;
+  const exp = expenses();
+  const total = exp.reduce((a, e) => a + e.amount, 0);
+  const visited = new Set();
+  let done = 0;
+  for (const d of days) for (const it of dayItems(d)) {
+    if (it.skip || isMove(it) || !isDone(it.id)) continue;
+    done += 1;
+    const p = placeOfItem(it.id); if (p) visited.add(p.id);
+  }
+  const best = allPlaces().filter((p) => visitOf(p.id)?.again === 'best').map((p) => p.name).slice(0, 3);
+  return { trip, days, total, visited: visited.size, done, best, stamps: days.filter((d) => store.get('seal:' + d.date, false)).length };
+}
+async function reportImage() {
+  const f = reportFacts();
+  try { await document.fonts.load('800 40px Pretendard'); } catch { /* system font */ }
+  const W = 1080, H = 1350;
+  const c = Object.assign(document.createElement('canvas'), { width: W, height: H });
+  const g = c.getContext('2d');
+  const font = (w, px) => `${w} ${px}px Pretendard, "Apple SD Gothic Neo", system-ui, sans-serif`;
+  g.fillStyle = '#141a28'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#c84b3c'; g.beginPath(); g.arc(W - 120, 150, 230, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(200,75,60,.18)'; g.beginPath(); g.arc(W - 120, 150, 300, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#c9a66b'; g.font = font(700, 34); g.fillText(`${dayLabel(f.trip.start)} – ${dayLabel(f.trip.end)}`, 80, 140);
+  g.fillStyle = '#f4f1ea'; g.font = font(800, 92); g.fillText(f.trip.title, 80, 250);
+  g.font = font(500, 38); g.fillStyle = 'rgba(244,241,234,.7)'; g.fillText(`${f.days.length}일 동안 ${f.visited}곳을 다녀왔어요`, 80, 320);
+  const tiles = [[`${f.visited}`, '방문한 곳'], [`${f.done}`, '마친 일정'], [yen(f.total), `지출 · 약 ${won(f.total)}`], [`${f.stamps}/${f.days.length}`, '받은 도장']];
+  tiles.forEach(([v, l], i) => {
+    const x = 80 + (i % 2) * 470, y = 420 + Math.floor(i / 2) * 230;
+    g.fillStyle = 'rgba(255,255,255,.07)'; g.beginPath(); g.roundRect(x, y, 450, 200, 28); g.fill();
+    g.fillStyle = '#f4f1ea'; g.font = font(800, v.length > 8 ? 58 : 76); g.fillText(v, x + 36, y + 110);
+    g.fillStyle = 'rgba(244,241,234,.62)'; g.font = font(600, 32); g.fillText(l, x + 36, y + 165);
+  });
+  if (f.best.length) {
+    g.fillStyle = '#c9a66b'; g.font = font(700, 32); g.fillText('강력 추천', 80, 1010);
+    g.fillStyle = '#f4f1ea'; g.font = font(700, 42);
+    f.best.forEach((n, i) => g.fillText(`· ${n}`, 80, 1075 + i * 62));
+  }
+  g.fillStyle = 'rgba(244,241,234,.45)'; g.font = font(600, 28); g.fillText('내가 만든 여행 앱으로 기록했어요', 80, H - 70);
+  const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+  const file = new File([blob], `${f.trip.title}-여행리포트.png`, { type: 'image/png' });
+  try {
+    if (navigator.canShare?.({ files: [file] })) return await navigator.share({ files: [file], title: `${f.trip.title} 여행 리포트` });
+  } catch (e) { if (e.name === 'AbortError') return; }
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: file.name });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+async function reportText() {
+  const exp = [...expenses()].sort((a, b) => a.date.localeCompare(b.date) || expTime(a).localeCompare(expTime(b)));
+  const total = exp.reduce((a, e) => a + e.amount, 0);
+  const lines = [`${state.trip.trip.title} 지출 (${exp.length}건)`, ''];
+  let day = '';
+  for (const e of exp) {
+    if (e.date !== day) { day = e.date; lines.push(`[${expDateLabel(e.date)}]`); }
+    lines.push(`${expTime(e) ? expTime(e) + ' ' : ''}${expTitle(e)} · ${e.cat} · ${{ card: '카드', cash: '현금' }[e.pay] || ''} · ${person(e.by) || ''} · ${Math.round(e.amount).toLocaleString('ko-KR')}엔`);
+  }
+  lines.push('', `합계 ${Math.round(total).toLocaleString('ko-KR')}엔 (약 ${won(total)})`);
+  try { await navigator.clipboard.writeText(lines.join('\n')); toast(`지출 ${exp.length}건을 복사했어요`); } catch { toast('복사하지 못했어요'); }
 }
 function reportDays(perDay, today) {
   return `
@@ -4875,7 +5005,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 202;
+const APP_VERSION = 203;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -4959,7 +5089,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -5147,6 +5277,8 @@ document.addEventListener('click', async (e) => {
   }
   else if ('settings' in d) openSettings(d.settings);
   else if ('reportPreview' in d) { state.reportPreview = true; window.scrollTo(0, 0); render(); }
+  else if ('reportImage' in d) reportImage();
+  else if ('reportText' in d) reportText();
   else if ('reportClose' in d) { state.reportPreview = false; window.scrollTo(0, 0); render(); }
   else if ('syncToggle' in d) { state.syncOpen = !state.syncOpen; render(); }
   else if (d.transApp) {
