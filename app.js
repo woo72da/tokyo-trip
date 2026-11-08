@@ -1229,7 +1229,7 @@ function openExpEdit(id) {
   const e = expenses().find((x) => x.id === id);
   if (!e) return;
   $('#sheet-body').innerHTML = `
-    <div class="sheet-head"><h3 class="sh-c">지출 수정</h3></div>
+    <div class="sheet-head"><h3>지출 수정</h3></div>
     <form class="exp-edit exp-form" data-id="${esc(id)}">
       <input class="input exp-wide" name="memo" placeholder="제목 (예: 이치란 라멘)" value="${esc(expTitle(e) === e.cat && !e.memo ? '' : expTitle(e))}" autocomplete="off" aria-label="제목">
       ${expDatePick(e.date)}
@@ -1322,8 +1322,7 @@ function payRow({ date, time, shop, cur, value, cancel = false }) {
 }
 function openSmsSheet() {
   $('#sheet-body').innerHTML = `
-    <div class="eyebrow dark">경비</div>
-    <h3 class="sms-h">카드 문자로 지출 등록</h3>
+    <div class="sheet-head has-back"><div class="eyebrow dark">경비</div><h3 class="sms-h">카드 문자로 지출 등록</h3></div>
     <p class="small muted sms-help">카드 승인 문자를 길게 눌러 복사하거나, 카드 앱 화면을 캡처한 사진에서 글자를 길게 눌러 복사해 붙여 넣으세요. 여러 건을 한 번에 넣어도 돼요. 카드 번호와 이름은 저장하지 않아요.</p>
     <textarea class="input sms-box" id="sms-text" placeholder="[Web발신]&#10;삼성1234해외승인 김*철&#10;JPY 2,860&#10;11/04 12:06 GINZASIX"></textarea>
     <div class="btns"><button class="btn" data-sms-paste>${icon('copy')}붙여넣기</button><button class="btn primary" data-sms-read>읽기</button>
@@ -3776,8 +3775,7 @@ function talkBox() {
 function openTalkSheet(id) {
   state.talkBack = id;
   $('#sheet-body').innerHTML = `
-    <button class="sheet-back" data-item="${esc(id)}">‹ 일정으로 돌아가기</button>
-    <div class="sheet-head"><h3>번역</h3></div>
+    <div class="sheet-head has-back"><button class="sheet-back" data-item="${esc(id)}">‹ 일정으로 돌아가기</button><h3>번역</h3></div>
     ${talkBox()}`;
   $('#sheet').hidden = false;
 }
@@ -5174,7 +5172,7 @@ async function loadReqs() {
   } catch (e) { box.innerHTML = aiFail(e.message); }
 }
 async function openReqOne(n) {
-  $('#sheet-body').innerHTML = `<button class="sheet-back" data-req-view="list">‹ 내 요청</button><div id="req-one"><div class="ai-wait">불러오는 중…</div></div>`;
+  $('#sheet-body').innerHTML = `<div class="sheet-head has-back"><button class="sheet-back" data-req-view="list">‹ 내 요청</button></div><div id="req-one"><div class="ai-wait">불러오는 중…</div></div>`;
   try {
     const [x, cs] = await Promise.all([ghApi(`repos/${DESK}/issues/${n}`), ghApi(`repos/${DESK}/issues/${n}/comments?per_page=30`)]);
     const [k, t] = REQ_STATUS(x.labels);
@@ -5247,7 +5245,7 @@ function settingsBody() {
   // Section titles like the rest of the app: a short bar + the title; AI 도우미 keeps its star, after the words.
   const sec = (ic, title, html, cls = '') => `<section class="set-sec ${cls}"><div class="section-title set-h"><span>${title}</span>${ic === 'spark' ? aiBadge('set') : ''}</div>${html}</section>`;
   return `
-    <div class="sheet-head"><h3 class="sh-c">설정</h3></div>
+    <div class="sheet-head"><h3>설정</h3></div>
     <div class="settings">
       ${sec('id', '내 정보', `
         <div class="card set-card">
@@ -5311,8 +5309,34 @@ function createPlace(plan) {
   render();
   toast('내 장소에 추가했어요');
 }
-function deletePlace(id) {
-  if (!confirm('이 장소를 삭제할까요?')) return;
+// Small centred popups in the app's own look, in place of the phone's grey confirm()/prompt() boxes.
+// askConfirm → true/false · askText → the text, or null when cancelled.
+function askBox({ title, body = '', ok = '확인', cancel = '취소', danger = false, input = null }) {
+  return new Promise((resolve) => {
+    let el = $('#ask');
+    if (!el) { el = document.createElement('div'); el.id = 'ask'; el.className = 'ask'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="ask-dim"></div>
+      <div class="ask-card" role="alertdialog" aria-modal="true">
+        <b class="ask-t">${esc(title)}</b>${body ? `<p class="ask-s">${esc(body)}</p>` : ''}
+        ${input ? `<input class="input ask-in" ${input.numeric ? 'inputmode="numeric"' : ''} value="${esc(input.value ?? '')}" placeholder="${esc(input.placeholder || '')}" autocomplete="off">` : ''}
+        <div class="ask-bs"><button type="button" class="btn" data-ask="0">${esc(cancel)}</button><button type="button" class="btn ${danger ? 'danger' : 'primary'}" data-ask="1">${danger ? icon('trash') : ''}${esc(ok)}</button></div>
+      </div>`;
+    el.hidden = false;
+    const inp = el.querySelector('.ask-in');
+    if (inp) setTimeout(() => { inp.focus(); inp.select(); }, 60);
+    const done = (v) => { el.hidden = true; resolve(v); };
+    const no = () => done(input ? null : false);
+    el.querySelector('.ask-dim').onclick = no;
+    el.querySelector('[data-ask="0"]').onclick = no;
+    el.querySelector('[data-ask="1"]').onclick = () => done(input ? inp.value : true);
+    if (inp) inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); done(inp.value); } };
+  });
+}
+const askConfirm = (title, o = {}) => askBox({ title, ...o });
+const askText = (title, value, o = {}) => askBox({ title, ok: '저장', body: o.body, input: { value, numeric: o.numeric, placeholder: o.placeholder } });
+
+async function deletePlace(id) {
+  if (!(await askConfirm('이 장소를 삭제할까요?', { body: '내 장소 목록과 이 장소의 기록이 지워져요.', ok: '삭제', danger: true }))) return;
   forget('myplaces:' + id);
   store.set('myplaces', store.get('myplaces', []).filter((p) => p.id !== id));
   closeSheet();
@@ -5493,13 +5517,13 @@ function updateForm() {
     </div>`;
 }
 
-function saveItemForm() {
+async function saveItemForm() {
   const f = state.form;
   const { date, idx, e, plan } = formPlan();
   const title = $('#f-title').value.trim() || $('#f-place')?.value.trim();
   if (!title) return toast('제목을 입력해 주세요.');
   if (e <= f.s) return toast('끝나는 시간이 시작보다 늦어야 해요.');
-  if (f.s < 300 && !confirm(`새벽 ${clock(f.s)}이 맞나요?`)) return;
+  if (f.s < 300 && !(await askConfirm(`새벽 ${clock(f.s)}이 맞나요?`, { body: `낮이라면 ${clock(f.s + 720)}으로 고쳐 주세요.`, ok: '맞아요', cancel: '고칠게요' }))) return;
   const note = $('#f-note').value.trim();
   const lock = $('#f-lock').checked;
   const undo = {};
@@ -5618,9 +5642,9 @@ function restoreItem(id) {
   render();
 }
 // Back to the trip file's times for one day: stops the app moved and times changed by hand.
-function resetDay(date) {
+async function resetDay(date) {
   const list = effectiveItems(dayOf(date));
-  if (!confirm(`이날 일정 시간을 모두 원래 계획으로 되돌릴까요?`)) return;
+  if (!(await askConfirm('이날 일정 시간을 모두 원래 계획으로 되돌릴까요?', { body: '앱에서 옮긴 시간과 직접 바꾼 시간이 계획대로 돌아가요.', ok: '되돌리기' }))) return;
   for (const it of list) {
     const edit = store.get('edit:' + it.id, null);
     if (!edit) continue;
@@ -5981,7 +6005,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 271;
+const APP_VERSION = 272;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6097,7 +6121,7 @@ document.addEventListener('click', async (e) => {
   else if ('closeJa' in d) { $('#bigja').hidden = true; window.speechSynthesis?.cancel(); player.onended = null; player.pause(); }
   else if ('closeViewer' in d) $('#viewer').hidden = true;
   else if ('viewerDel' in d) {
-    if (!confirm('지금 보고 있는 사진을 삭제할까요?')) return;
+    if (!(await askConfirm('지금 보고 있는 사진을 삭제할까요?', { body: '이 폰에서 지워지고 되돌릴 수 없어요.', ok: '삭제', danger: true }))) return;
     const key = state.viewer.keys[viewerIndex()];
     try { await docs.del(key); } catch { /* ignore */ }
     await refreshDocSlots();
@@ -6150,14 +6174,14 @@ document.addEventListener('click', async (e) => {
     if (!/^sk-ant-/.test(k)) return toast('sk-ant-로 시작하는 API 키를 넣어 주세요');
     store.set('aiKey', k); store.set('aiModel', $('#ai-model').value); state.aiTest = null; render(); toast('AI 도우미를 켰어요');
   }
-  else if ('aiForget' in d) { if (confirm('이 폰에서 API 키를 지울까요?')) { store.set('aiKey', ''); render(); toast('키를 지웠어요'); } }
+  else if ('aiForget' in d) { if (await askConfirm('이 폰에서 API 키를 지울까요?', { body: 'AI 도우미 기능이 꺼져요. 키는 다시 넣을 수 있어요.', ok: '지우기', danger: true })) { store.set('aiKey', ''); render(); toast('키를 지웠어요'); } }
   else if ('aiTest' in d) aiTest();
   else if ('gSave' in d) {
     const k = $('#g-key').value.trim();
     if (!/^AIza/.test(k)) return toast('AIza로 시작하는 구글 API 키를 넣어 주세요');
     store.set('gKey', k); state.gTest = null; render(); toast('구글 장소 키를 저장했어요');
   }
-  else if ('gForget' in d) { if (confirm('이 폰에서 구글 키를 지울까요?')) { store.set('gKey', ''); state.gTest = null; render(); } }
+  else if ('gForget' in d) { if (await askConfirm('이 폰에서 구글 키를 지울까요?', { body: '장소 찾기와 구글 경로가 꺼져요.', ok: '지우기', danger: true })) { store.set('gKey', ''); state.gTest = null; render(); } }
   else if ('gTest' in d) gTest();
   else if ('gPick' in d) gPick(d.gPick, d.where);
   else if (d.placeDel) deletePlace(d.placeDel);
@@ -6317,7 +6341,7 @@ document.addEventListener('click', async (e) => {
   }
   else if (d.expEdit) openExpEdit(d.expEdit);
   else if ('cash' in d) {
-    const v = prompt('환전한 엔화 금액', String(cashTotal()));
+    const v = await askText('환전한 엔화 금액', String(cashTotal()), { numeric: true, body: '엔화 현금 남은 돈 계산에 써요.' });
     if (v !== null) { store.set('cashYen', Number(v.replace(/[^0-9]/g, '')) || 0); render(); }
   }
   else if (d.jump) $(`#${d.jump}`)?.scrollIntoView({ block: 'start' });
@@ -6371,7 +6395,7 @@ document.addEventListener('click', async (e) => {
     if (!/^(github_pat_|ghp_)/.test(k)) return toast('github_pat_로 시작하는 토큰을 넣어 주세요');
     store.set('deskKey', k); render(); toast('개선 요청함을 켰어요. 오늘 탭 맨 아래 ‘앱 개선 요청’ 버튼을 눌러 보세요');
   }
-  else if ('deskForget' in d) { if (confirm('이 폰에서 요청함 토큰을 지울까요?')) { store.set('deskKey', ''); render(); } }
+  else if ('deskForget' in d) { if (await askConfirm('이 폰에서 요청함 토큰을 지울까요?', { body: '앱 개선 요청 버튼이 사라져요.', ok: '지우기', danger: true })) { store.set('deskKey', ''); render(); } }
   else if ('deskTest' in d) ghApi(`repos/${DESK}`).then((r) => toast(r.private ? '요청함에 연결됐어요' : '연결됐지만 요청함이 공개 저장소예요. 비공개로 바꿔 주세요')).catch((e) => toast(e.message));
   else if ('smsPhoto' in d) smsFromPhoto();
   // The AI key lives on each phone, so a phone without one (another person's) still sees the button and is told how to turn it on.
@@ -6408,7 +6432,7 @@ document.addEventListener('click', async (e) => {
   else if ('smsRead' in d) showSms();
   else if ('smsAdd' in d) addSms();
   else if (d.nick) {
-    const v = prompt('어떻게 불러 드릴까요? (비우면 이름으로 불러요)', nickOf(d.nick) || `${d.nick}님`);
+    const v = await askText('어떻게 불러 드릴까요?', nickOf(d.nick) || `${d.nick}님`, { body: '아침 준비 카드에서 이렇게 불러요. 비우면 이름으로 불러요.' });
     if (v !== null) { const t = v.trim().slice(0, 12); store.set('nick:' + d.nick, t && t !== `${d.nick}님` ? t : ''); render(); toast(`앞으로 ${callOf(d.nick)}${hasBatchim(callOf(d.nick)) ? '이라고' : '라고'} 부를게요`); }
   }
   else if (d.tomorrow) { if (d.sumOpen && !lsList('daySumOpen').includes(d.sumOpen)) lsToggle('daySumOpen', d.sumOpen); state.dayIndex = Number(d.tomorrow); store.set('day', state.dayIndex); go('days'); }
@@ -6426,7 +6450,7 @@ document.addEventListener('click', async (e) => {
     render();
   }
   else if (d.expDel) {
-    if (!confirm('이 지출 기록을 삭제할까요?')) return;
+    if (!(await askConfirm('이 지출 기록을 삭제할까요?', { body: '영수증 사진도 함께 지워져요.', ok: '삭제', danger: true }))) return;
     forget('exp:' + d.expDel);
     try { for (const k of await docs.of(rcptSlot(d.expDel))) await docs.del(k); await refreshDocSlots(); } catch { /* ignore */ }
     store.set('exp', expenses().filter((x) => x.id !== d.expDel));
@@ -6436,7 +6460,7 @@ document.addEventListener('click', async (e) => {
     if (finishing) openFinish(finishing);
   }
   else if ('budget' in d) {
-    const v = prompt('예산 (엔, 쇼핑 제외)', String(store.get('budget', state.trip.budget?.yen || 0)));
+    const v = await askText('예산 (엔, 쇼핑 제외)', String(store.get('budget', state.trip.budget?.yen || 0)), { numeric: true });
     if (v !== null && Number(v.replace(/[^0-9]/g, '')) >= 0) { store.set('budget', Number(v.replace(/[^0-9]/g, ''))); render(); }
   }
   else if (d.who) { store.set('who', d.who); state.syncFile = null; render(); }
@@ -6556,13 +6580,23 @@ let sheetKey = '';
 new MutationObserver(() => { if (!$('#sheet').hidden) sheetTop(); }).observe($('#sheet'), { attributes: true, attributeFilter: ['hidden'] });
 new MutationObserver(() => {
   const key = $('#sheet-body h3')?.textContent || '';
-  if (key !== sheetKey) sheetTop();
+  if (key !== sheetKey) { sheetTop(); sheetPanel.classList.remove('scrolled', 'titled'); }
   sheetKey = key;
 }).observe($('#sheet-body'), { childList: true });
 // With the popup at its top, pulling it down drags it along and closes it past a short distance or on a quick flick.
 const sheetPanel = $('.sheet-panel');
 // Once the content scrolls under the pinned top, a hairline marks the edge.
-sheetPanel.addEventListener('scroll', () => sheetPanel.classList.toggle('scrolled', sheetPanel.scrollTop > 4), { passive: true });
+// A popup whose top isn't a pinned title row (a photo first, a stop's big head) shows its name small in the pinned band
+// once the name has scrolled away.
+const sheetTitle = () => {
+  const grip = $('.sheet-panel > .sheet-grip');
+  const pinned = $('#sheet-body > .sheet-head:first-child:not(.item-head)');
+  const h = !pinned && $('#sheet-body h3');
+  const on = !!h && h.getBoundingClientRect().bottom < sheetPanel.getBoundingClientRect().top + 30;
+  grip.dataset.title = on ? h.textContent.trim() : '';
+  sheetPanel.classList.toggle('titled', on);
+};
+sheetPanel.addEventListener('scroll', () => { sheetPanel.classList.toggle('scrolled', sheetPanel.scrollTop > 4); sheetTitle(); }, { passive: true });
 let pull = null;
 sheetPanel.addEventListener('touchstart', (e) => {
   const t = e.touches[0];

@@ -2442,3 +2442,31 @@ button.talk-card-head { width: 100%; border: 0; background: none; padding: 0; fo
 .talk-card-head .chev { margin-left: 6px; }
 .talk-card.open .talk-card-head .chev { transform: rotate(-135deg) translate(-2px, -2px); }
 .talk-body { margin-top: 2px; }
+
+/* v272: every popup on one set of rules
+   — a back link / small label goes inside the pinned title row; a popup that starts with a photo shows its name in the
+     pinned band once it scrolls away; titles left-aligned; centred popups dim the page like the others;
+     the app's own confirm / text popups replace the phone's grey boxes */
+.sheet-head.has-back { flex-direction: column; align-items: flex-start; gap: 0; }
+.sheet-head.has-back .sheet-back { min-height: 32px; }
+.sheet-head.has-back .sms-h { margin: 0; }
+.sheet-panel.titled > .sheet-grip::before { content: attr(data-title); position: absolute; left: 0; right: 0; top: 24px; height: 40px; padding: 0 64px 0 18px;
+  line-height: 40px; font-size: 16px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: var(--sheet-bg); color: var(--ink); box-shadow: 0 1px 0 var(--line); }
+.sheet-panel.titled > .sheet-grip { background: var(--sheet-bg); box-shadow: none; }
+.gm-dim { background: rgba(5,8,15,.30); }
+@media (prefers-color-scheme: dark) { .gm-dim { background: rgba(0,0,0,.6); } }
+.ask { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 20px; }
+.ask[hidden] { display: none; }
+.ask-dim { position: absolute; inset: 0; background: rgba(5,8,15,.30); }
+.ask-card { position: relative; width: 100%; max-width: 340px; padding: 18px; border-radius: 22px; background: var(--paper); color: var(--ink);
+  box-shadow: 0 20px 50px rgba(10,14,22,.28); animation: up .2s cubic-bezier(.2,.8,.2,1); }
+.ask-t { display: block; font-size: 17px; font-weight: 800; letter-spacing: -.02em; line-height: 1.35; }
+.ask-s { margin: 6px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+.ask-in { width: 100%; margin-top: 12px; height: 46px; font-size: 17px; }
+.ask-bs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+.ask-bs .btn { justify-content: center; min-height: 46px; }
+@media (prefers-color-scheme: dark) {
+  .ask-dim { background: rgba(0,0,0,.6); }
+  .ask-card { box-shadow: 0 20px 50px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.14); }
+}
