@@ -2496,3 +2496,13 @@ button.talk-card-head { width: 100%; border: 0; background: none; padding: 0; fo
   .gm-card, .ask-card { background: #1d2230; box-shadow: 0 20px 50px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.18); }
   .bigja-panel { box-shadow: 0 -16px 40px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.25); }
 }
+
+/* v275: an empty optional time box says what it is (phones show a blank otherwise) */
+.tpick { position: relative; display: block; min-width: 0; }
+.tpick .input { width: 100%; }
+.tph { position: absolute; inset: 0; display: none; align-items: center; gap: 6px; padding: 0 14px; color: var(--muted); font-size: 15px; pointer-events: none; }
+.tph .ico { width: 16px; height: 16px; }
+.tpick.no-time .tph { display: flex; }
+.tpick.no-time input { color: transparent; }
+.tpick.no-time input::-webkit-datetime-edit { color: transparent; }
+.tpick.no-time input::-webkit-calendar-picker-indicator { opacity: 0; }

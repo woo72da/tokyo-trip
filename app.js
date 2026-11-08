@@ -1225,6 +1225,8 @@ function expDatePick(date, cls = '') {
 const expValue = (form) => Number(String(new FormData(form).get('amount') || '').replace(/[^0-9]/g, ''));
 const cashTotal = () => store.get('cashYen', state.trip.guides.find((g) => g.costs)?.cash?.yen || 0);
 const cashSpent = () => expenses().filter((e) => e.pay === 'cash' && e.orig?.cur !== 'KRW').reduce((a, e) => a + e.amount, 0);
+// A time field that may be left empty: phones draw an empty time box as a blank, so it says what goes there.
+const timePick = (name, value, label) => `<label class="tpick ${value ? '' : 'no-time'}"><input class="input" type="time" name="${name}" value="${esc(value)}" aria-label="${esc(label)}"><span class="tph">${icon('clock')}${esc(label)} (선택)</span></label>`;
 function openExpEdit(id) {
   const e = expenses().find((x) => x.id === id);
   if (!e) return;
@@ -1233,7 +1235,7 @@ function openExpEdit(id) {
     <form class="exp-edit exp-form" data-id="${esc(id)}">
       <input class="input exp-wide" name="memo" placeholder="제목 (예: 이치란 라멘)" value="${esc(expTitle(e) === e.cat && !e.memo ? '' : expTitle(e))}" autocomplete="off" aria-label="제목">
       ${expDatePick(e.date)}
-      <input class="input" type="time" name="time" value="${esc(expTime(e))}" aria-label="결제 시간">
+      ${timePick('time', expTime(e), '결제 시간')}
       <input class="input amount" name="amount" inputmode="numeric" value="${commas(e.orig?.value || e.amount)}" autocomplete="off" required aria-label="금액">
       ${catPick(e.cat)}
       ${expPick(e.orig?.cur || 'JPY', e.pay || 'card')}
@@ -4821,7 +4823,7 @@ async function rcptFromPhoto() {
         ${row.dup ? '<div class="ai-note">같은 날 같은 금액의 지출이 이미 있어요. 중복이 아닌지 확인해 주세요.</div>' : ''}
         <div class="rcpt-fields">
           ${lbl('날짜', expDatePick(row.date))}
-          ${lbl('시간', `<input class="input" type="time" name="time" value="${esc(row.time || '')}">`)}
+          ${lbl('시간', timePick('time', row.time || '', '시간'))}
           ${lbl('결제', `<select class="input" name="pay"><option value="card" ${state.rcptAi.pay === 'card' ? 'selected' : ''}>카드</option><option value="cash" ${state.rcptAi.pay === 'cash' ? 'selected' : ''}>현금</option></select>`)}
           ${lbl('분류', catPick(r.cat || row.cat))}
         </div>
@@ -6057,7 +6059,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 274;
+const APP_VERSION = 275;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6526,10 +6528,12 @@ document.addEventListener('compositionend', (e) => {
   if (e.target.classList?.contains('amount')) e.target.dispatchEvent(new Event('input', { bubbles: true }));
 });
 document.addEventListener('change', (e) => {
+  if (e.target.matches?.('.tpick input')) e.target.closest('.tpick').classList.toggle('no-time', !e.target.value);
   const sel = e.target.closest?.('.cat-pick select');
   if (sel) sel.previousElementSibling.innerHTML = expIcon(sel.value);
 });
 document.addEventListener('input', (e) => {
+  if (e.target.matches?.('.tpick input')) e.target.closest('.tpick').classList.toggle('no-time', !e.target.value);
   const t = e.target;
   if (t.classList.contains('amount') && !e.isComposing) formatAmount(t);
   if (t.dataset.gearMemo) {
