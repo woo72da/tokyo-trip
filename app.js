@@ -1611,15 +1611,19 @@ const CAM_LABEL = { 식당: '메뉴판 번역', 카페: '메뉴판 번역', 쇼�
 const transTools = (label) => `
   <button class="tool" data-trans-app="camera">${icon('camera')}${label}</button>
   <button class="tool" data-trans-app="live">${icon('mic')}대화 번역</button>`;
+// Folded at first so the place's own buttons come first; opening it stays open while this popup is up.
+const talkOpen = new Set();
 function talkCard(scene, id) {
+  const open = talkOpen.has(id);
   const steps = state.trip.phraseSteps?.[scene];
   const on = phraseStep[scene] || 0;
   const all = phrasesFor(scene);
   const everyPhrase = state.trip.phrases.map((p, i) => ({ ...p, i }));
   const rows = steps ? steps[on][1].map((ja) => everyPhrase.find((p) => p.ja === ja)) : all;
   return `
-    <div class="talk-card" data-scene="${esc(scene)}" data-id="${esc(id)}">
-      <div class="talk-card-head">${icon('talk')}<b>여기서 쓸 일본어</b><span>탭하면 크게</span></div>
+    <div class="talk-card ${open ? 'open' : ''}" data-scene="${esc(scene)}" data-id="${esc(id)}">
+      <button type="button" class="talk-card-head" data-talk-fold="${esc(id)}" aria-expanded="${open}">${icon('talk')}<b>여기서 쓸 일본어</b><span>${open ? '탭하면 크게' : `${rows.length}문장`}</span><i class="chev"></i></button>
+      ${open ? `<div class="talk-body">
       ${steps ? `<div class="talk-steps">${steps.map(([label], i) => `<button class="${i === on ? 'on' : ''}" data-phrase-step="${i}">${esc(label)}</button>`).join('')}</div>` : ''}
       ${rows.map(phraseRow).join('')}
       <div class="talk-more">여기 없는 말은?</div>
@@ -1627,6 +1631,7 @@ function talkCard(scene, id) {
         ${transTools(CAM_LABEL[scene])}
         <button class="tool" data-talk-sheet="${esc(id)}">${icon('pen')}입력</button>
       </div>
+      </div>` : ''}
     </div>`;
 }
 
@@ -5976,7 +5981,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 270;
+const APP_VERSION = 271;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6060,7 +6065,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6300,6 +6305,11 @@ document.addEventListener('click', async (e) => {
     }
   }
   else if (d.talkSheet) openTalkSheet(d.talkSheet);
+  else if (d.talkFold) {
+    const card = el.closest('.talk-card');
+    if (talkOpen.has(d.talkFold)) talkOpen.delete(d.talkFold); else talkOpen.add(d.talkFold);
+    card.outerHTML = talkCard(card.dataset.scene, card.dataset.id);
+  }
   else if ('phraseStep' in d) {
     const card = el.closest('.talk-card');
     phraseStep[card.dataset.scene] = Number(d.phraseStep);

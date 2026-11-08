@@ -2434,3 +2434,11 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
   .bigja-dim { background: rgba(0,0,0,.6); }
   .bigja-panel { box-shadow: 0 -16px 40px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.4); }
 }
+
+/* v271: 여기서 쓸 일본어 folds; closed at first */
+.talk-card { padding-bottom: 12px; }
+.talk-card.open { padding-bottom: 4px; }
+button.talk-card-head { width: 100%; border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; -webkit-tap-highlight-color: transparent; }
+.talk-card-head .chev { margin-left: 6px; }
+.talk-card.open .talk-card-head .chev { transform: rotate(-135deg) translate(-2px, -2px); }
+.talk-body { margin-top: 2px; }
