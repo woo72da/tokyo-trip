@@ -2470,3 +2470,13 @@ button.talk-card-head { width: 100%; border: 0; background: none; padding: 0; fo
   .ask-dim { background: rgba(0,0,0,.6); }
   .ask-card { box-shadow: 0 20px 50px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.14); }
 }
+
+/* v273: the bright top edge sits on the pinned grip band, so every popup (big, medium, small) shows the same edge —
+   before, the band covered the panel's own edge line unless a photo made the band see-through */
+:root { --sheet-edge: rgba(10,14,22,.06); }
+@media (prefers-color-scheme: dark) { :root { --sheet-edge: rgba(255,255,255,.22); } }
+.sheet-panel > .sheet-grip { box-shadow: inset 0 1px 0 var(--sheet-edge); }
+.sheet-panel.scrolled:not(:has(#sheet-body > .sheet-head:first-child:not(.item-head))) > .sheet-grip { box-shadow: inset 0 1px 0 var(--sheet-edge), 0 1px 0 var(--line); }
+.sheet-panel.titled > .sheet-grip { box-shadow: inset 0 1px 0 var(--sheet-edge); }
+.ex-refresh { margin-top: 10px; }
+.btn small { font-weight: 600; opacity: .7; }

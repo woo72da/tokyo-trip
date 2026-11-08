@@ -3858,8 +3858,11 @@ const EX_KIND = { eat: 'food', drink: 'cafe', see: 'sight', shop: 'shop' };
 const isSaved = (id) => !!store.get('save:' + id, false);
 const visitOf = (id) => store.get('visit:' + id, null);
 // Trip places plus the ones added on the phones.
+// Google facts fetched again on this phone for the trip file's places ('gfix': rating, hours, address, map link, when).
+let GFIX = null;
+const gFix = () => (GFIX ||= store.get('gfix', {}));
 const allPlaces = () => [
-  ...(state.trip.places || []),
+  ...(state.trip.places || []).map((p) => (gFix()[p.id] ? { ...p, ...gFix()[p.id] } : p)),
   ...fixMyPlaces().map((p) => ({ ...p, area: '내 장소', mine: true, desc: p.memo })),
 ];
 const placeById = (id) => allPlaces().find((p) => p.id === id);
@@ -3875,8 +3878,12 @@ function placeOfItem(itemId) {
 }
 const plannedInfo = (id) => state.trip.days.flatMap((d) => d.items).find((x) => x.id === id)?.info;
 const scheduledItem = (p) => { const it = p.itemId && findItem(p.itemId); return it && !it.swap ? it : null; };
-const placeInfo = (p) => (p.itemId && plannedInfo(p.itemId))
-  || { kind: EX_KIND[p.cat], r: p.r, n: p.n, recent: p.recent, hours: placeHours(p), best: p.best, tips: p.tips || (p.memo ? [p.memo] : []), mine: p.mine };
+const placeInfo = (p) => {
+  const base = (p.itemId && plannedInfo(p.itemId))
+    || { kind: EX_KIND[p.cat], r: p.r, n: p.n, recent: p.recent, hours: placeHours(p), best: p.best, tips: p.tips || (p.memo ? [p.memo] : []), mine: p.mine };
+  // Fetched again from Google: the fresh rating and hours win, and the date says when.
+  return p.gAt ? { ...base, ...(p.r ? { r: p.r, n: p.n, recent: null } : {}), ...(p.o ? { hours: placeHours(p) } : {}), asOf: p.gAt } : base;
+};
 const placeHours = (p) => (p.o ? (p.o === '00:00-24:00' ? '24시간' : p.o.replace(/-/g, '~').replace(/,/g, ', ').replace(/2([4-9]):/g, (m, h) => `0${h - 4}:`)) : '');
 
 // Open now, by the saved weekly hours; null when the hours are unknown. Hours past midnight run on as 25:00, 28:00.
@@ -4014,7 +4021,8 @@ function renderExplore() {
       <div class="ex-line"><b>지역</b><div class="ex-row">${EX_AREAS.map((a) => `<button class="${f.area === a ? 'on' : ''}" data-ex-area="${esc(a)}">${esc(a)}</button>`).join('')}</div></div>
       <div class="ex-line"><b>조건</b><div class="ex-row ex-opts">${toggles.map(([k, label, ico]) => `<button class="${f[k] ? 'on' : ''}" data-ex-toggle="${k}" aria-pressed="${!!f[k]}">${icon(ico)}${label}</button>`).join('')}</div></div>
       <div id="ex-list">${exploreRows(list, now)}</div>
-      <div class="small muted ex-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 저장 정보 · 임시휴무는 반영되지 않아요</div>`}`;
+      <div class="small muted ex-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 저장 정보${Object.keys(gFix()).length ? ` · ${Object.keys(gFix()).length}곳은 다시 채움` : ''} · 임시휴무는 반영되지 않아요</div>
+      ${gKey() ? `<button class="btn wide ex-refresh" id="ex-refresh" data-place-refresh-all>${icon('refresh')}모든 장소 구글 정보 다시 채우기</button>` : ''}`}`;
 }
 
 function findNear() {
@@ -4111,7 +4119,7 @@ function openPlace(id) {
       <button class="btn" data-place-visit="${esc(id)}">${v ? `${icon('check')}방문함` : '방문 표시'}</button>
       ${item ? `<button class="btn wide" data-item="${esc(item.id)}">${esc(dayLabel(item.date))} ${esc(item.start)} 일정 보기</button>`
     : `<button class="btn wide" data-place-plan="${esc(id)}">${icon('plus')}일정에 넣기</button>`}
-      ${p.mine && gKey() ? `<button class="btn wide" data-place-refresh="${esc(id)}">${icon('refresh')}구글 정보로 다시 채우기</button>` : ''}
+      ${gKey() ? `<button class="btn wide" data-place-refresh="${esc(id)}">${icon('refresh')}구글 정보로 다시 채우기${p.gAt ? ` <small>· ${esc(shortDate(p.gAt))}</small>` : ''}</button>` : ''}
       ${p.mine ? `<button class="btn danger wide" data-place-del="${esc(id)}">${icon('trash')}내 장소 삭제</button>` : ''}
     </div>`}
     ${state.swapFor ? '' : `<div class="section-title"><span>내 기록</span></div>
@@ -4638,6 +4646,50 @@ async function gTest() {
   state.gTest = { msg, ok: /연결됐어요/.test(msg) }; render(); toast(msg);
 }
 
+// The trip file's places: only Google's facts are fetched again (rating, reviews, hours, address, map link) and kept
+// on this phone; the trip's own notes, picks and photos stay. The place found must be near where it was.
+async function refreshTripPlace(id) {
+  const p = placeById(id);
+  if (!p) throw new Error('장소를 찾지 못했어요');
+  let gid = p.gid;
+  if (!gid) gid = (await gSuggest(p.nameJa || p.name, crypto.randomUUID()))[0]?.id;
+  if (!gid && p.lat) gid = await gNear(p.lat, p.lng);
+  if (!gid) throw new Error('구글에서 찾지 못했어요');
+  const g = await gPlace(gid);
+  if (p.lat && g.lat && kmBetween(p, g) > 1) throw new Error(`구글에서 찾은 곳이 1km 넘게 떨어져 있어요 (${g.name})`);
+  const fix = { gid, gAt: tokyoNow().date, ...(g.r ? { r: g.r, n: g.n } : {}), ...(g.o ? { o: g.o, off: g.off } : {}), ...(g.addr ? { addr: g.addr } : {}),
+    ...(g.lat ? { lat: g.lat, lng: g.lng } : {}), ...(g.url ? { url: g.url } : {}) };
+  store.set('gfix', { ...gFix(), [id]: fix });
+  GFIX = null;
+}
+async function refreshAnyPlace(id) {
+  if (placeById(id)?.mine) return refreshFromGoogle(id);
+  toast('구글에서 다시 찾는 중…');
+  try { await refreshTripPlace(id); render(); openPlace(id); toast('구글 정보로 다시 채웠어요 · 평점·영업시간·주소'); } catch (e) { toast(e.message); }
+}
+// Every place in 탐색 in one go, one at a time; failures are listed at the end, nothing else changes.
+async function refreshAllPlaces() {
+  const list = allPlaces();
+  if (!(await askConfirm(`장소 ${list.length}곳을 구글 정보로 다시 채울까요?`, { body: `평점·리뷰 수·영업시간·주소를 새로 받아요. 메모와 사진은 그대로예요. 구글 요청이 약 ${list.length * 2}번 들어가요(무료 사용량 안).`, ok: '다시 채우기' }))) return;
+  const bar = $('#ex-refresh');
+  let ok = 0; const fail = [];
+  for (const [i, p] of list.entries()) {
+    if (bar) bar.textContent = `구글 정보 다시 채우는 중 · ${i + 1}/${list.length}`;
+    try {
+      if (p.mine) {
+        const old = store.get('myplaces', []).find((x) => x.id === p.id);
+        let gid = old.gid || (old.lat ? await gNear(old.lat, old.lng) : null) || (await gSuggest(old.name, crypto.randomUUID()))[0]?.id;
+        if (!gid) throw new Error('못 찾음');
+        const g = await gPlace(gid);
+        const { stay, note, kind, week, memo, best, tips, name, cat, ...facts } = g;
+        store.set('myplaces', store.get('myplaces', []).map((x) => (x.id === p.id ? { ...x, ...facts, id: x.id } : x)));
+      } else await refreshTripPlace(p.id);
+      ok += 1;
+    } catch (e) { fail.push(p.name); }
+  }
+  render();
+  toast(`${ok}곳 다시 채웠어요${fail.length ? ` · ${fail.length}곳 못 찾음 (${fail.slice(0, 3).join(', ')}${fail.length > 3 ? ' 등' : ''})` : ''}`);
+}
 async function refreshFromGoogle(id) {
   const old = store.get('myplaces', []).find((x) => x.id === id);
   if (!old) return;
@@ -5861,7 +5913,7 @@ function infoCard(it) {
   const facts = [['영업', f.hours], ['휴무', f.closed], ['가격', f.price], ['대기', f.wait], ['예약', f.reserve], ['결제', f.pay]].filter(([, v]) => v);
   return `
     <div class="card info">
-      ${f.r ? `<div class="info-rate"><b>★ ${f.r.toFixed(1)}</b><span>구글지도 ${esc(state.trip.trip.infoAsOf || '')} · 리뷰 ${esc(f.n)}${f.recent ? ` · 최근 평균 ${f.recent.toFixed(1)}` : ''}</span></div>` : ''}
+      ${f.r ? `<div class="info-rate"><b>★ ${f.r.toFixed(1)}</b><span>구글지도 ${esc(f.asOf ? shortDate(f.asOf) : state.trip.trip.infoAsOf || '')} · 리뷰 ${esc(f.n)}${f.recent ? ` · 최근 평균 ${f.recent.toFixed(1)}` : ''}</span></div>` : ''}
       ${f.ko ? `<div class="small muted info-ko">${/^최근/.test(f.ko) ? '' : '한국어 리뷰 '}${esc(f.ko)}</div>` : ''}
       ${facts.length ? `<dl class="info-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : ''}
       ${f.best?.length ? `<div class="info-sec"><h4>${INFO_BEST[f.kind] || '볼거리'}</h4><div class="info-tags">${f.best.map((x) => `<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
@@ -5872,7 +5924,7 @@ function infoCard(it) {
         ${it.place ? `<a class="info-more" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}" target="_blank" rel="noopener">${icon('pin')}구글지도에서 최신 팁 보기</a>` : ''}</div>` : ''}
       ${f.memo?.length ? `<div class="info-sec"><h4>일정 메모</h4><ul class="info-tips">${f.memo.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
       ${f.alt ? `<div class="info-sec"><h4>대안</h4><div class="small">${esc(f.alt)}</div></div>` : ''}
-      ${f.mine ? '' : `<div class="small muted info-asof">구글지도 ${esc(state.trip.trip.infoAsOf || '')} 기준 · 방문 전 다시 확인</div>`}
+      ${f.mine ? '' : `<div class="small muted info-asof">구글지도 ${esc(f.asOf ? shortDate(f.asOf) + ' 다시 채움' : state.trip.trip.infoAsOf || '')} 기준 · 방문 전 다시 확인</div>`}
     </div>`;
 }
 
@@ -6005,7 +6057,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 272;
+const APP_VERSION = 273;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6089,7 +6141,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6168,7 +6220,8 @@ document.addEventListener('click', async (e) => {
   else if (d.find) runFind(d.find);
   else if (d.pickLocal) pickLocal(d.pickLocal, d.where);
   else if ('pnManual' in d) { $('#pn-save').hidden = false; el.remove(); $('#pn-name').value = $('#pn-name').value || fq('pn'); $('#pn-name').focus(); }
-  else if (d.placeRefresh) refreshFromGoogle(d.placeRefresh);
+  else if (d.placeRefresh) refreshAnyPlace(d.placeRefresh);
+  else if ('placeRefreshAll' in d) refreshAllPlaces();
   else if ('aiSave' in d) {
     const k = $('#ai-key').value.trim();
     if (!/^sk-ant-/.test(k)) return toast('sk-ant-로 시작하는 API 키를 넣어 주세요');
