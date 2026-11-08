@@ -2303,3 +2303,8 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .tl-end .tl-card { background: transparent; box-shadow: none; border: 1.5px dashed var(--line); }
 .ls-wait .ls-t { color: var(--muted); font-weight: 600; }
 .ls-wait > i .ico { width: 13px; height: 13px; }
+/* v255: 출발·타는 역·내리는 역·도착은 이름 옆에 한 줄로 */
+.ls li.ls-pt .grow, .ls li.ls-st .grow { flex-wrap: nowrap; min-width: 0; }
+.ls li.ls-pt .grow b, .ls li.ls-st .grow b { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ls li.ls-pt small, .ls li.ls-st small { width: auto; flex: none; margin-left: 2px; }
+.ls li.ls-pt small::before, .ls li.ls-st small::before { content: "· "; }
