@@ -2379,3 +2379,26 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .gm-later { background: none; color: var(--muted); }
 @media (prefers-color-scheme: dark) { .gm-card { box-shadow: 0 20px 50px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.18); } }
 @media (prefers-reduced-motion: reduce) { .geo-pop { transition: none; } .gp-k i { animation: none; } }
+
+/* v267: 일정 엔진 S3 마무리 — 머무는 범위, 미리 붙여 둔 대안, 하루 여유 블록 */
+.stay-range { display: flex; align-items: center; gap: 5px; margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.stay-range .ico { width: 13px; height: 13px; }
+.stay-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stay-pick label { display: grid; gap: 4px; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.stay-pick small { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+.alt-line { display: flex; align-items: stretch; gap: 6px; }
+.alt-line .alt-row { flex: 1; min-width: 0; }
+.alt-line.pinned .alt-row { box-shadow: var(--shadow), inset 0 0 0 1.5px var(--gold); }
+.alt-pin { flex: none; display: grid; place-items: center; align-content: center; gap: 2px; width: 58px; margin-bottom: 8px; border: 1.5px dashed var(--line); border-radius: 14px; background: none; color: var(--muted); font: inherit; font-size: 11.5px; font-weight: 700; }
+.alt-pin .ico { width: 16px; height: 16px; }
+.alt-pin.on { border: 0; background: var(--gold); color: #2b1405; }
+.alt-pin-tag { display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--gold) 18%, transparent); color: var(--gold-ink); font-size: 11px; font-weight: 800; font-style: normal; vertical-align: 1px; }
+.finish-label small { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.qk-n { display: inline-grid; place-items: center; min-width: 17px; height: 17px; margin-left: 2px; border-radius: 999px; background: var(--gold); color: #2b1405; font-size: 11px; font-weight: 800; font-style: normal; }
+.day-room { display: flex; align-items: center; gap: 8px; margin: 10px 0 2px; padding: 10px 12px; border-radius: 14px; font-size: 13.5px; }
+.day-room > .ico { width: 17px; height: 17px; flex: none; }
+.day-room.ok { background: var(--now-soft); color: var(--now); }
+.day-room.low { background: var(--warn-soft); color: var(--warn); }
+.day-room b { display: block; font-size: 14px; }
+.day-room small { display: block; font-size: 12.5px; opacity: .85; }
+.day-room .btn { flex: none; min-height: 36px; padding: 0 12px; font-size: 13px; }

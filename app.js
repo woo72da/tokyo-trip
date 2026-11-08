@@ -694,7 +694,8 @@ function fitCuts(list, idx, s, e) {
   let need = wall.over;
   for (const c of [...before].sort((a, b) => tier(a.it) - tier(b.it))) {
     const len = c.it.endMin - c.it.startMin;
-    const take = Math.min(need, Math.max(0, len - Math.max(20, Math.ceil(len / 2))));
+    const floor = store.get('stay:' + c.it.id, null) ? stayRange(c.it).min : Math.max(20, Math.ceil(len / 2));
+    const take = Math.min(need, Math.max(0, len - floor));
     if (take) { cut[c.it.id] = take; need -= take; }
     if (!need) break;
   }
@@ -2629,6 +2630,18 @@ function arrive(id) {
 // fit to after the fixed stop, or skip the least important. The stop under way keeps its start.
 const isMeal = (it) => ['meal', 'sushi', 'ramen', 'breakfast'].includes(glyph(it.icon)[0]) || /점심|저녁|식사/.test(it.title);
 const isShop = (it) => glyph(it.icon)[1] === 'shop' && glyph(it.icon)[0] !== 'money';
+// 머무는 시간 범위 (일정 엔진 4.4): shortest it can be · the planned length · longest it should run. Set per stop in
+// the form ('stay:<id>'), else by kind: meals keep 35 min, cafés 20, shops 15, sights half (20 at least).
+function stayRange(it) {
+  const len = Math.max(0, it.endMin - it.startMin);
+  const set = store.get('stay:' + it.id, null);
+  const def = isMeal(it) ? { min: Math.min(len, 35), max: len + 30 }
+    : glyph(it.icon)[0] === 'coffee' ? { min: Math.min(len, 20), max: len + 30 }
+      : isShop(it) ? { min: Math.min(len, 15), max: len + 60 }
+        : { min: Math.min(len, Math.max(20, Math.ceil(len / 2))), max: len + 60 };
+  return { min: set?.min ?? def.min, max: set?.max ?? def.max, len, set: !!set };
+}
+const stayText = (r) => `보통 ${formatLeft(r.len)} · 최소 ${formatLeft(r.min)} ~ 최대 ${formatLeft(r.max)}`;
 const shortName = (it) => stripEmoji(it.title).split(' · ')[0];
 // A booked slot often lets you in a little late (Shibuya Sky: 13:40 slot, in by 13:59).
 const lastIn = (W) => (W.enterBy ? toMin(W.enterBy) : W.startMin);
@@ -2685,7 +2698,7 @@ function squeezeWays(q) {
   // A walk can become a taxi (10 min) before a meal gets shorter.
   const isWalk = (x) => isMove(x) && glyph(x.icon)[0] === 'walk';
   const tier = (x) => (isMeal(x) ? 5 : x.priority === 'optional' && !isWalk(x) ? 0 : isShop(x) ? 1 : isWalk(x) ? 2 : x.priority === 'must' ? 4 : 3);
-  const minLen = (x, len) => (isMeal(x) ? Math.min(len, 35) : isWalk(x) ? Math.min(len, 10) : isShop(x) ? Math.min(len, 15) : Math.max(20, Math.ceil(len / 2)));
+  const minLen = (x, len) => (isWalk(x) ? Math.min(len, 10) : store.get('stay:' + x.id, null) ? Math.min(len, stayRange(x).min) : isMeal(x) ? Math.min(len, 35) : isShop(x) ? Math.min(len, 15) : Math.max(20, Math.ceil(len / 2)));
   // The least shortening that makes `seq` fit, or null, in 5-minute steps; the stop under way keeps 15 more minutes.
   const cutFor = (seq) => {
     let need = packEnd(seq, {}, [], W, nowMin, q.from) - room;
@@ -2881,7 +2894,7 @@ function quickBar(it, kind) {
     fixed ? '' : b('late', 'clock', '늦어요'),
     kind === 'now' && !fixed ? b('stay', 'plus', '더 있을래요') : '',
     food ? b('wait', 'clock', '웨이팅') : '',
-    fixed ? '' : b('alt', 'swap', '다른 곳'),
+    fixed ? '' : b('alt', 'swap', pinnedAlts(it.id).length ? `다른 곳 <em class="qk-n">${pinnedAlts(it.id).length}</em>` : '다른 곳'),
     fixed ? '' : `<button type="button" data-item-skip="${esc(it.id)}">${icon('skip')}건너뛰기</button>`,
   ].filter(Boolean);
   return btns.length ? `<div class="qk-bar">${btns.join('')}</div>` : '';
@@ -2914,6 +2927,7 @@ function qkPreview(kind, id, min) {
       ${row(qkName(t), `${clock(t.startMin)}–${clock(t.endMin)}`, `${clock(s)}–${clock(e)}`)}
       ${plan.changes.map((c) => row(qkName(c.it), clock(c.it.startMin), clock(c.start))).join('')}
     </ul>
+    ${kind === 'stay' && e - s > stayRange(t).max ? `<div class="small muted qk-calm">${esc(qkName(t))}${eunNeun(qkName(t))} 보통 최대 ${formatLeft(stayRange(t).max)}이에요 · 그래도 더 있어도 돼요</div>` : ''}
     ${plan.changes.length ? '' : '<div class="small muted qk-calm">뒤 일정은 그대로예요 · 빈 시간이 흡수해요</div>'}
     ${inWindow ? `<div class="small muted qk-calm">${esc(qkName(wall0.it))} 입장 마감(${esc(wall0.it.enterBy)}) 안이라 괜찮아요</div>` : ''}
     ${wall ? `<div class="qk-wall">${icon('warn')}<span><b>${esc(shortName(wall.it))}</b>(고정)까지 ${formatLeft(wall.over)} 모자라요 · 적용하면 맞추는 방법을 바로 보여 드려요</span></div>` : ''}`;
@@ -2947,26 +2961,51 @@ function applyQuick() {
   if (squeezeOf(t.date, tokyoNow())) openSqueeze(t.date);
 }
 // Places of the same kind near this stop: walk time, open now, rating; picking one swaps the stop (S1/S2 redo the legs).
+// Alternatives picked ahead for a stop ('alts:<id>', two at most): shown first wherever alternatives are.
+const pinnedAlts = (id) => store.get('alts:' + id, []).map(String);
+function pinAlt(id, pid) {
+  const list = pinnedAlts(id);
+  const on = list.includes(pid);
+  if (!on && list.length >= 2) return toast('대안은 두 곳까지 붙여 둘 수 있어요');
+  store.set('alts:' + id, on ? list.filter((x) => x !== pid) : [...list, pid]);
+  toast(on ? '대안에서 뺐어요' : '대안으로 붙여 두었어요 · 웨이팅·다른 곳에서 먼저 보여요');
+  if (state.sheetItem === id && !$('#sheet').hidden && $('#sheet-body .alt-card')) openItem(id); else if (!$('#sheet').hidden && $('#sheet-body .qk-alts')) openAlts(id);
+}
 function altPlaces(it) {
+  const pins = pinnedAlts(it.id);
+  const list = altPlacesNear(it) || [];
+  const here = placeOfItem(it.id);
+  const pt = here?.lat ? here : legPoint(it);
+  const now = tokyoNow();
+  const extra = pins.filter((pid) => !list.some((x) => String(x.p.id) === pid)).map((pid) => placeById(pid)).filter((p) => p?.lat && pt?.lat)
+    .map((p) => ({ p, km: kmBetween(pt, p), open: openNow(p, now.date === it.date ? now : { date: it.date, min: it.startMin }) }));
+  const all = [...list, ...extra].map((x) => ({ ...x, pin: pins.includes(String(x.p.id)) }));
+  return all.sort((a, b) => b.pin - a.pin).slice(0, Math.max(5, pins.length));
+}
+function altPlacesNear(it) {
   const here = placeOfItem(it.id);
   const pt = here?.lat ? here : legPoint(it);
   if (!pt?.lat) return null;
   const cat = placeCat(it);
+  if (!cat || it.hard) return [];
   const now = tokyoNow();
+  // Not a place already on that day's plan (or planned for another day).
+  const taken = new Set(dayItems(dayOf(it.date)).map((x) => placeOfItem(x.id)?.id));
+  allPlaces().filter((p) => p.itemId).forEach((p) => taken.add(p.id));
   return allPlaces()
-    .filter((p) => p.lat && p.id !== here?.id && (!cat || p.cat === cat) && visitOf(p.id)?.again !== 'no')
+    .filter((p) => p.lat && p.id !== here?.id && !taken.has(p.id) && p.cat === cat && visitOf(p.id)?.again !== 'no')
     .map((p) => ({ p, km: kmBetween(pt, p), open: openNow(p, now.date === it.date ? now : { date: it.date, min: it.startMin }) }))
     .filter((x) => x.km <= 2 && x.open !== false)
     .sort((a, b) => (b.open === true) - (a.open === true) || a.km - b.km)
     .slice(0, 5);
 }
 function altList(it) {
-  const list = altPlaces(it);
+  const list = (placeOfItem(it.id)?.lat || legPoint(it)?.lat) ? altPlaces(it) : null;
   if (!list) return '<div class="small muted">이 일정은 위치 정보가 없어 근처 대안을 찾지 못했어요. 탐색 탭에서 골라 주세요.</div>';
   if (!list.length) return '<div class="small muted">2km 안에 같은 종류의 저장된 장소가 없어요. 탐색 탭의 ＋로 찾아 주세요.</div>';
-  return `<div class="qk-alts">${list.map(({ p, km, open }) => `
+  return `<div class="qk-alts">${list.map(({ p, km, open, pin }) => `
     <button type="button" class="qk-alt" data-qk-swap="${esc(it.id)}|${esc(p.id)}">
-      <span class="grow"><b>${esc(p.name)}</b><small>${[`${km <= 1.2 ? '도보' : '이동'} 약 ${km <= 1.2 ? Math.max(1, Math.ceil((km * 1300) / 75)) : Math.ceil(km * 3 + 10)}분`, distLabel(km), open === true ? '영업 중' : '', p.area].filter(Boolean).map(esc).join(' · ')}</small></span>
+      <span class="grow"><b>${pin ? '<em class="alt-pin-tag">미리 정한 곳</em>' : ''}${esc(p.name)}</b><small>${[`${km <= 1.2 ? '도보' : '이동'} 약 ${km <= 1.2 ? Math.max(1, Math.ceil((km * 1300) / 75)) : Math.ceil(km * 3 + 10)}분`, distLabel(km), open === true ? '영업 중' : '', p.area].filter(Boolean).map(esc).join(' · ')}</small></span>
       <em>여기로</em>
     </button>`).join('')}</div>`;
 }
@@ -3301,11 +3340,31 @@ function renderDays() {
     </div>
     ${!edit && aiKey() ? `<button class="btn ai wide ai-plan-btn" data-ai-plan>${aiLabel('말로 일정을 변경해 보세요')}</button>` : ''}
     ${edit ? '<div class="small muted edit-hint">일정을 누르면 고치고, ＋를 누르면 그 자리에 넣어요.</div>' : ''}
+    ${edit ? '' : dayRoom(day, items, now)}
     ${timeline(items, now, edit)}
     ${edit || daySummary(day, items, now) ? '' : expenses().some((e) => e.date === day.date) ? `<div class="day-sum">${dayExpense(day.date, true)}</div>` : ''}
     <button class="btn wide day-add" data-item-new="${esc(day.date)}" data-after="${esc(items[items.length - 1]?.id || '')}">${icon('plus')}일정 추가</button>
     ${edit ? dayEditTools(day) : ''}
   `;
+}
+
+// 하루 여유 블록 (4.4): free time between stops (after getting there) for a day still to come; with no
+// half-hour anywhere, offer to put one in the afternoon.
+function dayRoom(day, items, now) {
+  if (day.date < now.date || isDayDone(day.date, now.date)) return '';
+  const stops = items.filter((x) => !x.skip && isStopRow(x) && x.endMin > x.startMin);
+  if (stops.length < 3) return '';
+  const all = items.filter((x) => !x.skip);
+  let free = 0; let best = null;
+  for (let i = 0; i < all.length - 1; i += 1) {
+    const a = all[i]; const b = all[i + 1];
+    const g = b.startMin - a.endMin - (isLegRow(a) || isLegRow(b) ? 0 : travelMin(a, b));
+    if (g > 0) { free += g; if (!best || g > best.g) best = { g, a }; }
+  }
+  if (best?.g >= 30) return `<div class="day-room ok">${icon('clock')}<span class="grow">빈 시간 ${formatLeft(free)} · 가장 긴 여유 ${formatLeft(best.g)} (${clock(best.a.endMin)}~)</span></div>`;
+  const pm = stops.filter((x) => !isFixed(x) && x.endMin >= 780 && x.endMin <= 1020);
+  const at = (pm[0] || stops[Math.floor(stops.length / 2)]).id;
+  return `<div class="day-room low">${icon('warn')}<span class="grow"><b>30분 넘는 여유가 없어요</b><small>빈 시간 ${formatLeft(free)}뿐이에요 · 늦어지면 뒤 일정이 모두 밀려요</small></span><button class="btn" data-item-new="${esc(day.date)}" data-after="${esc(at)}" data-rest="1">${icon('plus')}여유 30분 넣기</button></div>`;
 }
 
 // Once a day is over, its record sits under the last stop: the stamp, what we did, what we spent, what we'd go back for.
@@ -3990,32 +4049,21 @@ function placeSource(p) {
 }
 
 // Nearby places of the same kind that are open at the stop's time, for restaurants and cafes only.
-function altPlaces(it) {
-  const home = allPlaces().find((p) => p.itemId === it.id) || placeOfItem(it.id);
-  if (!home?.lat || it.hard || !['eat', 'drink'].includes(home.cat)) return [];
-  const day = state.trip.days.find((d) => d.date === it.date);
-  const taken = new Set(dayItems(day).map((x) => placeOfItem(x.id)?.id));
-  allPlaces().filter((p) => p.itemId).forEach((p) => taken.add(p.id));
-  const at = { date: it.date, min: toMin(it.start) };
-  return allPlaces()
-    .filter((p) => p.lat && p.cat === home.cat && !taken.has(p.id) && openNow(p, at) !== false)
-    .map((p) => ({ p, km: kmBetween(home, p), open: openNow(p, at) }))
-    .filter((x) => x.km <= 3)
-    .sort((a, b) => Number(b.open === true) - Number(a.open === true) || a.km - b.km)
-    .slice(0, 2);
-}
 function altCard(it) {
-  const alts = altPlaces(it);
+  const alts = altPlaces(it).slice(0, 3);
   if (!alts.length) return '';
   return `
     <div class="alt-card">
-      <div class="finish-label">대안 · 가까운 순</div>
-      ${alts.map(({ p, km, open }) => `
+      <div class="finish-label">대안 · 가까운 순 ${isDone(it.id) ? '' : '<small>붙여 두면 웨이팅·다른 곳에서 먼저 보여요 (2곳까지)</small>'}</div>
+      ${alts.map(({ p, km, open, pin }) => `
+        <div class="alt-line ${pin ? 'pinned' : ''}">
         <button class="alt-row" data-place="${esc(p.id)}" data-from-item="${esc(it.id)}">
           ${placeThumb(p, 'w120-h120')}
-          <span><b>${esc(p.name)}</b><small>${esc([p.r ? `★${p.r.toFixed(1)}` : '', distLabel(km), open === null ? '영업시간 미확인' : ''].filter(Boolean).join(' · '))}</small></span>
+          <span><b>${pin ? '<em class="alt-pin-tag">미리 정한 곳</em>' : ''}${esc(p.name)}</b><small>${esc([p.r ? `★${p.r.toFixed(1)}` : '', distLabel(km), open === null ? '영업시간 미확인' : ''].filter(Boolean).join(' · '))}</small></span>
           <i class="chev"></i>
-        </button>`).join('')}
+        </button>
+        ${isDone(it.id) ? '' : `<button type="button" class="alt-pin ${pin ? 'on' : ''}" data-alt-pin="${esc(it.id)}|${esc(p.id)}" aria-pressed="${!!pin}">${icon(pin ? 'check' : 'plus')}${pin ? '대안' : '붙이기'}</button>`}
+        </div>`).join('')}
     </div>`;
 }
 function swapStop(id, placeId) {
@@ -5271,7 +5319,8 @@ function openPlan(id) {
     <div class="sheet-head"><h3>일정에 넣기</h3></div>
     <div class="muted">${esc(p.name)}</div>
     <label class="field"><span>날짜</span><select class="input" id="pl-date">${days.map((d) => `<option value="${d.date}" ${d.date === def ? 'selected' : ''}>${esc(dayLabel(d.date))}</option>`).join('')}</select></label>
-    <label class="field"><span>시작 시간</span><input class="input" id="pl-time" type="time" value="12:00"></label>
+    <label class="field"><span>시작 시간</span><input class="input" id="pl-time" type="time" value="${(() => { const last = dayItems(dayOf(def)).filter((x) => !x.skip && x.endMin).pop(); return last && last.endMin + BUF < 1380 ? clock(Math.ceil((last.endMin + BUF) / 5) * 5) : '12:00'; })()}"></label>
+    <div class="small muted">그날 마지막 일정이 끝나고 10분 뒤로 넣어 두었어요</div>
     <button class="btn primary wide doc-pick" data-plan-save="${esc(id)}">일정에 추가</button>`;
   $('#sheet').hidden = false;
 }
@@ -5290,6 +5339,8 @@ function savePlan(id) {
 // ---------- adding and changing stops ----------
 const KINDS = [['🍽', '먹기'], ['☕', '카페'], ['🏛', '구경'], ['🛍', '쇼핑'], ['🚇', '이동'], ['🏨', '휴식']];
 const DURS = [15, 30, 60, 90, 120];
+const STAY_OPTS = [10, 15, 20, 25, 30, 35, 40, 45, 60, 75, 90, 105, 120, 150, 180, 240, 300];
+const BUF = 10; // 장소 사이 여유 (분)
 const fromClock = (v) => (/^\d{1,2}:\d{2}/.test(v || '') ? toMin(v) : null);
 
 // One form for a new stop and for changing one. `opt.after` puts a new stop right after that one;
@@ -5309,14 +5360,19 @@ function openItemForm(id, opt = {}) {
   const nowStart = now.date === date ? Math.ceil(now.min / 5) * 5 : 720;
   let s = it ? it.startMin : prev ? prevEnd : nowStart;
   let dur = it ? it.endMin - it.startMin : !prev ? 60 : gap >= 5 ? Math.min(60, gap) : 30;
-  const between = !it && prev ? `${stripEmoji(prev.title).split(' · ')[0]} 끝 ${clock(prevEnd)} → ${after ? `${stripEmoji(after.title).split(' · ')[0]} 시작 ${clock(after.startMin)}` : '그날 마지막'}${after ? ` · ${gap >= 5 ? `여유 ${formatLeft(gap)}` : '여유 없음, 뒤 일정이 밀려요'}` : ''}` : '';
+  // 여유 시간 자동 (4.4): with room to spare, a new stop starts 10 minutes after the one before and leaves 10 before the next.
+  let buffered = false;
+  if (!it && prev && gap >= 40) { s = Math.ceil((prevEnd + BUF) / 5) * 5; dur = Math.min(60, (after ? after.startMin - BUF : 1440) - s); buffered = true; }
+  if (opt.rest) dur = Math.min(30, Math.max(15, dur));
+  const between = !it && prev ? `${stripEmoji(prev.title).split(' · ')[0]} 끝 ${clock(prevEnd)} → ${after ? `${stripEmoji(after.title).split(' · ')[0]} 시작 ${clock(after.startMin)}` : '그날 마지막'}${after ? ` · ${gap >= 5 ? `여유 ${formatLeft(gap)}` : '여유 없음, 뒤 일정이 밀려요'}` : ''}${buffered ? ' · 앞뒤로 10분씩 여유를 두었어요' : ''}` : '';
   let started = false;
   if (it && opt.catch) {
     started = isStarted(it, list);
     if (started) dur = Math.ceil((Math.max(now.min, it.endMin) + 15 - it.startMin) / 5) * 5;
     else s = now.min;
   }
-  state.form = { id, date, s, dur, kind: it?.icon || '', catch: !!opt.catch && !started, rip: null, fit: 'cut', mine: !it || String(id).startsWith('my-it') };
+  const range = it && !isMove(it) ? stayRange(it) : null;
+  state.form = { id, date, s, dur, range, kind: it?.icon || (opt.rest ? '🏨' : ''), catch: !!opt.catch && !started, rip: null, fit: 'cut', mine: !it || String(id).startsWith('my-it') };
   const place = it?.place && !state.form.mine ? it.place.nameJa : it?.place?.query || '';
   $('#sheet-body').innerHTML = `
     <div class="sheet-head"><h3>${it ? '일정 수정' : '일정 추가'}</h3></div>
@@ -5324,7 +5380,7 @@ function openItemForm(id, opt = {}) {
     ${opt.catch ? `<div class="small muted">${started ? '이 일정을 15분 늘리고' : '이 일정을 지금 시작으로 바꾸고'} 뒤 일정을 미뤄요. 아래 변경 내용을 확인하고 저장하세요.</div>` : ''}
     <form class="item-form" autocomplete="off">
       ${!it ? finderHtml('f') : ''}
-      <label class="row-field"><span>제목</span><input class="input" id="f-title" value="${esc(it?.title || '')}" placeholder="예: 편의점 들르기" maxlength="60"></label>
+      <label class="row-field"><span>제목</span><input class="input" id="f-title" value="${esc(it?.title || (opt.rest ? '여유 시간' : ''))}" placeholder="예: 편의점 들르기" maxlength="60"></label>
       <div class="row-field top"><span>종류</span><div class="kind-row">${KINDS.map(([e, label]) => `<button type="button" class="kind ${glyph(state.form.kind)[0] === glyph(e)[0] && state.form.kind ? 'on' : ''}" data-f-kind="${e}">${itemIcon(e)}${label}</button>`).join('')}</div></div>
       <label class="row-field"><span>날짜</span><select class="input" id="f-date">${state.trip.days.map((d, i) => `<option value="${d.date}" ${d.date === date ? 'selected' : ''}>${i + 1}일차 · ${esc(dayLabel(d.date))}</option>`).join('')}</select></label>
       <div class="row-field top"><span>시작</span><div>
@@ -5337,6 +5393,10 @@ function openItemForm(id, opt = {}) {
       <div class="row-field top"><span>소요</span><div class="quick-row dur-row">${DURS.map((m) => `<button type="button" data-f-dur="${m}">${m === 90 ? '1시간 반' : formatLeft(m)}</button>`).join('')}</div></div>
       <label class="row-field"><span>종료</span><input class="input" id="f-end" type="time" value="${clock(Math.min(1439, s + dur))}"></label>
       <div class="f-sum" id="f-sum"></div>
+      ${range ? `<div class="row-field top"><span>머무는<br>범위</span><div class="stay-pick">
+        <label>최소 <select class="input" id="f-min">${STAY_OPTS.filter((m) => m <= Math.max(range.len, range.min)).map((m) => `<option value="${m}" ${m === range.min ? 'selected' : ''}>${formatLeft(m)}</option>`).join('')}${STAY_OPTS.includes(range.min) ? '' : `<option value="${range.min}" selected>${formatLeft(range.min)}</option>`}</select></label>
+        <label>최대 <select class="input" id="f-max">${STAY_OPTS.filter((m) => m >= range.len).map((m) => `<option value="${m}" ${m === range.max ? 'selected' : ''}>${formatLeft(m)}</option>`).join('')}${STAY_OPTS.includes(range.max) ? '' : `<option value="${range.max}" selected>${formatLeft(range.max)}</option>`}</select></label>
+        <small>늦어져서 줄일 때 최소까지만, '더 있을래요'는 최대를 넘으면 알려 줘요</small></div></div>` : ''}
       ${state.form.mine ? `
         <label class="row-field"><span>장소</span><input class="input" id="f-place" list="f-places" value="${esc(place)}" placeholder="선택 · 탐색 장소나 검색어"></label>
         <datalist id="f-places">${allPlaces().map((p) => `<option value="${esc(p.name)}">`).join('')}</datalist>`
@@ -5381,6 +5441,12 @@ function updateForm() {
   const it = f.id && list[idx];
   if (it?.closedDays?.includes(dowOf(date))) warn.push(['', '이 날은 휴무예요.']);
   if (it?.hard) warn.push(['', '예약·탑승 시간이 정해진 일정이에요. 예약 시간도 확인하세요.']);
+  // 고정 일정 앞 20분 (4.4): ending too close to the next fixed stop leaves no room for a late train.
+  const W = list.find((x, i) => i !== idx && isFixed(x) && x.startMin >= f.s && !isDone(x.id));
+  if (W && !(f.id && isFixed(list[idx]))) {
+    const room = W.startMin - e - (it ? travelMin(it, W) : 0);
+    if (room >= 0 && room < GUARD) warn.push(['', `${esc(shortName(W))}(고정 ${esc(W.start)}) 앞 여유가 ${room}분뿐이에요 · 20분은 두는 게 좋아요.`]);
+  }
   // A new stop or a changed time that lands on top of other stops says which.
   const overlaps = list.filter((x, i) => i !== idx && !isDone(x.id) && x.startMin < e && f.s < x.endMin && x.endMin - x.startMin > 0);
   $('#f-sum').innerHTML = `<b>${clock(f.s)} 시작 · ${clock(e)} 종료</b> <span>(${formatLeft(Math.max(0, e - f.s))})</span>
@@ -5464,6 +5530,10 @@ function saveItemForm() {
       store.set('edit:' + c.it.id, { ...old, start: clock(c.start), ...(c.it.end || c.cut || old.end ? { end: clock(c.end) } : {}), auto: true });
       moved += 1;
     }
+  }
+  if (f.range && $('#f-min')) {
+    const mn = Number($('#f-min').value); const mx = Number($('#f-max').value);
+    if (mn !== f.range.min || mx !== f.range.max || f.range.set) store.set('stay:' + id, { min: Math.min(mn, e - f.s), max: Math.max(mx, e - f.s) });
   }
   if (f.catch) store.set('start:' + id, true);
   closeSheet();
@@ -5802,6 +5872,7 @@ function openItem(id) {
         <h3>${esc(it.title)}</h3>
         ${it.place ? `<div class="ja muted small">${esc(it.place.nameJa)}</div>` : ''}
         <div class="item-when">${esc(dayLabel(it.date))} · ${esc(it.start)}${it.end ? '–' + esc(it.end) : ''}${tagFor(it)}${chipsFor(it, now).filter(noTag).map(chipTag).join('')}</div>
+        ${!isMove(it) && it.end ? (() => { const d = dayItems(dayOf(it.date)).find((x) => x.id === it.id); return d && d.endMin > d.startMin ? `<div class="stay-range">${icon('clock')}${esc(stayText(stayRange(d)))}</div>` : ''; })() : ''}
       </div>
     </div>
     ${it.line ? lineCard(it) : ''}
@@ -5901,7 +5972,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 266;
+const APP_VERSION = 267;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5985,7 +6056,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6084,7 +6155,7 @@ document.addEventListener('click', async (e) => {
   else if (d.placePlan) openPlan(d.placePlan);
   else if (d.planSave) savePlan(d.planSave);
   else if (d.itemEdit) openItemForm(d.itemEdit);
-  else if ('itemNew' in d) openItemForm(null, { date: d.itemNew, after: d.after });
+  else if ('itemNew' in d) openItemForm(null, { date: d.itemNew, after: d.after, rest: 'rest' in d });
   else if (d.catch) openItemForm(d.catch, { catch: true });
   else if ('dayEdit' in d) { const { date } = state.trip.days[state.dayIndex]; state.editDay = state.editDay === date ? null : date; render(); }
   else if (d.itemRestore) restoreItem(d.itemRestore);
@@ -6184,6 +6255,7 @@ document.addEventListener('click', async (e) => {
   else if (d.qk) { const [k, id] = d.qk.split('|'); openQuick(k, id); }
   else if (d.qkMin) openQuick(state.qk.kind, state.qk.id, Number(d.qkMin));
   else if ('qkApply' in d) applyQuick();
+  else if (d.altPin) { const [id, pid] = d.altPin.split('|'); pinAlt(id, pid); }
   else if (d.qkSwap) { const [id, pid] = d.qkSwap.split('|'); quickSwap(id, pid); }
   else if (d.sumFold) {
     try { const o = JSON.parse(localStorage.getItem('daySumOpen') || '[]'); localStorage.setItem('daySumOpen', JSON.stringify(o.includes(d.sumFold) ? o.filter((x) => x !== d.sumFold) : [...o, d.sumFold])); } catch { /* private mode */ }
