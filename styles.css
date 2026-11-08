@@ -193,6 +193,9 @@ a { color: inherit; }
 .tl-card, .quick button { transition: transform .12s ease, background-color .3s ease, box-shadow .3s ease; }
 .btn.primary { background: var(--accent); color: var(--accent-ink); }
 .btn.wide { grid-column: 1 / -1; width: 100%; }
+/* 지우는 동작: 옅은 빨강 바탕 + 빨간 글자·아이콘 (진한 버튼은 그 화면의 주 동작 하나만) */
+.btn.danger { background: var(--alert-soft); color: var(--alert); }
+.btn.danger .ico { color: inherit; }
 .icon-btn { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: var(--soft); flex: 0 0 auto; }
 
 /* hero (dark ticket-like card) */
@@ -1017,6 +1020,7 @@ ol.alarm-note { padding-left: 18px; }
 .route.arrived i::before, .route.arrived i::after { background: #6fc7b0; }
 .exp-open { display: flex; flex: 1; min-width: 0; align-items: center; gap: 10px; min-height: 40px; text-align: left; }
 .exp-wide { grid-column: 1 / -1; }
+.exp-act { margin-top: 6px; }
 .finish-pay { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .cash-left { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--soft); font-size: 14px; }
 .cash-left b { font-size: 16px; }
@@ -1111,7 +1115,7 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .rp-wall .ico { flex: none; width: 16px; height: 16px; margin-top: 1px; }
 .rp-fit { display: grid; gap: 8px; margin-top: 10px; font-size: 14px; }
 .rp-fit label { display: flex; align-items: flex-start; gap: 8px; }
-.f-del { margin-top: 10px; background: none; color: var(--alert); }
+.f-del { margin-top: 10px; }
 .f-del .ico { width: 16px; height: 16px; }
 .rp-short { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 40px; margin-top: 10px; padding: 0 12px; border-radius: 12px; border: 0; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 13px; font-weight: 700; }
 .rp-short .ico { width: 15px; height: 15px; }
@@ -1712,7 +1716,6 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 
 /* Saved key row: 연결 확인 and a small 삭제 side by side */
 .ai-on .btn { flex: none; padding: 0 12px; }
-.ai-on .key-del { background: transparent; color: var(--alert); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--alert) 40%, transparent); }
 
 /* Settings: ⚙ at the top right of every tab, opening one sheet */
 .top { padding-right: 64px; }

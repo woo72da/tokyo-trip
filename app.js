@@ -855,10 +855,12 @@ function openExpEdit(id) {
       ${expDatePick(e.date)}
       <input class="input" type="time" name="time" value="${esc(expTime(e))}" aria-label="결제 시간">
       <input class="input exp-wide" name="memo" placeholder="메모" value="${esc(expTitle(e) === e.cat && !e.memo ? '' : expTitle(e))}" autocomplete="off">
-      <button class="btn exp-wide" type="button" data-doc-add="${rcptSlot(id)}">${icon('camera')}${hasRcpt(id) ? '영수증 사진 더 넣기' : '영수증 사진 넣기'}</button>
-      ${hasRcpt(id) ? `<button class="btn exp-wide" type="button" data-doc-view="${rcptSlot(id)}">${icon('image')}영수증 보기</button>` : ''}
-      <button class="btn primary exp-wide" type="submit">저장</button>
-      <button class="btn exp-wide" type="button" data-exp-del="${esc(id)}">삭제</button>
+      ${hasRcpt(id) ? `<button class="btn" type="button" data-doc-add="${rcptSlot(id)}">${icon('camera')}영수증 더 넣기</button>
+      <button class="btn" type="button" data-doc-view="${rcptSlot(id)}">${icon('image')}영수증 보기</button>` : `<button class="btn exp-wide" type="button" data-doc-add="${rcptSlot(id)}">${icon('camera')}영수증 사진 넣기</button>`}
+      <div class="btns exp-wide exp-act">
+        <button class="btn danger" type="button" data-exp-del="${esc(id)}">${icon('trash')}삭제</button>
+        <button class="btn primary" type="submit">${icon('check')}저장</button>
+      </div>
     </form>`;
   $('#sheet').hidden = false;
 }
@@ -874,7 +876,6 @@ function expRow(e, inDay = false) {
         <span class="exp-amt">${e.orig?.cur === 'KRW' ? `<b>${e.orig.value.toLocaleString('ko-KR')}원</b><small>${yen(e.amount)}</small>` : `<b>${yen(e.amount)}</b><small>${won(e.amount)}</small>`}</span>
       </button>
       ${hasRcpt(e.id) ? `<button type="button" class="exp-rcpt" data-doc-view="${rcptSlot(e.id)}" aria-label="영수증 보기">${icon('image')}</button>` : ''}
-      <button type="button" class="ck-del" data-exp-del="${esc(e.id)}" aria-label="삭제">${icon('x')}</button>
     </div>`;
 }
 const expForm = (item = null, memo = '', cat = '식당') => `
@@ -1451,6 +1452,7 @@ function toast(msg, href, label) {
 // Phosphor Icons duotone (MIT, phosphoricons.com); torii, tower and lantern drawn to match.
 // The 20% layer (class "d") takes the category tint.
 const ICONS = {
+  'trash': '<path d="M200,56V208a8,8,0,0,1-8,8H64a8,8,0,0,1-8-8V56Z" class="d"/><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/>',
   'gear': '<rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(0 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(45 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(90 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(135 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(180 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(225 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(270 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(315 128 128)"/><circle cx="128" cy="128" r="66" fill="none" stroke="currentColor" stroke-width="22"/><circle cx="128" cy="128" r="24" fill="none" stroke="currentColor" stroke-width="18"/>',
   'spark': '<path class="d" d="M108 40c6 50 24 68 74 74-50 6-68 24-74 74-6-50-24-68-74-74 50-6 68-24 74-74Z"/><path d="M108 40c6 50 24 68 74 74-50 6-68 24-74 74-6-50-24-68-74-74 50-6 68-24 74-74Zm0 30.5c-6.3 26.6-19 39.2-45.6 45.5C89 122.3 101.7 135 108 161.6c6.3-26.6 19-39.3 45.6-45.6C127 109.7 114.3 97 108 70.5ZM196 24c3 22 11 30 33 33-22 3-30 11-33 33-3-22-11-30-33-33 22-3 30-11 33-33Z"/>',
   'heart': '<path d="M178,32c-20.65,0-38.73,8.88-50,23.89C116.73,40.88,98.65,32,78,32A62.07,62.07,0,0,0,16,94c0,70,103.79,126.66,108.21,129a8,8,0,0,0,7.58,0C136.21,220.66,240,164,240,94A62.07,62.07,0,0,0,178,32ZM128,206.8C109.74,196.16,32,147.69,32,94A46.06,46.06,0,0,1,78,48c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46C224,147.61,146.24,196.15,128,206.8Z"/>',
@@ -3360,7 +3362,7 @@ function openPlace(id) {
       ${item ? `<button class="btn wide" data-item="${esc(item.id)}">${esc(dayLabel(item.date))} ${esc(item.start)} 일정 보기</button>`
     : `<button class="btn wide" data-place-plan="${esc(id)}">${icon('plus')}일정에 넣기</button>`}
       ${p.mine && gKey() ? `<button class="btn wide" data-place-refresh="${esc(id)}">${icon('refresh')}구글 정보로 다시 채우기</button>` : ''}
-      ${p.mine ? `<button class="btn wide" data-place-del="${esc(id)}">내 장소 삭제</button>` : ''}
+      ${p.mine ? `<button class="btn danger wide" data-place-del="${esc(id)}">${icon('trash')}내 장소 삭제</button>` : ''}
     </div>
     <div class="section-title"><span>내 기록</span></div>
     ${v ? `<div class="rate-row">${rateBtns(id, v.again, 'place')}</div>` : ''}
@@ -4428,7 +4430,7 @@ function aiSettings() {
       <div class="small muted">구글지도 링크를 붙여 넣으면 장소 정보를 찾아 일정에 바로 넣어요. 본인 Claude API 키가 필요하고, 키는 이 폰에만 저장돼요 (동기화·GitHub에 안 올라가요).</div>
       ${key ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>키 저장됨</b><small>키 끝자리 ••••${esc(key.slice(-4))}</small></span>
-          <button class="btn" data-ai-test ${state.aiTest?.busy ? 'disabled' : ''}>${state.aiTest?.busy ? '확인 중…' : '연결 확인'}</button><button class="btn key-del" data-ai-forget aria-label="API 키 삭제">삭제</button></div>
+          <button class="btn" data-ai-test ${state.aiTest?.busy ? 'disabled' : ''}>${state.aiTest?.busy ? '확인 중…' : '연결 확인'}</button><button class="btn danger key-del" data-ai-forget aria-label="API 키 삭제">삭제</button></div>
         ${state.aiTest?.msg ? `<div class="ai-msg ${state.aiTest.ok ? 'ok' : ''}">${esc(state.aiTest.msg)}</div>` : ''}` : `
         <input class="input" id="ai-key" type="password" autocomplete="off" placeholder="sk-ant-로 시작하는 API 키">`}
       <label class="field"><span>모델</span><select class="input" id="ai-model">${Object.entries(AI_MODELS).map(([k, m]) => `<option value="${k}" ${k === pick ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>
@@ -4438,7 +4440,7 @@ function aiSettings() {
       <div class="small muted">넣으면 이름만 입력해도 구글 지도와 같은 위치·영업시간·평점·사진을 가져와요. 웹사이트 제한(woo72da.github.io)과 API 제한(Places API (New))을 걸어 두세요.</div>
       ${gKey() ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>구글 키 저장됨</b><small>키 끝자리 ••••${esc(gKey().slice(-4))}</small></span>
-          <button class="btn" data-g-test ${state.gTest?.busy ? 'disabled' : ''}>${state.gTest?.busy ? '확인 중…' : '연결 확인'}</button><button class="btn key-del" data-g-forget aria-label="구글 키 삭제">삭제</button></div>
+          <button class="btn" data-g-test ${state.gTest?.busy ? 'disabled' : ''}>${state.gTest?.busy ? '확인 중…' : '연결 확인'}</button><button class="btn danger key-del" data-g-forget aria-label="구글 키 삭제">삭제</button></div>
         ${state.gTest?.msg ? `<div class="ai-msg ${state.gTest.ok ? 'ok' : ''}">${esc(state.gTest.msg)}</div>` : ''}` : `
         <input class="input" id="g-key" type="password" autocomplete="off" placeholder="AIza로 시작하는 구글 API 키">
         <div class="btns"><button class="btn wide" data-g-save>구글 키 저장</button></div>`}
@@ -4452,7 +4454,7 @@ function deskSettings() {
             <div class="small muted">넣으면 오늘 탭 맨 아래 앱 버전 옆에 '앱 개선 요청' 버튼이 생겨요. 캡처·영상과 함께 요청하면 클라우드의 Claude가 검토해서 고치고 배포해요. tokyo-trip-desk 저장소에만 Contents·Issues 쓰기 권한을 준 토큰을 넣어 주세요.</div>
       ${deskKey() ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>요청함 토큰 저장됨</b><small>토큰 끝자리 ••••${esc(deskKey().slice(-4))}</small></span>
-          <button class="btn" data-desk-test>연결 확인</button><button class="btn key-del" data-desk-forget aria-label="요청함 토큰 삭제">삭제</button></div>` : `
+          <button class="btn" data-desk-test>연결 확인</button><button class="btn danger key-del" data-desk-forget aria-label="요청함 토큰 삭제">삭제</button></div>` : `
         <input class="input" id="desk-key" type="password" autocomplete="off" placeholder="github_pat_로 시작하는 토큰">
         <div class="btns"><button class="btn wide" data-desk-save>요청함 토큰 저장</button></div>`}
     </div>`;
@@ -4623,7 +4625,7 @@ function openItemForm(id, opt = {}) {
         <button class="btn primary" type="submit" id="f-save">${it ? '저장' : '일정에 추가'}</button>
         ${it ? `<button class="btn" type="button" data-edit-reset="${esc(id)}">원래대로</button>` : '<button class="btn" type="button" data-close>취소</button>'}
       </div>
-      ${it ? `<button class="btn ghost wide f-del" type="button" data-item-del="${esc(id)}">${icon('x')}이 일정 삭제</button>` : ''}
+      ${it ? `<button class="btn danger wide f-del" type="button" data-item-del="${esc(id)}">${icon('trash')}이 일정 삭제</button>` : ''}
     </form>`;
   $('#sheet').hidden = false;
   updateForm();
@@ -5135,7 +5137,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 220;
+const APP_VERSION = 221;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5686,7 +5688,7 @@ const sheetPanel = $('.sheet-panel');
 let pull = null;
 sheetPanel.addEventListener('touchstart', (e) => {
   const t = e.touches[0];
-  const free = sheetPanel.scrollTop <= 0 && e.touches.length === 1 && !e.target.closest('input, textarea, select');
+  const free = sheetPanel.scrollTop <= 0 && e.touches.length === 1 && !e.target.closest('textarea') && e.target !== document.activeElement;
   pull = free ? { x: t.clientX, y: t.clientY, at: Date.now(), dy: 0, on: false } : null;
 }, { passive: true });
 sheetPanel.addEventListener('touchmove', (e) => {
@@ -5718,6 +5720,44 @@ const endPull = () => {
 };
 sheetPanel.addEventListener('touchend', endPull);
 sheetPanel.addEventListener('touchcancel', endPull);
+// The photo viewer closes the same way: pull the photo down and let go.
+const viewerEl = $('#viewer');
+let vpull = null;
+viewerEl.addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  vpull = e.touches.length === 1 && !e.target.closest('button') ? { x: t.clientX, y: t.clientY, at: Date.now(), dy: 0, on: false } : null;
+}, { passive: true });
+viewerEl.addEventListener('touchmove', (e) => {
+  if (!vpull) return;
+  const t = e.touches[0];
+  const dx = Math.abs(t.clientX - vpull.x);
+  const dy = t.clientY - vpull.y;
+  if (!vpull.on) {
+    if (dx + Math.abs(dy) < 8) return;
+    if (dy <= 0 || dx > dy) { vpull = null; return; }
+    vpull.on = true;
+    viewerEl.style.transition = 'none';
+  }
+  vpull.dy = Math.max(0, dy);
+  $('#viewer-track').style.transform = `translateY(${vpull.dy}px)`;
+  viewerEl.style.backgroundColor = `rgba(0,0,0,${Math.max(0.35, 1 - vpull.dy / 400)})`;
+  e.preventDefault();
+}, { passive: false });
+const endVPull = () => {
+  if (!vpull?.on) { vpull = null; return; }
+  const { dy, at } = vpull;
+  vpull = null;
+  const close = dy > 110 || (dy > 40 && dy / (Date.now() - at) > 0.5);
+  const track = $('#viewer-track');
+  track.style.transition = 'transform .2s ease';
+  track.style.transform = close ? 'translateY(100vh)' : '';
+  setTimeout(() => {
+    if (close) viewerEl.hidden = true;
+    track.style.transition = track.style.transform = viewerEl.style.backgroundColor = viewerEl.style.transition = '';
+  }, 200);
+};
+viewerEl.addEventListener('touchend', endVPull);
+viewerEl.addEventListener('touchcancel', endVPull);
 document.addEventListener('touchmove', (e) => {
   if (!overlayOpen() || e.touches.length > 1) return;
   for (let el = e.target; el && el !== document.body; el = el.parentElement) {
