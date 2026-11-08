@@ -4348,7 +4348,7 @@ async function ghApi(path, { method = 'GET', body } = {}) {
   } catch { throw new Error('GitHub에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
   const data = await res.json().catch(() => ({}));
   if (res.ok) return data;
-  if (res.status === 401) throw new Error('요청함 토큰이 맞지 않거나 만료됐어요. 설정 › 개선 요청함에서 확인해 주세요.');
+  if (res.status === 401) throw new Error('요청함 토큰이 맞지 않거나 만료됐어요. 설정 › AI 도우미 › 개선 요청함에서 확인해 주세요.');
   if (res.status === 403 || res.status === 404) throw new Error('토큰에 tokyo-trip-desk 저장소의 Contents·Issues 쓰기 권한이 있는지 확인해 주세요.');
   if (res.status === 422 && /too large|size/i.test(data.message || '')) throw new Error('파일이 너무 커요. 영상은 20초 이내로 찍어 주세요.');
   throw new Error(`GitHub 오류 (${res.status}) ${data.message || ''}`.trim());
@@ -4483,10 +4483,11 @@ function aiSettings() {
     </div>`;
 }
 
-// 설정 › 개선 요청함: the GitHub token for the 💬 request box.
+// 설정 › AI 도우미 › 개선 요청함 (AI 도우미의 하위 기능): the GitHub token for the 💬 request box.
 function deskSettings() {
   return `
-    <div class="card ai-set">
+    <div class="card ai-set desk-set">
+      <div class="ai-sub first">${aiBadge('xs')}개선 요청함 <small>클라우드 Claude</small></div>
             <div class="small muted">넣으면 오늘 탭 맨 아래 앱 버전 옆에 '앱 개선 요청' 버튼이 생겨요. 캡처·영상과 함께 요청하면 클라우드의 Claude가 검토해서 고치고 배포해요. tokyo-trip-desk 저장소에만 Contents·Issues 쓰기 권한을 준 토큰을 넣어 주세요.</div>
       ${deskKey() ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>요청함 토큰 저장됨</b><small>토큰 끝자리 ••••${esc(deskKey().slice(-4))}</small></span>
@@ -4509,10 +4510,9 @@ function settingsBody() {
           <div class="seg-row">${PEOPLE.map((w) => `<button class="seg ${me === w ? 'on' : ''}" data-who="${w}">${w}폰</button>`).join('')}</div>
           <button class="set-row tap" data-nick="${esc(me)}"><span class="grow"><b>부르는 이름</b><small>아침 준비 카드에서 이렇게 불러요</small></span><em>${esc(callOf(me))}</em>${icon('pen')}</button>
         </div>`)}
-      ${sec('spark', 'AI 도우미', aiSettings())}
+      ${sec('spark', 'AI 도우미', aiSettings() + deskSettings())}
       ${sec('refresh', '동기화', syncPanel())}
       ${sec('clock', '일정 알림', alarmPanel())}
-      ${sec('talk', '개선 요청함', deskSettings())}
       ${sec('checklist', '앱 정보', `
         <div class="card set-card">
           <div class="set-row"><span class="grow"><b>앱 버전 v${APP_VERSION}</b><small>${state.latest > APP_VERSION ? `새 버전 v${state.latest}이 있어요` : state.latest === APP_VERSION ? '최신 버전이에요' : '확인 중이에요'}</small></span>
@@ -5173,7 +5173,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 231;
+const APP_VERSION = 232;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
