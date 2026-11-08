@@ -2317,3 +2317,10 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .bigja-grip { position: absolute; top: calc(env(safe-area-inset-top) + 10px); left: 50%; margin: 0; transform: translateX(-50%); }
 .sheet-head h3.sh-ic { display: flex; align-items: center; gap: 8px; }
 .sheet-head h3.sh-ic .ico { width: 24px; height: 24px; flex: none; color: var(--accent); }
+
+/* v260: settings section titles use the app's bar title; the AI star sits after 'AI 도우미' */
+.section-title.set-h { align-items: center; gap: 6px; margin: 22px 4px 10px; font-size: inherit; }
+.set-sec:first-child .section-title.set-h { margin-top: 6px; }
+.section-title.set-h .ai-mark { width: 22px; height: 22px; }
+.section-title.set-h .ai-mark::before { content: none; }
+.section-title.set-h .ai-mark { display: inline-flex; flex: none; line-height: 0; }

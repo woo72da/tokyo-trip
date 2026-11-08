@@ -5186,7 +5186,8 @@ function deskSettings() {
 // One place for the settings: whose phone this is, AI keys, sync and reminders, the request box, the app itself.
 function settingsBody() {
   const me = who();
-  const sec = (ic, title, html, cls = '') => `<section class="set-sec ${cls}"><div class="set-h">${secIcon(ic)}<span>${title}</span></div>${html}</section>`;
+  // Section titles like the rest of the app: a short bar + the title; AI 도우미 keeps its star, after the words.
+  const sec = (ic, title, html, cls = '') => `<section class="set-sec ${cls}"><div class="section-title set-h"><span>${title}</span>${ic === 'spark' ? aiBadge('set') : ''}</div>${html}</section>`;
   return `
     <div class="sheet-head"><h3 class="sh-ic">${icon('gear')}설정</h3></div>
     <div class="settings">
@@ -5899,7 +5900,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 259;
+const APP_VERSION = 260;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
