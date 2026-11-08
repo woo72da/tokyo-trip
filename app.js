@@ -681,6 +681,8 @@ function wxTrip() {
 }
 
 // ---------- expenses (yen, shown with won) ----------
+// 하루 완주 표시(일정 탭 날짜 칸 · 리포트 하루 카드): 금색 별. 세부 일정 완료의 초록 체크와 구분해요.
+const STAR5 = '<svg class="star5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3.1-5.4 3.1 1.2-6L3.3 8.8l6.1-.7z"/></svg>';
 const EXP_CATS = ['식당', '카페', '편의점', '교통', '쇼핑', '관광', '기타'];
 // 분류마다 아이콘 하나: 고르는 칸 왼쪽과 지출 목록 줄에 같은 그림 (DESIGN.md › 경비).
 const EXP_ICON = { 식당: 'meal', 카페: 'coffee', 편의점: 'local', 교통: 'train', 쇼핑: 'shop', 관광: 'torii', 기타: 'money' };
@@ -1866,7 +1868,7 @@ function reportDays(perDay, today) {
     <div class="section-title"><span>하루씩 돌아보기</span></div>
     <div class="rp-days">${perDay.map((x) => `
       <button class="rp-day idx" data-tomorrow="${x.i}">
-        <span class="rp-day-h"><span class="rp-day-no">${x.i + 1}<small>일차</small></span><small>${esc(dayLabel(x.d.date))}${x.d.date === today ? ' · 오늘' : ''}</small>${x.sealed ? '<i class="rp-seal">완료</i>' : ''}</span>
+        <span class="rp-day-h"><span class="rp-day-no">${x.i + 1}<small>일차</small></span><small>${esc(dayLabel(x.d.date))}${x.d.date === today ? ' · 오늘' : ''}</small>${x.sealed ? `<i class="rp-done">${STAR5}완주</i>` : ''}</span>
         <span class="rp-day-t">${esc(stripEmoji(x.d.title))}</span>
         <span class="rp-day-rows">
           ${x.wx ? `<span class="rp-day-w">${wxIcon(x.wx.icon)}<span>${x.wx.min}~${x.wx.max}°${x.wx.rain >= 1 ? ` · 비 ${Math.round(x.wx.rain)}mm` : ''}</span></span>` : ''}
@@ -2634,7 +2636,7 @@ function renderDays() {
     <div class="daypick" role="group" aria-label="날짜 선택">
       ${days.map((d, i) => `
         <button class="dp ${d.date === now.date ? 'today' : ''} ${isDayDone(d.date, now.date) ? 'done' : ''}" data-day="${i}" aria-pressed="${i === state.dayIndex}" ${isDayDone(d.date, now.date) ? 'aria-label="완료한 날"' : ''}>
-          ${isDayDone(d.date, now.date) ? `<em class="dp-ok">${icon('check')}</em>` : ''}<small>${i + 1}일차</small><b>${Number(d.date.slice(8))}</b><span>${WEEKDAYS[dowOf(d.date)]}</span>
+          ${isDayDone(d.date, now.date) ? `<em class="dp-ok" aria-hidden="true">${STAR5}</em>` : ''}<small>${i + 1}일차</small><b>${Number(d.date.slice(8))}</b><span>${WEEKDAYS[dowOf(d.date)]}</span>
           ${wxDay(d.date) ? `<span class="dp-wx">${wxIcon(wxDay(d.date).icon)}${wxDay(d.date).max}°</span>` : ''}
         </button>`).join('')}
     </div>
@@ -5175,7 +5177,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 234;
+const APP_VERSION = 235;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
