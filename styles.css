@@ -2229,3 +2229,20 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .leg-short { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12.5px; font-weight: 700; color: var(--warn); }
 .leg-short .ico { width: 14px; height: 14px; }
 .leg-why { margin-top: 3px; font-size: 11.5px; color: var(--muted); }
+
+/* v243 일정 엔진 S2: 구글 경로 이동 안내 (도보 › 노선 › 도보, 노선·방면, 역 번호, 시각·배차) */
+.leg-src.g { background: var(--now-soft); color: var(--now); }
+.lg-guide { display: grid; gap: 8px; margin-top: 8px; }
+.lg-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.lg-w { display: inline-flex; align-items: center; gap: 2px; padding: 1px 6px; border-radius: 6px; background: var(--soft); font-weight: 700; }
+.lg-w .ico { width: 13px; height: 13px; }
+.lg-l { padding: 1px 7px; border-radius: 6px; background: var(--ln); color: var(--ln-ink); font-weight: 800; font-size: 12px; }
+.lg-gt { font-style: normal; color: var(--muted); }
+.lg-ride { display: grid; gap: 5px; padding: 9px 10px; border-radius: 12px; background: var(--soft); }
+.lg-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.lg-head { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.lg-st { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; font-size: 13.5px; }
+.lg-st b { font-weight: 700; }
+.lg-n { font-size: 12px; color: var(--muted); margin-left: 2px; }
+.lg-time { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 12.5px; color: var(--muted); }
+.lg-time b { font-family: var(--mono); font-size: 13.5px; color: var(--ink); }

@@ -30,7 +30,7 @@ const store = {
 // What the sync carries: bookings (numbers, links, vouchers, checks, expenses, budget) and the plan itself —
 // time changes, skips and swaps (edit:), arrivals and done marks, added stops and places, visits, saved places,
 // day stamps, records and diaries, nicknames and the morning prep check.
-const isShared = (key) => /^(ck|done|visit|save|edit|seal|start|gear|diary|nick|prep):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'cashYen', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
+const isShared = (key) => /^(ck|done|visit|save|edit|seal|start|gear|diary|nick|prep|route):/.test(key) || ['custom', 'cdocs', 'myitems', 'myplaces', 'cashYen', 'pnr', 'agoda', 'esim1', 'esim2', 'exp', 'budget'].includes(key);
 // Deleted list entries and photos are remembered so a sync doesn't bring them back.
 // Ids stay unique across both phones even when two records are made in the same millisecond.
 const uid = (prefix) => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -216,6 +216,92 @@ function estimateLeg(a, b) {
   return km <= 1.2 ? { mode: 'walk', min: Math.max(1, Math.ceil((km * 1000 * 1.3) / 75)), km } : { mode: 'transit', min: Math.ceil(km * 3 + 10), km };
 }
 const LEG_ICON = { walk: '🚶', transit: '🚇', unknown: '🚶' };
+
+// ---------- 일정 엔진 S2: 구글 경로(Routes API)로 이동 시간·노선 ----------
+// Same Google key as places (설정 › AI 도우미 › 구글 장소 키), with Routes API turned on for it. One transit request
+// per leg covers walking too (a short hop comes back as a walk). Results are kept per from/to/weekday/half-hour and
+// shared with the other phone, so a leg is looked up once. A past date asks for the same weekday next week (timetables repeat).
+const R_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+const R_MASK = 'routes.duration,routes.distanceMeters,routes.legs.steps.travelMode,routes.legs.steps.staticDuration,routes.legs.steps.distanceMeters,routes.legs.steps.transitDetails';
+const routeOff = () => store.get('routeOff', '');
+const routeKey = (a, b, date, min) => `route:${a.lat.toFixed(4)},${a.lng.toFixed(4)}>${b.lat.toFixed(4)},${b.lng.toFixed(4)}|${dowOf(date)}|${Math.floor(min / 30)}`;
+function departIso(date, min) {
+  let t = new Date(`${date}T${clock(min)}:00+09:00`).getTime();
+  while (t < Date.now() + 5 * 60000) t += 7 * 86400000;
+  return new Date(t).toISOString();
+}
+const secs = (d) => parseInt(String(d || '0'), 10) || 0;
+const tokyoClock = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' }) : '');
+// Google's answer boiled down to what the leg shows: walks merged, each ride with line, stops, times and direction.
+function routeOf(r) {
+  if (!r) return null;
+  const steps = [];
+  for (const st of r.legs?.[0]?.steps || []) {
+    const t = st.transitDetails;
+    if (!t) {
+      const last = steps[steps.length - 1];
+      const min = secs(st.staticDuration) / 60;
+      if (last?.mode === 'walk') { last.min += min; last.m += st.distanceMeters || 0; } else steps.push({ mode: 'walk', min, m: st.distanceMeters || 0 });
+      continue;
+    }
+    const ln = t.transitLine || {};
+    steps.push({
+      mode: 'ride', min: secs(st.staticDuration) / 60,
+      line: { name: ln.nameShort && ln.name ? ln.name : ln.name || ln.nameShort || '', short: ln.nameShort || '', color: ln.color || '', text: ln.textColor || '', type: ln.vehicle?.type || '' },
+      from: t.stopDetails?.departureStop?.name || '', to: t.stopDetails?.arrivalStop?.name || '',
+      dep: tokyoClock(t.stopDetails?.departureTime), arr: tokyoClock(t.stopDetails?.arrivalTime),
+      head: t.headsign || '', stops: t.stopCount || 0, every: Math.round(secs(t.headway) / 60) || 0,
+    });
+  }
+  steps.forEach((x) => { x.min = Math.max(1, Math.round(x.min)); });
+  return { at: Date.now(), min: Math.max(1, Math.round(secs(r.duration) / 60)), m: r.distanceMeters || 0, steps };
+}
+const routeBusy = new Map();
+async function fetchRoute(a, b, date, min, key) {
+  try {
+    const res = await fetch(R_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': gKey(), 'X-Goog-FieldMask': R_MASK },
+      body: JSON.stringify({
+        origin: { location: { latLng: { latitude: a.lat, longitude: a.lng } } },
+        destination: { location: { latLng: { latitude: b.lat, longitude: b.lng } } },
+        travelMode: 'TRANSIT', departureTime: departIso(date, min), languageCode: 'ja', regionCode: 'JP',
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const why = data.error?.message || '';
+      if (res.status === 403 || (res.status === 400 && /API key/i.test(why))) store.set('routeOff', /not been used|disabled|SERVICE_DISABLED|blocked|not authorized/i.test(why) ? 'api' : 'key');
+      return;
+    }
+    const route = routeOf(data.routes?.[0]);
+    store.set(key, route || { at: Date.now(), none: true });
+    routeBusy.delete(key);
+    render();
+  } catch { /* offline or blocked: try again in a few minutes */ }
+}
+// The cached Google route for a leg, or null (and a lookup is started when possible).
+function googleLeg(a, b, date, min) {
+  if (!gKey() || routeOff() || !a?.lat || !b?.lat) return null;
+  const key = routeKey(a, b, date, min);
+  const hit = store.get(key, null);
+  if (hit) return hit.none ? null : hit;
+  const since = routeBusy.get(key);
+  if (navigator.onLine && (!since || Date.now() - since > 5 * 60000)) { routeBusy.set(key, Date.now()); setTimeout(() => fetchRoute(a, b, date, min, key), 0); }
+  return null;
+}
+// Tokyo names Google gives in Japanese → the trip's own line table (Korean names, station numbers) when it knows them.
+const LINE_ST = () => LINES.flatMap((l) => l.st.map((st) => ({ l, st })));
+const stationOf = (ja, line) => {
+  const n = String(ja || '').replace(/駅$/, '');
+  const all = LINE_ST().filter((x) => x.st.ja === n);
+  return all.find((x) => x.l === line) || all[0] || null;
+};
+const LINE_JA = { JY: ['山手線'], H: ['日比谷線'], G: ['銀座線'], TY: ['東横線'] };
+const lineOf = (g) => LINES.find((l) => (g.short && g.short === l.code)
+  || (g.name && (LINE_JA[l.code] || []).some((k) => g.name.includes(k)))
+  || (g.name && [l.name, ...l.alias].some((a) => g.name.includes(a)))) || null;
+const koHead = (head) => LINE_ST().reduce((t, x) => (x.st.ja.length > 1 ? t.split(x.st.ja).join(x.st.name) : t), String(head || '')).replace(/方面/g, ' 방면').replace(/行き?$/, ' 행');
 function autoLegs(list) {
   const raw = rawLegs();
   const byDate = {};
@@ -236,9 +322,12 @@ function autoLegs(list) {
       // A train ride still works when the new stop is near the old one (same station area, about 1 km); a walk less so.
       const near = m.line ? 1 : 0.5;
       if (samePlace(a, r.prevPt, key(prev), r.prevKey, near) && samePlace(b, r.nextPt, key(next), r.nextKey, near)) return;
-      const leg = estimateLeg(a, b);
       const start = toMin(m.start);
-      const label = leg.mode === 'walk' ? '도보' : leg.mode === 'transit' ? '대중교통' : '이동';
+      const g = googleLeg(a, b, m.date, start);
+      const rides = g?.steps.filter((x) => x.mode === 'ride') || [];
+      const leg = g ? { mode: rides.length ? 'transit' : 'walk', min: g.min, km: g.m / 1000 } : estimateLeg(a, b);
+      const lineKo = rides.length ? (lineOf(rides[0].line)?.name || rides[0].line.name || rides[0].line.short) : '';
+      const label = leg.mode === 'walk' ? '도보' : lineKo || (leg.mode === 'transit' ? '대중교통' : '이동');
       const room = next ? toMin(next.start) - start : null;
       out.set(m, {
         ...m,
@@ -246,7 +335,7 @@ function autoLegs(list) {
         note: leg.min ? `약 ${leg.min}분` : '시간 확인 필요',
         place: { nameJa: b.query, query: b.query }, placeId: undefined,
         ...(m.end && leg.min ? { end: clock(Math.min(1439, start + leg.min)) } : {}),
-        leg: { auto: true, mode: leg.mode, min: leg.min, km: leg.km, from: a.name, to: b.name, source: 'estimate', short: leg.min && room != null && leg.min > room ? leg.min - room : 0 },
+        leg: { auto: true, mode: leg.mode, min: leg.min, km: leg.km, from: a.name, to: b.name, source: g ? 'google' : 'estimate', at: g?.at, steps: g?.steps, short: leg.min && room != null && leg.min > room ? leg.min - room : 0 },
       });
     });
   }
@@ -2695,7 +2784,8 @@ function transitRow(it, cls, late, now, edit, tail) {
         <div class="tl-main">
           <div class="mv-title">${current ? '<i class="mv-now">이동 중</i>' : ''}${esc(it.title)}</div>
           ${it.line ? `<div class="mv-line">${lnRoute(it.line)}</div>` : ''}
-          ${sub || late ? `<div class="mv-sub">${late ? `<em class="mv-late">${esc(delayText(late))}</em>` : ''}${esc(sub)}${it.leg ? `${it.leg.km != null ? ` · ${distLabel(it.leg.km)}` : ''}<i class="leg-src" title="직선거리로 계산한 값이에요">추정</i>` : ''}</div>` : ''}
+          ${sub || late ? `<div class="mv-sub">${late ? `<em class="mv-late">${esc(delayText(late))}</em>` : ''}${esc(sub)}${it.leg ? `${it.leg.km != null ? ` · ${distLabel(it.leg.km)}` : ''}${it.leg.source === 'google' ? `<i class="leg-src g" title="구글 경로로 계산했어요">구글 · ${esc(new Date(it.leg.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Tokyo' }))} 기준</i>` : '<i class="leg-src" title="직선거리로 계산한 값이에요">추정</i>'}` : ''}</div>` : ''}
+          ${it.leg?.steps ? legGuide(it.leg.steps) : ''}
           ${it.leg?.short ? `<div class="leg-short">${icon('warn')}다음 일정까지 ${formatLeft(it.leg.short)} 모자라요</div>` : ''}
           ${it.leg ? '<div class="leg-why">앞뒤 장소가 바뀌어 이동을 다시 계산했어요</div>' : ''}
           ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
@@ -2704,6 +2794,25 @@ function transitRow(it, cls, late, now, edit, tail) {
       </div>
       ${tail}
     </div>`;
+}
+
+// 지하철 안내 (일정 엔진 4.6-1): walk › line › walk strip, then per ride: line chip + name + direction,
+// station numbers (or names) and stop count, times and how often it runs. Platform and car come with S2's city pack later.
+function legGuide(steps) {
+  const strip = steps.map((x) => (x.mode === 'walk' ? `<span class="lg-w">${icon('walk')}${x.min}</span>` : `<span class="lg-l" style="--ln:${esc(x.line.color || '#6b7080')};--ln-ink:${esc(x.line.text || '#fff')}">${esc(lineOf(x.line)?.code || x.line.short || x.line.name)}</span>`)).join('<i class="lg-gt">›</i>');
+  const rides = steps.filter((x) => x.mode === 'ride').map((x) => {
+    const L = lineOf(x.line);
+    const a = stationOf(x.from, L);
+    const b = stationOf(x.to, L);
+    const st = (s0, raw) => (s0 ? `${lnBadge(s0.l, s0.st.no)}<b>${esc(s0.st.name)}</b>` : `<b>${esc(raw)}</b>`);
+    return `
+      <div class="lg-ride">
+        <div class="lg-top">${L ? lnPill(L) : `<span class="ln-pill" style="--ln:${esc(x.line.color || '#6b7080')};--ln-ink:${esc(x.line.text || '#fff')}">${esc(x.line.name || x.line.short)}</span>`}${x.head ? `<span class="lg-head">${esc(koHead(x.head))}</span>` : ''}</div>
+        <div class="lg-st">${st(a, x.from)}<i class="ln-to">→</i>${st(b, x.to)}${x.stops ? `<span class="lg-n">${x.stops}정거장</span>` : ''}</div>
+        <div class="lg-time">${x.dep && x.arr ? `<b>${esc(x.dep)} → ${esc(x.arr)}</b>` : ''}<span>${x.min}분${x.every ? ` · 약 ${x.every}분마다` : ''}</span></div>
+      </div>`;
+  }).join('');
+  return `<div class="lg-guide"><div class="lg-strip">${strip}</div>${rides}</div>`;
 }
 
 // ---------- rail lines: the station-number square and line colour as signed in Tokyo ----------
@@ -4022,6 +4131,14 @@ async function gTest() {
   let msg;
   try { const list = await gSuggest('浅草寺', crypto.randomUUID()); msg = list.length ? '구글 장소 검색이 연결됐어요' : '연결은 됐지만 결과가 없어요'; }
   catch (e) { msg = e.message; }
+  // Routes API on the same key: try one short ride (Ueno → Asakusa) and remember whether it works.
+  store.set('routeOff', '');
+  const pt = (lat, lng) => ({ location: { latLng: { latitude: lat, longitude: lng } } });
+  try {
+    const res = await fetch(R_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': gKey(), 'X-Goog-FieldMask': 'routes.duration' }, body: JSON.stringify({ origin: pt(35.7141, 139.7774), destination: pt(35.7106, 139.7966), travelMode: 'TRANSIT', departureTime: departIso(tokyoNow().date, 600) }) });
+    if (res.ok) msg += ' · 이동 경로도 연결됐어요';
+    else { store.set('routeOff', 'api'); msg += ' · 이동 경로는 꺼져 있어요(Routes API를 켜 주세요)'; }
+  } catch { msg += ' · 이동 경로는 확인하지 못했어요'; }
   state.gTest = { msg, ok: /연결됐어요/.test(msg) }; render(); toast(msg);
 }
 
@@ -4594,7 +4711,7 @@ function aiSettings() {
     </div>
     <div class="card ai-set g-set">
       <div class="ai-sub first">${icon('pin')}구글 장소 키 <small>Places API</small></div>
-      <div class="small muted">넣으면 이름만 입력해도 구글 지도와 같은 위치·영업시간·평점·사진을 가져와요. 웹사이트 제한(woo72da.github.io)과 API 제한(Places API (New))을 걸어 두세요.</div>
+      <div class="small muted">넣으면 이름만 입력해도 구글 지도와 같은 위치·영업시간·평점·사진을 가져와요. 웹사이트 제한(woo72da.github.io)과 API 제한(Places API (New))을 걸어 두세요. 일정의 이동 시간·노선을 구글 경로로 계산하려면 같은 키에 <b>Routes API</b>도 켜고 API 제한에 추가해 주세요.</div>${gKey() && routeOff() ? '<div class="ai-note">이동 경로(Routes API)가 꺼져 있어 이동 시간은 직선거리로 추정해요. 구글 콘솔에서 Routes API를 켠 뒤 \'연결 확인\'을 눌러 주세요.</div>' : ''}
       ${gKey() ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>구글 키 저장됨</b><small>키 끝자리 ••••${esc(gKey().slice(-4))}</small></span>
           <button class="btn" data-g-test ${state.gTest?.busy ? 'disabled' : ''}>${state.gTest?.busy ? '확인 중…' : '연결 확인'}</button><button class="btn danger key-del" data-g-forget aria-label="구글 키 삭제">삭제</button></div>
@@ -5294,7 +5411,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 242;
+const APP_VERSION = 243;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
