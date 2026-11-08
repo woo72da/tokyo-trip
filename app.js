@@ -217,6 +217,33 @@ function estimateLeg(a, b) {
 }
 const LEG_ICON = { walk: '🚶', transit: '🚇', unknown: '🚶' };
 
+// The day's way home ends at the hotel as a real stop ('호텔 복귀 · 휴식'), so it can be checked off, synced and
+// counted like any other. Returns an undo, or null when nothing changed.
+function putHotelStop(date, at) {
+  const list = store.get('myitems', []);
+  const old = list.find((x) => x.date === date && x.autoHotel);
+  const stay = state.trip.stay;
+  if (old) {
+    if (old.start === at) return null;
+    const prev = old.start;
+    store.set('myitems', list.map((x) => (x === old ? { ...x, start: at } : x)));
+    return () => store.set('myitems', store.get('myitems', []).map((x) => (x.id === old.id ? { ...x, start: prev } : x)));
+  }
+  const id = uid('my-it');
+  store.set('myitems', [...list, { id, date, start: at, title: '호텔 복귀 · 휴식', icon: '🏨', autoHotel: true, place: { nameJa: stay.nameJa, query: stay.address || stay.query } }]);
+  return () => { forget('myitems:' + id); store.set('myitems', store.get('myitems', []).filter((x) => x.id !== id)); };
+}
+// Where a leg that is the last thing of its day gets to the hotel: its arrival time, else null.
+function hotelArrival(leg) {
+  if (!leg || !isLegRow(leg)) return null;
+  const items = dayItems(dayOf(leg.date)).filter((x) => !x.skip);
+  const i = items.findIndex((x) => x.id === leg.id);
+  if (i < 0 || items.slice(i + 1).some((x) => !isLegRow(x) && !x.autoHotel)) return null;
+  const to = leg.leg?.to || (/→\s*(.+)$/.exec(stripEmoji(leg.title))?.[1] || '');
+  if (!/호텔|숙소/.test(to)) return null;
+  return clock(Math.min(1439, leg.startMin + (leg.leg?.min || leg.endMin - leg.startMin || 0)));
+}
+
 // '이동 다시 계산': the rides and walks between the stop before and the stop after this one become one leg from
 // where we really are to where we go next, leaving right when the stop before ends. Skipped stops don't count.
 function relegMove(id, { silent = false } = {}) {
@@ -236,11 +263,16 @@ function relegMove(id, { silent = false } = {}) {
     if (k === 0 && prev) { old.start = clock(prev.endMin); old.auto = true; }
     store.set('edit:' + m.id, { ...old, releg: true });
   });
+  // Ending at the hotel: the hotel goes in as a stop at the arrival time.
+  const legNow = chain[0] && dayItems(dayOf(it.date)).find((x) => x.id === chain[0].id);
+  const at = hotelArrival(legNow);
+  const undoHotel = at ? putHotelStop(it.date, at) : null;
+  if (undoHotel) undo.__hotel = undoHotel;
   if (!silent) {
     closeSheet();
     render();
     const leg = planItems().find((x) => x.id === chain[0]?.id);
-    toast(`${leg ? `${leg.start} ${stripEmoji(leg.title)} · ${leg.note}` : '이동'}${chain.length > 1 ? ` · 겹친 이동 ${chain.length - 1}개 정리` : ''}`, () => { for (const [k, v] of Object.entries(undo)) store.set('edit:' + k, v); render(); }, '되돌리기');
+    toast(`${leg ? `${leg.start} ${stripEmoji(leg.title)} · ${leg.note}` : '이동'}${chain.length > 1 ? ` · 겹친 이동 ${chain.length - 1}개 정리` : ''}${undoHotel ? ` · 호텔 복귀 ${at}` : ''}`, () => { for (const [k, v] of Object.entries(undo)) { if (k === '__hotel') v(); else store.set('edit:' + k, v); } render(); }, '되돌리기');
   }
   return undo;
 }
@@ -3036,13 +3068,13 @@ function hotelEnd(items) {
   return `
     <div class="tl-item tl-end">
       <div class="tl-time">${clock(arrive)}<i class="tl-moved">자동</i></div>
-      <div class="tl-card" data-nav="__stay" role="button" tabindex="0">
+      <div class="tl-card" data-hotel-add="${esc(last.date)}|${clock(arrive)}" role="button" tabindex="0">
         ${itemIcon('🏨')}
         <div class="tl-main">
           <div class="tl-title">호텔 도착 · 휴식</div>
-          <div class="tl-sub">${esc(state.trip.stay.name)} · 앞 이동이 끝나는 시각으로 계산했어요</div>
+          <div class="tl-sub">${esc(state.trip.stay.name)} · 앞 이동이 끝나는 시각 · 누르면 일정에 넣어요</div>
         </div>
-        <span class="tl-nav">${icon('nav')}</span>
+        <span class="tl-nav">${icon('plus')}</span>
       </div>
     </div>`;
 }
@@ -4819,15 +4851,18 @@ function aiPlanApply(i) {
     if (op.op === 'releg') {
       delete undo[op.id];
       for (const [k, v] of Object.entries(relegMove(op.id, { silent: true }) || {})) if (!(k in undo)) undo[k] = v;
+      if (undo.__hotel) { state.aiHotelUndo = undo.__hotel; delete undo.__hotel; }
     }
   }
   state.aiPlan = null;
+  const hotelUndo = state.aiHotelUndo; state.aiHotelUndo = null;
   closeSheet(); render();
   toast(`${o.title} · 적용했어요`, () => {
     for (const [k, v] of Object.entries(undo)) {
       if (v === 'new') { forget('myitems:' + k); store.set('myitems', store.get('myitems', []).filter((x) => x.id !== k)); }
       else store.set('edit:' + k, v);
     }
+    if (hotelUndo) hotelUndo();
     render();
   }, '되돌리기');
 }
@@ -5759,7 +5794,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 255;
+const APP_VERSION = 256;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5843,7 +5878,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6031,6 +6066,12 @@ document.addEventListener('click', async (e) => {
   }
   else if ('settings' in d) openSettings(d.settings);
   else if ('reportPreview' in d) { state.reportPreview = true; window.scrollTo(0, 0); render(); }
+  else if (d.hotelAdd) {
+    const [date, at] = d.hotelAdd.split('|');
+    const undo = putHotelStop(date, at);
+    render();
+    toast(`호텔 복귀 ${at} · 일정에 넣었어요`, () => { undo?.(); render(); }, '되돌리기');
+  }
   else if (d.releg) relegMove(d.releg);
   else if (d.routeRetry) routeRetry(d.routeRetry);
   else if (d.qk) { const [k, id] = d.qk.split('|'); openQuick(k, id); }
