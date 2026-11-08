@@ -2059,3 +2059,27 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .ai-tag { padding-left: 5px; }
 .day-sum-row .ai-mark { width: 34px; height: 34px; }
 .finder-go.ai .ai-mark { width: 26px; height: 26px; margin: -3px 0; }
+
+/* v227: AI 버튼 마크 움직임 — 별만 반짝 → 제자리로 → 캐릭터가 휘릭 뒤집히며 등장 → 통통 (약 1.2초) */
+.ai-mark .mk-star, .ai-mark .mk-body { transform-box: fill-box; transform-origin: center; }
+.ai-mark .ico { overflow: visible; }
+.ai-mark.play .mk-star { animation: mk-star 1.25s cubic-bezier(.3,.7,.3,1) both; }
+.ai-mark.play .mk-body { animation: mk-body 1.25s cubic-bezier(.3,.7,.3,1) both; }
+@keyframes mk-star {
+  0% { transform: translate(75px, 66px) scale(.2) rotate(0); opacity: 0; }
+  12% { transform: translate(75px, 66px) scale(2.2) rotate(45deg); opacity: 1; }
+  24% { transform: translate(75px, 66px) scale(1.7) rotate(90deg); }
+  36% { transform: translate(75px, 66px) scale(2.1) rotate(135deg); }
+  62%, 100% { transform: translate(0, 0) scale(1) rotate(180deg); opacity: 1; }
+}
+@keyframes mk-body {
+  0%, 38% { transform: scaleX(0) scale(.7); opacity: 0; }
+  39% { opacity: 1; }
+  52% { transform: scaleX(-1) scale(.9); }
+  66% { transform: scaleX(1.12) scale(1); }
+  76% { transform: scaleX(1) translateY(-6px); }
+  88% { transform: translateY(0); }
+  94% { transform: translateY(-2px); }
+  100% { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .ai-mark.play .mk-star, .ai-mark.play .mk-body { animation: none; } }
