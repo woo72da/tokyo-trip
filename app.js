@@ -1565,7 +1565,9 @@ const stripEmoji = (s) => String(s || '').replace(/^\p{Extended_Pictographic}\uF
 const wxIcon = (name) => icon(name, 'wxi ' + name);
 // 쌍따봉: two thumbs-up side by side, for 강력 추천.
 ICONS.thumbs2 = `<g transform="translate(-6 38) scale(.71)" opacity=".55">${ICONS.thumb}</g><g transform="translate(74 38) scale(.71)">${ICONS.thumb}</g>`;
-const icon = (name, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+// The AI mark is cropped to its own shape so it fills the button slot instead of floating in padding.
+const ICON_VB = { aimark: '24 42 212 194' };
+const icon = (name, cls = '') => `<svg class="ico ${cls}" viewBox="${ICON_VB[name] || '0 0 256 256'}" fill="currentColor" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 
 // ---------- views ----------
 // The flight that matters today, with the plane parked at the end of the line it's on.
@@ -5152,7 +5154,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 225;
+const APP_VERSION = 226;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
