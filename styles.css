@@ -2526,3 +2526,19 @@ button.talk-card-head { width: 100%; border: 0; background: none; padding: 0; fo
   .gp-card { background: #1d2230; box-shadow: 0 12px 32px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.2), 0 -1px 0 rgba(255,255,255,.22); }
 }
 .geo-pop.dark .gp-card { box-shadow: 0 12px 32px rgba(0,0,0,.45), 0 0 0 1.5px var(--gold); }
+
+/* v278: the popup edge is a real border on the panel — it follows the rounded corners, nothing inside can cover it,
+   and it is strong enough to read on a dimmed page. Drop shadows stay for depth; the faint outer rings go. */
+:root { --pop-edge: rgba(10,14,22,.18); }
+@media (prefers-color-scheme: dark) { :root { --pop-edge: rgba(255,255,255,.34); } }
+.sheet-panel, .bigja-panel { border: 1.5px solid var(--pop-edge); border-bottom: 0; box-shadow: 0 -14px 36px rgba(10,14,22,.28); }
+.gm-card, .ask-card { border: 1.5px solid var(--pop-edge); box-shadow: 0 20px 50px rgba(10,14,22,.3); }
+.gp-card { border: 1.5px solid var(--pop-edge); box-shadow: 0 12px 32px rgba(10,14,22,.24); }
+@media (prefers-color-scheme: dark) {
+  .sheet-panel, .bigja-panel { box-shadow: 0 -16px 40px rgba(0,0,0,.85); }
+  .gm-card, .ask-card { box-shadow: 0 20px 50px rgba(0,0,0,.7); }
+  .gp-card { box-shadow: 0 12px 32px rgba(0,0,0,.6); }
+}
+.geo-pop.dark .gp-card { border-color: var(--gold); box-shadow: 0 12px 32px rgba(0,0,0,.45); }
+/* the pinned band and title row sit inside the border, so they start 1.5px in and keep the same width as the content */
+.sheet-panel > .sheet-grip { box-shadow: none; }
