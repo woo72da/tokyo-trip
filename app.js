@@ -426,7 +426,7 @@ const stationOf = (ja, line) => {
   const all = LINE_ST().filter((x) => x.st.ja === n);
   return all.find((x) => x.l === line) || all[0] || null;
 };
-const LINE_JA = { JY: ['山手線'], H: ['日比谷線'], G: ['銀座線'], TY: ['東横線'] };
+const LINE_JA = { JY: ['山手線'], H: ['日比谷線'], G: ['銀座線'], TY: ['東横線'], U: ['ゆりかもめ'], Y: ['有楽町線'] };
 const lineOf = (g) => LINES.find((l) => (g.short && g.short === l.code)
   || (g.name && (LINE_JA[l.code] || []).some((k) => g.name.includes(k)))
   || (g.name && [l.name, ...l.alias].some((a) => g.name.includes(a)))) || null;
@@ -512,10 +512,14 @@ const LINES = [
     st: '도쿄 東京|간다 神田|아키하바라 秋葉原|오카치마치 御徒町|우에노 上野|우구이스다니 鶯谷|닛포리 日暮里|니시닛포리 西日暮里|다바타 田端|고마고메 駒込|스가모 巣鴨|오쓰카 大塚|이케부쿠로 池袋|메지로 目白|다카다노바바 高田馬場|신오쿠보 新大久保|신주쿠 新宿|요요기 代々木|하라주쿠 原宿|시부야 渋谷|에비스 恵比寿|메구로 目黒|고탄다 五反田|오사키 大崎|시나가와 品川|다카나와게이트웨이 高輪ゲートウェイ|다마치 田町|하마마쓰초 浜松町|신바시 新橋|유라쿠초 有楽町' },
   { code: 'TY', name: '도큐 도요코선', alias: ['도요코'], color: '#DA0442', up: '요코하마 방면', down: '시부야 방면',
     st: '시부야 渋谷|다이칸야마 代官山|나카메구로 中目黒|유텐지 祐天寺|가쿠게이다이가쿠 学芸大学|도리쓰다이가쿠 都立大学|지유가오카 自由が丘' },
+  { code: 'U', name: '유리카모메', alias: ['유리카모메'], color: '#1E50A2', up: '도요스 방면', down: '신바시 방면',
+    st: '신바시 新橋|시오도메 汐留|다케시바 竹芝|히노데 日の出|시바우라후토 芝浦ふ頭|오다이바카이힌코엔 お台場海浜公園|다이바 台場|도쿄국제크루즈터미널 東京国際クルーズターミナル|텔레콤센터 テレコムセンター|아오미 青海|도쿄빅사이트 東京ビッグサイト|아리아케 有明|아리아케테니스노모리 有明テニスの森|시조마에 市場前|신도요스 新豊洲|도요스 豊洲' },
+  { code: 'Y', name: '유라쿠초선', alias: ['유라쿠초선'], color: '#C1A470', up: '신키바 방면', down: '와코시 방면',
+    st: '와코시 和光市|지하철나리마스 地下鉄成増|지하철아카쓰카 地下鉄赤塚|헤이와다이 平和台|히카와다이 氷川台|고타케무카이하라 小竹向原|센카와 千川|가나메초 要町|이케부쿠로 池袋|히가시이케부쿠로 東池袋|고코쿠지 護国寺|에도가와바시 江戸川橋|이이다바시 飯田橋|이치가야 市ケ谷|고지마치 麹町|나가타초 永田町|사쿠라다몬 桜田門|유라쿠초 有楽町|긴자잇초메 銀座一丁目|신토미초 新富町|쓰키시마 月島|도요스 豊洲|다쓰미 辰巳|신키바 新木場' },
 ].map((l) => ({ ...l, st: l.st.split('|').map((x, i) => { const [ko, ja] = x.split(' '); return { no: `${l.code}${String(i + 1).padStart(2, '0')}`, name: ko, ja }; }) }));
 // Station positions (OpenStreetMap, 2026-11-08) for the lines above, same order: lets the app plan
 // walk → nearest station → ride → station → walk when Google won't (its API returns no transit routes in Japan).
-const LINE_PTS = {"H": "35.64414,139.69883|35.64697,139.70865|35.65206,139.7222|35.66284,139.73133|35.66296,139.74505|35.66747,139.74776|35.6725,139.75162|35.67374,139.75837|35.67284,139.7631|35.66968,139.76695|35.66808,139.77259|35.675,139.77707|35.68023,139.77942|35.68618,139.78242|35.69075,139.77845|35.69846,139.7755|35.70649,139.7762|35.71171,139.77615|35.72071,139.78458|35.72955,139.7913|35.73235,139.7988|35.74966,139.80451", "G": "35.659,139.70244|35.66523,139.71239|35.67046,139.71788|35.67278,139.72402|35.67632,139.73753|35.67299,139.74142|35.67019,139.75006|35.66719,139.75886|35.67284,139.7631|35.6767,139.77004|35.68208,139.7734|35.68495,139.77307|35.69371,139.77089|35.70294,139.77168|35.70783,139.77299|35.71171,139.77615|35.71139,139.78269|35.70984,139.79075|35.71084,139.79782", "JY": "35.68125,139.76671|35.69179,139.77091|35.69837,139.77303|35.70695,139.77463|35.71341,139.77654|35.7217,139.77792|35.72815,139.77066|35.7322,139.76667|35.73737,139.76171|35.73658,139.74724|35.73341,139.73943|35.73169,139.72859|35.73018,139.71115|35.72119,139.70646|35.71268,139.70364|35.7013,139.70024|35.69026,139.70051|35.68395,139.70208|35.67021,139.70243|35.65808,139.70176|35.64644,139.71021|35.63407,139.71573|35.62626,139.72363|35.61939,139.72849|35.62867,139.73917|35.6354,139.74066|35.64574,139.74769|35.65511,139.75706|35.66617,139.75822|35.67496,139.76304", "TY": "35.65845,139.70284|35.64816,139.70329|35.64414,139.69883|35.63757,139.69101|35.62895,139.68535|35.61754,139.67618|35.60754,139.66883"};
+const LINE_PTS = {"H": "35.64414,139.69883|35.64697,139.70865|35.65206,139.7222|35.66284,139.73133|35.66296,139.74505|35.66747,139.74776|35.6725,139.75162|35.67374,139.75837|35.67284,139.7631|35.66968,139.76695|35.66808,139.77259|35.675,139.77707|35.68023,139.77942|35.68618,139.78242|35.69075,139.77845|35.69846,139.7755|35.70649,139.7762|35.71171,139.77615|35.72071,139.78458|35.72955,139.7913|35.73235,139.7988|35.74966,139.80451", "G": "35.659,139.70244|35.66523,139.71239|35.67046,139.71788|35.67278,139.72402|35.67632,139.73753|35.67299,139.74142|35.67019,139.75006|35.66719,139.75886|35.67284,139.7631|35.6767,139.77004|35.68208,139.7734|35.68495,139.77307|35.69371,139.77089|35.70294,139.77168|35.70783,139.77299|35.71171,139.77615|35.71139,139.78269|35.70984,139.79075|35.71084,139.79782", "JY": "35.68125,139.76671|35.69179,139.77091|35.69837,139.77303|35.70695,139.77463|35.71341,139.77654|35.7217,139.77792|35.72815,139.77066|35.7322,139.76667|35.73737,139.76171|35.73658,139.74724|35.73341,139.73943|35.73169,139.72859|35.73018,139.71115|35.72119,139.70646|35.71268,139.70364|35.7013,139.70024|35.69026,139.70051|35.68395,139.70208|35.67021,139.70243|35.65808,139.70176|35.64644,139.71021|35.63407,139.71573|35.62626,139.72363|35.61939,139.72849|35.62867,139.73917|35.6354,139.74066|35.64574,139.74769|35.65511,139.75706|35.66617,139.75822|35.67496,139.76304", "TY": "35.65845,139.70284|35.64816,139.70329|35.64414,139.69883|35.63757,139.69101|35.62895,139.68535|35.61754,139.67618|35.60754,139.66883", "U": "35.66542,139.75989|35.66290,139.76002|35.65398,139.76194|35.64914,139.75914|35.64173,139.75780|35.62987,139.77884|35.62585,139.77144|35.62142,139.77313|35.61760,139.77941|35.62475,139.78121|35.63026,139.79134|35.63453,139.79321|35.64009,139.78874|35.64580,139.78575|35.64878,139.79016|35.65379,139.79536", "Y": "35.78835,139.61287|35.77670,139.63133|35.76997,139.64417|35.75769,139.65425|35.74986,139.66508|35.74298,139.68070|35.73829,139.68950|35.73328,139.69872|35.72971,139.70973|35.72570,139.71959|35.71910,139.72751|35.70957,139.73360|35.70156,139.74362|35.69236,139.73678|35.68403,139.73767|35.67799,139.74161|35.67746,139.75169|35.67602,139.76215|35.67438,139.76706|35.67065,139.77343|35.66457,139.78477|35.65508,139.79625|35.64552,139.81074|35.64597,139.82665"};
 for (const l of LINES) (LINE_PTS[l.code] || '').split('|').forEach((p, i) => { const [lat, lng] = p.split(',').map(Number); if (l.st[i]) Object.assign(l.st[i], { lat, lng }); });
 // Which way a ride goes, as signs say it. On the Yamanote loop that depends on where you board: the next two
 // big stations ahead (from Ebisu toward Okachimachi the inner loop reads 시나가와·도쿄 방면).
@@ -626,12 +630,18 @@ const delayText = (d) => (d.kind === 'over' ? `${formatLeft(d.min)} 초과` : d.
 
 // Minutes to get from one stop to the next: none around a move row or within one place, the walk when
 // it's close (same estimate as the timeline), otherwise about 3 min/km + 10 by train; 10 when unknown.
+let travelMode = null;
+const taxiMin = (km) => Math.max(5, Math.ceil(km * 3) + 4);
+// Tokyo fare, roughly: 500 yen for the first 1.096 km, then 100 yen per 255 m.
+const taxiFare = (km) => Math.round((500 + Math.max(0, km - 1.096) * 392) / 10) * 10;
 function travelMin(a, b) {
   if (!a || !b || isMove(a) || isMove(b)) return 0;
   const pa = placeOfItem(a.id);
   const pb = placeOfItem(b.id);
   if (pa && pa === pb) return 0;
   if (!pa?.lat || !pb?.lat) return 10;
+  // Trying the taxi way: door to door at about 20 km/h plus getting one (no walk to a station, no platform).
+  if (travelMode === 'taxi') { const k = kmBetween(pa, pb); if (k >= 0.4) return taxiMin(k); }
   // 일정 엔진 S3: a Google route already looked up for this pair wins, with the leg buffer (+15%, at least 3 min).
   const g = gKey() && store.get(routeKey(pa, pb, a.date || b.date, a.endMin ?? toMin(a.end || a.start)), null);
   if (g && !g.none) return g.min + Math.max(3, Math.ceil(g.min * 0.15));
@@ -2690,7 +2700,7 @@ function squeezeWays(q) {
     return need <= 0 && fits(seq, cut) ? cut : null;
   };
   const lay = (seq, cut) => { const out = []; packEnd(seq, cut, out, null, nowMin, q.from); return out; };
-  const line = (o, cut) => (o.begun ? `${shortName(o.it)} ${clock(o.end)}에 나가기` : `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)}${cut[o.it.id] ? (isWalk(o.it) ? ` · 걷지 말고 택시로 (${o.end - o.start}분)` : ` · ${cut[o.it.id]}분 줄임`) : ''}`);
+  const line = (o, cut) => (o.begun ? `${shortName(o.it)} ${clock(o.end)}에 나가기` : `${shortName(o.it)} ${clock(o.start)}–${clock(o.end)}${cut[o.it.id] ? (isWalk(o.it) || (travelMode === 'taxi' && isLegRow(o.it)) ? ` · ${isWalk(o.it) ? '걷지 말고 ' : ''}택시로 (${o.end - o.start}분)` : ` · ${cut[o.it.id]}분 줄임`) : ''}`);
   // Every stop up to the fixed one, so the whole run to it can be checked at a glance.
   const runLines = (out, cut) => [...out.filter((o) => cut[o.it.id] || o.start !== o.it.startMin || o.end !== o.it.endMin).map((o) => line(o, cut)),
     `${shortName(W)} ${clock(Math.max(W.startMin, packEnd(out.map((o) => o.it), cut, [], W, nowMin, q.from)))} 도착 (${W.enterBy || W.start}까지)`];
@@ -2744,6 +2754,56 @@ function squeezeWays(q) {
         most ? `그 뒤 일정 ${rest.length}개 최대 ${formatLeft(most)} 밀림 · 하루 끝 ${clock(last.end)}` : '그 뒤 일정은 그대로'] };
   };
   for (const wy of [moveWay(false), moveWay(true)]) if (wy) ways.push(wy);
+  // 4. 택시로 가기: the hops (and rides) to the fixed stop by taxi, so nothing gets shorter.
+  // A planned ride has no distance on it: take it from the stops on either side.
+  const run = [q.from, ...pend, W].filter(Boolean);
+  const legKm = (x) => {
+    if (x.leg?.km != null) return x.leg.km;
+    const i = run.indexOf(x);
+    const a = legPoint(run.slice(0, i).reverse().find((y) => !isLegRow(y)));
+    const b = legPoint(run.slice(i + 1).find((y) => !isLegRow(y)));
+    return a?.lat && b?.lat ? kmBetween(a, b) : null;
+  };
+  travelMode = 'taxi';
+  try {
+    const tcut = {};
+    for (const x of pend) if (isLegRow(x) && !started(x) && legKm(x) != null) { const t = taxiMin(legKm(x)); if (t < x.endMin - x.startMin) tcut[x.id] = x.endMin - x.startMin - t; }
+    // Only worth showing when the plain run doesn't already fit as it is, and the taxi run does.
+    if (!(c1 && !Object.keys(c1).length) && fits(pend, tcut)) {
+      const cut = { ...tcut };
+      const out = lay(pend, cut);
+      // Fare: each hop between stops (and each ride swapped for a taxi), from where the stops are.
+      let km = 0; let prev = q.from;
+      for (const x of [...pend, W]) { const a = prev && placeOfItem(prev.id); const b = placeOfItem(x.id); if (a?.lat && b?.lat && kmBetween(a, b) >= 0.4) km += kmBetween(a, b); prev = x; }
+      km += Object.keys(tcut).reduce((t, id) => t + (legKm(pend.find((x) => x.id === id)) || 0), 0);
+      ways.push({ title: `택시로 가기 · 줄이지 않고 (약 ${taxiFare(km).toLocaleString('ko-KR')}엔)`, out, skip: [], after: [], taxi: true, lines: [...runLines(out, cut), `이동은 모두 택시 · 약 ${km.toFixed(1)}km`] });
+    }
+  } finally { travelMode = null; }
+  // 5. 가까운 곳으로 바꾸기: a stop swapped for one of the same kind near the fixed stop, so getting there is quicker.
+  const near = placeOfItem(W.id) || legPoint(W);
+  if (near?.lat && !(c1 && !Object.keys(c1).length)) {
+    for (const x of pend.filter((y) => !isMove(y) && !started(y) && !isFixed(y) && placeCat(y))) {
+      const here = placeOfItem(x.id);
+      const cands = allPlaces().filter((p) => p.lat && p.id !== here?.id && p.cat === placeCat(x) && visitOf(p.id)?.again !== 'no' && openNow(p, { date: x.date, min: x.startMin }) !== false && kmBetween(p, near) <= 1.5)
+        .sort((a, b) => kmBetween(a, near) - kmBetween(b, near)).slice(0, 4);
+      let pick = null;
+      for (const p of cands) {
+        swapPreview[x.id] = p;
+        const cc = cutFor(pend);
+        if (cc && !Object.keys(cc).length) { pick = p; break; }
+      }
+      if (pick) {
+        // Times and the arrival worked out with the new place still in, so they match what applying gives.
+        const out = lay(pend, {});
+        const lines = [`${shortName(x)} → ${pick.name} · ${shortName(W)}까지 ${distLabel(kmBetween(pick, near))}`, ...runLines(out, {})];
+        delete swapPreview[x.id];
+        ways.push({ title: `${shortName(x)} 대신 ${pick.name} (가까운 곳)`, out, skip: [], after: [], swap: { id: x.id, place: pick.id }, lines });
+        break;
+      }
+      delete swapPreview[x.id];
+    }
+    for (const k of Object.keys(swapPreview)) delete swapPreview[k];
+  }
   return ways;
 }
 function openSqueeze(date) {
@@ -2772,14 +2832,17 @@ function applySqueeze(i) {
   };
   for (const o of [...wy.out, ...wy.after]) {
     const st = o.start; const en = o.end;
-    const taxi = isMove(o.it) && glyph(o.it.icon)[0] === 'walk' && en - st < o.it.endMin - o.it.startMin;
+    const taxi = (wy.taxi ? isLegRow(o.it) : isMove(o.it) && glyph(o.it.icon)[0] === 'walk') && en - st < o.it.endMin - o.it.startMin;
     if (st !== o.it.startMin || en !== o.it.endMin || o.past) put(o.it.id, { start: clock(st), end: clock(Math.min(1439, en)), auto: true, ...(o.past ? { past: o.past, skip: false } : {}), ...(taxi ? { note: `택시로 ${en - st}분 (시간 맞추기)` } : {}) });
   }
   for (const x of wy.skip) put(x.id, { skip: true });
+  if (wy.swap) put(wy.swap.id, { swap: wy.swap.place });
   // Arriving inside the entry window: the fixed stop starts when we get there, so the list stays in order.
   const W = state.squeeze.W;
   const lastOut = wy.out[wy.out.length - 1];
+  travelMode = wy.taxi ? 'taxi' : null;
   const arrive = lastOut ? lastOut.end + travelMin(lastOut.it, W) : W.startMin;
+  travelMode = null;
   if (W.enterBy && arrive > W.startMin && arrive <= toMin(W.enterBy)) put(W.id, { start: clock(arrive), auto: true });
   closeSheet();
   render();
@@ -3737,7 +3800,10 @@ const allPlaces = () => [
   ...fixMyPlaces().map((p) => ({ ...p, area: '내 장소', mine: true, desc: p.memo })),
 ];
 const placeById = (id) => allPlaces().find((p) => p.id === id);
+// While working out ways to fit a fixed stop, a stop can be tried at another place without saving it.
+const swapPreview = {};
 function placeOfItem(itemId) {
+  if (swapPreview[itemId]) return swapPreview[itemId];
   const edit = store.get('edit:' + itemId, null);
   if (edit?.swap) return placeById(edit.swap);
   if (edit && 'placeId' in edit) return placeById(edit.placeId);
@@ -5419,6 +5485,43 @@ function toggleSkip(id) {
   // Bringing a stop back can squeeze a fixed one; the ways to fit it open right away.
   const it = findItem(id);
   if (old.skip && it && squeezeOf(it.date, tokyoNow())) openSqueeze(it.date);
+  // Skipping today leaves a hole: offer (never apply on its own) to bring the stops right after it forward.
+  const pull = !old.skip && it && pullEarlier(it);
+  if (pull) toast(`${shortName(it)} 건너뜀 · 다음 ${pull.length}개를 최대 ${formatLeft(Math.max(...pull.map((c) => c.it.startMin - c.start)))} 앞당길 수 있어요`, () => applyPull(pull), '앞당기기');
+}
+// The stops that follow straight on from a skipped one (until a fixed stop, one under way, or free time),
+// laid back to back from where the skipped one began, never before now.
+function pullEarlier(item) {
+  const now = tokyoNow();
+  if (now.date !== item.date) return null;
+  const all = dayItems(dayOf(item.date));
+  const it = all.find((x) => x.id === item.id);
+  if (!it || it.endMin <= now.min) return null;
+  const items = all.filter((x) => !x.skip && x.id !== it.id);
+  let prev = items.filter((x) => x.endMin <= it.startMin && !isLegRow(x)).pop() || null;
+  let cur = Math.max(now.min, it.startMin);
+  let lastEnd = it.endMin;
+  const out = [];
+  for (const x of items.filter((y) => y.startMin >= it.startMin && !isDone(y.id))) {
+    if (isFixed(x) || isBegun(x) || x.startMin - lastEnd > 15) break;
+    lastEnd = Math.max(lastEnd, x.endMin);
+    const st = Math.max(cur + (isLegRow(x) ? 0 : travelMin(prev, x)), now.min);
+    if (st >= x.startMin) break;
+    out.push({ it: x, start: st, end: st + x.endMin - x.startMin });
+    cur = st + x.endMin - x.startMin;
+    if (!isLegRow(x)) prev = x;
+  }
+  return out.some((c) => !isLegRow(c.it) && c.it.startMin - c.start >= 5) ? out : null;
+}
+function applyPull(list) {
+  const undo = {};
+  for (const c of list) {
+    const old = store.get('edit:' + c.it.id, null);
+    undo[c.it.id] = old;
+    store.set('edit:' + c.it.id, { ...(old || {}), start: clock(c.start), ...(c.it.end || old?.end ? { end: clock(c.end) } : {}), auto: true });
+  }
+  render();
+  toast(`${list.length}개 앞당겼어요`, () => { for (const [k, v] of Object.entries(undo)) store.set('edit:' + k, v); render(); }, '되돌리기');
 }
 // Deleting only hides the stop, so it can come back from the day's edit mode.
 function deleteItem(id) {
@@ -5796,7 +5899,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 257;
+const APP_VERSION = 258;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
