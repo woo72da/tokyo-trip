@@ -5972,7 +5972,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 267;
+const APP_VERSION = 268;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6547,10 +6547,14 @@ new MutationObserver(() => {
 }).observe($('#sheet-body'), { childList: true });
 // With the popup at its top, pulling it down drags it along and closes it past a short distance or on a quick flick.
 const sheetPanel = $('.sheet-panel');
+// Once the content scrolls under the pinned top, a hairline marks the edge.
+sheetPanel.addEventListener('scroll', () => sheetPanel.classList.toggle('scrolled', sheetPanel.scrollTop > 4), { passive: true });
 let pull = null;
 sheetPanel.addEventListener('touchstart', (e) => {
   const t = e.touches[0];
-  const free = sheetPanel.scrollTop <= 0 && e.touches.length === 1 && !e.target.closest('textarea') && e.target !== document.activeElement;
+  // The pinned grip and title row pull the popup down even when its content has scrolled.
+  const onTop = sheetPanel.scrollTop <= 0 || e.target.closest('.sheet-grip, #sheet-body > .sheet-head:first-child');
+  const free = onTop && e.touches.length === 1 && !e.target.closest('textarea') && e.target !== document.activeElement;
   pull = free ? { x: t.clientX, y: t.clientY, at: Date.now(), dy: 0, on: false } : null;
 }, { passive: true });
 sheetPanel.addEventListener('touchmove', (e) => {
