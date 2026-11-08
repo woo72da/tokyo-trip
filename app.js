@@ -4096,7 +4096,11 @@ function openPlace(id) {
     ${p.addr ? `<div class="small muted">${esc(p.addr)}</div>` : ''}
     ${placeSource(p)}
     ${p.r || !p.src ? infoCard({ info: placeInfo(p) }) : ''}
-    ${state.swapFor ? `<div class="btns"><button class="btn primary wide" data-item-swap="${esc(id)}">이 일정을 여기로 변경</button></div>` : ''}
+    ${state.swapFor ? `<div class="btns">
+      <div class="wide">${mapBtn(mapUrl, p.src && !p.lat ? '구글지도에서 찾기' : '구글지도에서 보기')}</div>
+      ${p.src && !p.lat ? '' : `<a class="btn wide" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat ? `${p.lat},${p.lng}` : q}&travelmode=transit" target="_blank" rel="noopener">${icon('nav')}길찾기</a>`}
+      <button class="btn primary wide" data-item-swap="${esc(id)}">${icon('swap')}이 일정을 여기로 변경</button>
+    </div>` : `
     <div class="btns">
       <div class="wide">${mapBtn(mapUrl, p.src && !p.lat ? '구글지도에서 찾기' : '구글지도에서 보기')}</div>
       ${p.src && !p.lat ? '' : `<a class="btn primary wide" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat ? `${p.lat},${p.lng}` : q}&travelmode=transit" target="_blank" rel="noopener">${icon('nav')}길찾기</a>`}
@@ -4106,14 +4110,14 @@ function openPlace(id) {
     : `<button class="btn wide" data-place-plan="${esc(id)}">${icon('plus')}일정에 넣기</button>`}
       ${p.mine && gKey() ? `<button class="btn wide" data-place-refresh="${esc(id)}">${icon('refresh')}구글 정보로 다시 채우기</button>` : ''}
       ${p.mine ? `<button class="btn danger wide" data-place-del="${esc(id)}">${icon('trash')}내 장소 삭제</button>` : ''}
-    </div>
-    <div class="section-title"><span>내 기록</span></div>
+    </div>`}
+    ${state.swapFor ? '' : `<div class="section-title"><span>내 기록</span></div>
     ${v ? `<div class="rate-row">${rateBtns(id, v.again, 'place')}</div>` : ''}
     <textarea class="input place-memo" data-place-memo="${esc(id)}" rows="3" maxlength="300" placeholder="맛, 분위기, 다시 가고 싶은지 남겨 보세요">${esc(v?.memo || '')}</textarea>
     <div class="btns">
       <button class="btn" data-doc-add="place-${esc(id)}">${icon('camera')}사진 추가</button>
       <button class="btn" data-doc-view="place-${esc(id)}" ${hasPhoto ? '' : 'disabled'}>${icon('image')}사진 보기</button>
-    </div>`;
+    </div>`}`;
   $('#sheet').hidden = false;
 }
 
@@ -5880,15 +5884,15 @@ function openItem(id) {
     ${isLegRow(it) && !isFixed(it) && !it.skip ? `<div class="btns"><button class="btn wide" data-releg="${esc(it.id)}">${icon('refresh')}이동 다시 계산 · 지금 앞뒤 일정 기준</button></div>` : ''}
     ${it.docs ? `<div class="section-title"><span>여기서 쓸 바우처</span></div><div class="btns">${docBtns(it, 'btn wide')}</div>` : ''}
     ${it.link ? `<div class="section-title"><span>${esc(it.link.title || '위치 안내')}</span></div><div class="btns"><a class="btn wide" href="${esc(/Android/i.test(navigator.userAgent) && it.link.android || it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
-    <div class="btns">
-      ${it.place?.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', pending ? 'primary wide' : 'wide') : ''}
-      ${it.place && it.place.lang !== 'ko' ? navBtn(it.id, '길찾기', pending ? 'primary wide' : 'wide') : ''}
-    </div>
     ${it.place && it.place.lang !== 'ko' ? `
       <div class="map-row">
         ${mapBtn(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(it.place.query || it.place.nameJa)}`)}
         <button class="tool" data-ja="${esc(it.id)}">${icon('ja')}보여주기</button>
       </div>` : ''}
+    <div class="btns">
+      ${it.place?.lang === 'ko' ? navBtn(it.id, '네이버지도로 보기', pending ? 'primary wide' : 'wide') : ''}
+      ${it.place && it.place.lang !== 'ko' ? navBtn(it.id, '길찾기', pending ? 'primary wide' : 'wide') : ''}
+    </div>
     <div class="act" role="group" aria-label="일정 상태">
       ${canArrive(it, now) ? `<button class="act-arrive" data-arrive="${esc(it.id)}">${icon(isTransit(it) ? 'nav' : 'pin')}<span class="grow"><b>${arriveLabel(it)}</b><small>${now.min < toMin(it.start) ? `예정보다 일찍 왔으면 지금 ${clock(now.min)}부터 시작해요` : delayOf(it, now) && !isFixed(it) && now.min - toMin(it.start) >= 10 ? `지금 ${clock(now.min)} 기준으로 이 일정과 뒤 일정을 다시 맞춰요` : '늦음 표시가 멈추고, 나갈 때 완료를 누르면 돼요'}</small></span></button>` : ''}
       <button class="act-done ${done ? 'on' : ''} ${it.skip ? 'off' : ''}" data-done="${esc(it.id)}" aria-pressed="${done}">
@@ -5972,7 +5976,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 269;
+const APP_VERSION = 270;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
