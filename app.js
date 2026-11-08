@@ -2755,7 +2755,9 @@ function quickSwap(id, placeId) {
   store.set('edit:' + id, { ...(old || {}), swap: placeId });
   closeSheet();
   render();
-  toast(`${placeById(placeId)?.name || '다른 곳'}(으)로 바꿨어요 · 이동을 다시 계산했어요`, () => { store.set('edit:' + id, old); render(); }, '되돌리기');
+  const day = findItem(id)?.date;
+  const redone = planItems().some((x) => x.leg && !x.del && x.date === day);
+  toast(`${placeById(placeId)?.name || '다른 곳'}(으)로 바꿨어요${redone ? ' · 이동을 다시 계산했어요' : ''}`, () => { store.set('edit:' + id, old); render(); }, '되돌리기');
 }
 
 // Shown above the fixed stop in the day's list and on the today tab.
@@ -5552,7 +5554,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 244;
+const APP_VERSION = 245;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
