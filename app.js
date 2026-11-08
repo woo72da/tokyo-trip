@@ -1403,7 +1403,7 @@ function expenseSection() {
   // Costs matter most before leaving, the spending log once the trip starts.
   const view = state.expView || (tokyoNow().date < state.trip.trip.start ? 'cost' : 'spent');
   return `
-    <div class="section-title" id="exp">${secIcon('money')}<span>경비</span><button class="fx-pill" data-fx aria-label="환율 계산기 열기"><i>¥</i><span class="fx-pill-t">${esc(rate)}</span><i class="chev"></i></button></div>
+    <div class="section-title" id="exp"><span>경비</span><button class="fx-pill" data-fx aria-label="환율 계산기 열기"><i>¥</i><span class="fx-pill-t">${esc(rate)}</span><i class="chev"></i></button></div>
     <div class="card exp">
       <div class="exp-tabs" role="tablist">
         <button class="seg ${view === 'spent' ? 'on' : ''}" data-exp-view="spent" role="tab" aria-selected="${view === 'spent'}">내 지출</button>
@@ -3601,17 +3601,17 @@ function renderWallet() {
     ${walletTabs('wallet')}
     <nav class="wallet-nav" aria-label="바로가기">${[['exp', '경비', 'money'], ['w-air', '항공', 'plane'], ['w-road', '공항 가는 길', 'bus'], ['w-stay', '숙소', 'bed'], ['w-secret', '예약번호', 'id'], ['w-docs', '바우처', 'ticket'], ['w-sos', '긴급', 'phone'], ['w-guide', '안내', 'checklist']].map(([k, l, ic]) => `<button data-jump="${k}">${icon(ic)}${l}</button>`).join('')}</nav>
     ${expenseSection()}
-    <div class="section-title" id="w-air">${secIcon('plane')}<span>항공</span></div>
+    <div class="section-title" id="w-air"><span>항공</span></div>
     ${flights.map(boardingPass).join('')}
     <div class="btns solo">
       <a class="btn" href="${esc(links.jejuair.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(links.jejuair.label)}</a>
       <button class="btn" data-doc-view="doc-eticket">${icon('plane')}e-티켓 사진</button>
     </div>
 
-    <div class="section-title" id="w-road">${secIcon('bus')}<span>공항 가는 길</span></div>
+    <div class="section-title" id="w-road"><span>공항 가는 길</span></div>
     ${state.trip.transfers.map(transferPass).join('')}
 
-    <div class="section-title" id="w-stay">${secIcon('bed')}<span>숙소 · ${esc(stay.bookedVia)}</span></div>
+    <div class="section-title" id="w-stay"><span>숙소 · ${esc(stay.bookedVia)}</span></div>
     <div class="stay">
       <div class="stay-head">
         <div class="grow">
@@ -3643,7 +3643,7 @@ function renderWallet() {
       </details>
     </div>
 
-    <div class="section-title" id="w-secret">${secIcon('id')}<span>예약번호 · 링크</span><em class="muted">폰에만 저장, 동기화로 공유</em></div>
+    <div class="section-title" id="w-secret"><span>예약번호 · 링크</span><em class="muted">폰에만 저장, 동기화로 공유</em></div>
     <div class="card">
       ${SECRETS.map((s) => `
         <label class="field">
@@ -3657,7 +3657,7 @@ function renderWallet() {
         </label>`).join('')}
     </div>
 
-    <div class="section-title" id="w-docs">${secIcon('ticket')}<span>바우처·자료</span><button class="title-add" data-doc-new>${icon('plus')}추가</button></div>
+    <div class="section-title" id="w-docs"><span>바우처·자료</span><button class="title-add" data-doc-new>${icon('plus')}추가</button></div>
     <div class="docs">
       ${allDocs().map((s) => `
         <div class="doc" data-doc="${esc(s.id)}">
@@ -3670,7 +3670,7 @@ function renderWallet() {
         </div>`).join('')}
     </div>
 
-    <div class="section-title" id="w-sos">${secIcon('phone')}<span>긴급 연락처</span></div>
+    <div class="section-title" id="w-sos"><span>긴급 연락처</span></div>
     <div class="card">
       ${(state.trip.emergency || []).map((e) => `
         <a class="sos-row" href="tel:${esc(e.tel.replace(/-/g, ''))}">
@@ -3681,7 +3681,7 @@ function renderWallet() {
     </div>
 
     ${guides.filter((g) => !g.costs).map((g, i) => `
-      <div class="section-title" ${i ? '' : 'id="w-guide"'}>${itemIcon(g.icon, 'sm sec')}<span>${esc(g.title)}</span></div>
+      <div class="section-title" ${i ? '' : 'id="w-guide"'}><span>${esc(g.title)}</span></div>
       <div class="card"><ul class="plain">${g.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>`).join('')}
   `;
 }
@@ -5900,7 +5900,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 260;
+const APP_VERSION = 261;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
