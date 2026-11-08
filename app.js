@@ -1038,8 +1038,8 @@ function expenseSection() {
       <div class="cash-left"><span>엔화 현금 남음</span><b>${yen(Math.max(0, cashTotal() - cashSpent()))}</b><small>환전 ${yen(cashTotal())} 중 ${yen(cashSpent())} 사용</small><button class="link" data-cash>환전액 바꾸기</button></div>
       ${expForm()}
       <div class="btns exp-quick">
-        ${aiKey() ? `<button class="btn ai" data-rcpt-ai>${aiLabel('영수증 사진으로')}</button>` : ''}
         <button class="btn ${aiKey() ? '' : 'wide'}" data-sms-open>${icon('copy')}카드 문자로</button>
+        ${aiKey() ? `<button class="btn ai" data-rcpt-ai>${aiLabel('영수증 사진으로')}</button>` : ''}
       </div>
       ${list.length ? expDays(list) : '<div class="small muted exp-empty">아직 기록이 없어요. 일정을 눌러서도 기록할 수 있어요.</div>'}`}
     </div>`;
@@ -3726,8 +3726,8 @@ function saveAiPlace(pl, url) {
 // then Google's suggestions. A link is looked up on its own once pasted.
 const finderHtml = (w) => `
   <div class="finder" data-finder="${w}">
-    <div class="finder-in">${icon('pin')}<textarea class="input" id="${w}-q" rows="1" autocomplete="off" placeholder="${gKey() ? '장소 이름 또는 구글지도 링크' : '장소 이름 또는 구글지도 공유 내용'}"></textarea>
-      <button type="button" class="finder-go ${aiKey() ? 'ai' : ''}" data-find="${w}" aria-label="찾기">${aiKey() ? aiBadge() : ''}찾기</button></div>
+    <div class="finder-in">${icon('pin')}<textarea class="input" id="${w}-q" rows="1" autocomplete="off" placeholder="장소 이름 또는 지도 링크"></textarea>
+      <button type="button" class="finder-go ai" data-find="${w}" aria-label="찾기">${aiBadge()}찾기</button></div>
     <input class="input finder-name" id="${w}-nm" hidden maxlength="60" autocomplete="off" placeholder="가게 이름 2~3글자 (짧은 링크는 이름이 필요해요)">
     <div class="sugg" id="${w}-sugg"></div>
     <div id="${w}-out"></div>
@@ -4366,7 +4366,7 @@ function openReq(view = 'new') {
     ${view === 'new' ? `
       <textarea class="input ai-ask" id="req-text" rows="4" placeholder="무엇이 이상한지, 어떻게 바뀌면 좋을지 적거나 🎤로 말해 주세요"></textarea>
       <div class="req-files" id="req-files"></div>
-      <div class="btns"><button class="btn" data-req-attach>${icon('camera')}캡처·영상 첨부</button><button class="btn primary" data-req-send>${icon('check')}보내기</button></div>
+      <div class="btns"><button class="btn" data-req-attach>${icon('camera')}캡처·영상 첨부</button><button class="btn ai primary" data-req-send>${aiLabel('보내기')}</button></div>
       <div class="small muted req-ctx">함께 보내는 정보: v${ctx.version} · ${esc(ctx.tab)} 탭${ctx.day ? ` · ${esc(ctx.day)}` : ''}${ctx.sheet ? ` · ${esc(ctx.sheet)}` : ''} · ${esc(ctx.tokyo)}${ctx.errors.length ? ` · 최근 오류 ${ctx.errors.length}건` : ''}</div>
       <div class="small muted">화면 캡처는 아이폰 측면 버튼 + 볼륨 위 버튼, 영상은 제어 센터의 화면 기록으로 찍은 뒤 첨부하세요. 보통 5~15분 안에 반영되고, 결과는 '내 요청'에서 볼 수 있어요.</div>
       <div id="req-out"></div>` : '<div id="req-list"><div class="ai-wait">불러오는 중…</div></div>'}`;
@@ -5167,7 +5167,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 229;
+const APP_VERSION = 230;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

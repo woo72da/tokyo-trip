@@ -169,7 +169,7 @@ a { color: inherit; }
 
 /* cards & chips */
 .card { background: var(--paper); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; }
-.card + .card { margin-top: 10px; }
+.card + .card { margin-top: 12px; }
 .card.list { padding: 4px 16px; }
 .card.note { margin-top: 12px; font-size: 15px; }
 .card.note .small { margin-top: 4px; }
@@ -1886,7 +1886,7 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .rp-paid-row b { font: 700 13.5px var(--mono); white-space: nowrap; }
 
 /* 좋았던 곳: one colour and mark per rating */
-.rp-rate-tally { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.rp-rate-tally { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
 .rp-rate-tally div { display: grid; justify-items: center; gap: 2px; padding: 12px 6px; border-radius: 14px; background: var(--rk-soft); color: var(--rk); }
 .rp-rate-tally div.none { opacity: .45; }
 .rp-rate-tally .ico { width: 20px; height: 20px; }
@@ -1896,7 +1896,7 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .rk-yes { --rk: var(--now); --rk-soft: var(--now-soft); }
 .rk-no { --rk: var(--muted); --rk-soft: var(--soft); }
 .rk-next { --rk: var(--accent); --rk-soft: var(--soft); }
-.rp-rate { margin-bottom: 10px; gap: 0; }
+.rp-rate { margin-bottom: 12px; gap: 0; }
 .rp-rate-h { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; }
 .rp-rate-ic { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--rk-soft); color: var(--rk); }
 .rp-rate-ic .ico { width: 19px; height: 19px; }
@@ -2095,3 +2095,13 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .ai-done small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
 @keyframes ai-pop { 0% { transform: scale(.6); opacity: 0; } 100% { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .ai-done .ai-char { animation: none; } }
+
+/* v230: 예약 탭의 '예약·여행정보 / 체크리스트'는 화면을 나누는 탭 — 버튼 칸 대신 밑줄 탭 */
+.exp-tabs.wallet-tabs { gap: 0; padding: 0; border-radius: 0; background: none; box-shadow: inset 0 -1.5px 0 var(--line); }
+.exp-tabs.wallet-tabs .seg { position: relative; min-height: 46px; border-radius: 0; background: none; color: var(--muted); font-size: 15px; }
+.exp-tabs.wallet-tabs .seg.on { background: none; color: var(--ink); }
+.exp-tabs.wallet-tabs .seg.on::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--accent); }
+.exp-tabs.wallet-tabs .seg:not(.on) .ico { opacity: .7; }
+/* 장소 찾기: 한 줄 입력 + AI 찾기 버튼이 입력칸 높이 가운데 */
+.finder-go.ai { margin-top: 5px; height: 36px; padding: 0 12px 0 9px; gap: 6px; }
+.finder .finder-in textarea.input { background: transparent; border-radius: 0; box-shadow: none; }
