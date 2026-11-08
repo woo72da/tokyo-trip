@@ -3914,10 +3914,36 @@ const placeThumb = (p, size) => { if (!p.photo && !p.photoUrl) refreshPhoto(p); 
 const AGAIN = { best: '강력 추천', yes: '추천', no: '비추천' };
 const againIcon = (k) => (k === 'best' ? `<span class="thumbs two">${icon('thumb')}${icon('thumb')}</span>` : k === 'yes' ? `<span class="thumbs">${icon('thumb')}</span>` : k === 'no' ? `<span class="thumbs">${icon('thumb-down')}</span>` : '');
 const recommended = (v) => v?.again === 'best' || v?.again === 'yes';
-const placeHero = (p) => {
-  if (p && !p.photo && !p.photoUrl) refreshPhoto(p);
-  return p?.photo || p?.photoUrl ? `<div class="place-hero"><img src="${esc(photoSrc(p, 'w800-h400'))}" data-pid="${esc(p.id || '')}" data-alt="${esc(p.photo && p.photoUrl ? p.photoUrl : '')}" alt="" referrerpolicy="no-referrer" onerror="if(this.dataset.alt){this.src=this.dataset.alt;this.dataset.alt=''}else{photoGone(this.dataset.pid);this.parentElement.remove()}"></div>` : '';
+// The place's photos side by side: swipe left/right (snaps one at a time), dots and '2/5' show where you are.
+const placeHero = (p, fresh = false) => {
+  if (p && !fresh) refreshPhoto(p);
+  const list = photoList(p);
+  if (!list.length) return '';
+  const slide = (ph, i) => `<div class="ph-slide"><img src="${esc(photoSrc(ph, 'w800-h400'))}" data-pid="${esc(p.id || '')}" data-alt="${esc(ph.photo && ph.photoUrl ? ph.photoUrl : '')}" alt="" ${i ? 'loading="lazy"' : ''} referrerpolicy="no-referrer" onerror="if(this.dataset.alt){this.src=this.dataset.alt;this.dataset.alt=''}else{heroGone(this)}"></div>`;
+  return `<div class="place-hero ${list.length > 1 ? 'multi' : ''}" data-pid="${esc(p.id || '')}">
+    <div class="ph-track">${list.map(slide).join('')}</div>
+    ${list.length > 1 ? `<div class="ph-dots">${list.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div><span class="ph-count">1/${list.length}</span>` : ''}
+  </div>`;
 };
+// A photo that won't load leaves the set; the last one gone hides the strip and asks Google again.
+function heroGone(img) {
+  const hero = img.closest('.place-hero');
+  img.closest('.ph-slide').remove();
+  const left = hero.querySelectorAll('.ph-slide').length;
+  if (!left) { photoGone(img.dataset.pid); hero.remove(); return; }
+  hero.querySelector('.ph-dots i:last-child')?.remove();
+  heroSync(hero.querySelector('.ph-track'));
+}
+function heroSync(track) {
+  const hero = track.closest('.place-hero');
+  const n = track.children.length;
+  const i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+  hero.querySelectorAll('.ph-dots i').forEach((d, k) => d.classList.toggle('on', k === i));
+  const c = hero.querySelector('.ph-count');
+  if (c) c.textContent = `${Math.min(n, i + 1)}/${n}`;
+  if (n < 2) hero.classList.remove('multi');
+}
+document.addEventListener('scroll', (e) => { if (e.target.classList?.contains('ph-track')) heroSync(e.target); }, true);
 
 function placeCard(p, now) {
   const info = placeInfo(p);
@@ -4321,22 +4347,29 @@ const G_CAT = (types = []) => (types.some((t) => /cafe|coffee|tea_house|bakery|d
     : types.some((t) => /store|shop|mall|market|department/.test(t)) ? 'shop' : 'see');
 const G_STAY = { eat: 60, drink: 40, shop: 45, see: 60 };
 // First photo of a place as an address the app can size ("…=w160-h160-k-no"), plus Google's own full address as a backup.
-async function gPhoto(photos) {
-  if (!photos?.[0]?.name) return { photo: '', photoUrl: '', photoErr: '구글에 등록된 사진이 없어요' };
+// Up to five photos (the first is the cover); each is a short Google link plus the full one as a fallback.
+async function gPhoto(photos, max = 5) {
+  if (!photos?.[0]?.name) return { photo: '', photoUrl: '', photos: [], photoErr: '구글에 등록된 사진이 없어요' };
+  const one = async (ph) => {
+    const r = await gFetch(`${ph.name}/media`, { query: `?maxWidthPx=1200&skipHttpRedirect=true&key=${encodeURIComponent(gKey())}` });
+    const full = r?.photoUri || '';
+    return full ? { photo: /googleusercontent\.com/.test(full) ? full.replace(/=[^=/]*$/, '') : '', photoUrl: full } : null;
+  };
   try {
-    const ph = await gFetch(`${photos[0].name}/media`, { query: `?maxWidthPx=1200&skipHttpRedirect=true&key=${encodeURIComponent(gKey())}` });
-    const full = ph?.photoUri || '';
-    if (!full) return { photo: '', photoUrl: '', photoErr: '사진 주소를 받지 못했어요' };
-    return { photo: /googleusercontent\.com/.test(full) ? full.replace(/=[^=/]*$/, '') : '', photoUrl: full, photoErr: '' };
-  } catch (e) { return { photo: '', photoUrl: '', photoErr: `사진을 못 가져왔어요 · ${e.message}` }; }
+    const list = (await Promise.all(photos.slice(0, max).map((ph) => one(ph).catch(() => null)))).filter(Boolean);
+    if (!list.length) return { photo: '', photoUrl: '', photos: [], photoErr: '사진 주소를 받지 못했어요' };
+    return { ...list[0], photos: list, photoErr: '' };
+  } catch (e) { return { photo: '', photoUrl: '', photos: [], photoErr: `사진을 못 가져왔어요 · ${e.message}` }; }
 }
 // A place saved without a photo (or before photos worked) gets one the next time it's opened, if a Google key is set.
 const photoTried = new Set();
 // Where a fetched photo is kept: on the traveler's own place, or (for the trip file's places) in this phone's 'gfix'.
-function keepPhoto(p, photo, photoUrl) {
-  if (p.mine) store.set('myplaces', store.get('myplaces', []).map((x) => (x.id === p.id || (p.gid && x.gid === p.gid) ? { ...x, photo, photoUrl } : x)));
-  else { store.set('gfix', { ...gFix(), [p.id]: { ...(gFix()[p.id] || {}), photo, photoUrl } }); GFIX = null; }
+function keepPhoto(p, photo, photoUrl, photos = []) {
+  if (p.mine) store.set('myplaces', store.get('myplaces', []).map((x) => (x.id === p.id || (p.gid && x.gid === p.gid) ? { ...x, photo, photoUrl, photos } : x)));
+  else { store.set('gfix', { ...gFix(), [p.id]: { ...(gFix()[p.id] || {}), photo, photoUrl, photos } }); GFIX = null; }
 }
+// A place's photos in order: the fetched set, else the one cover photo.
+const photoList = (p) => (p?.photos?.length ? p.photos : p?.photo || p?.photoUrl ? [{ photo: p.photo, photoUrl: p.photoUrl }] : []);
 // A saved photo link that no longer loads (Google links can expire): fetch a fresh one once, then redraw.
 function photoGone(id) {
   const p = id && placeById(id);
@@ -4345,7 +4378,8 @@ function photoGone(id) {
   refreshPhoto({ ...p, photo: '', photoUrl: '' }, true);
 }
 async function refreshPhoto(p, force = false) {
-  if (!p || (!force && (p.photo || p.photoUrl)) || !gKey()) return;
+  // A place with fewer than three photos fetches up to five (the trip file only kept one cover each).
+  if (!p || (!force && photoList(p).length >= 3) || !gKey()) return;
   // Places with no photo are looked up again at most once a week, so opening the app doesn't keep calling Google.
   const key = p.gid || p.id;
   const tried = store.get('photoTried', {});
@@ -4358,11 +4392,16 @@ async function refreshPhoto(p, force = false) {
     if (!gid) return;
     const d = await gFetch(`places/${encodeURIComponent(gid)}`, { mask: 'photos,location' });
     if (p.lat && d.location && kmBetween(p, { lat: d.location.latitude, lng: d.location.longitude }) > 1) return;
-    const { photo, photoUrl } = await gPhoto(d.photos);
+    const { photo, photoUrl, photos } = await gPhoto(d.photos);
     if (!photo && !photoUrl) return;
-    keepPhoto(p, photo, photoUrl);
+    if (!force && photos.length <= photoList(p).length) return;
+    keepPhoto(p, photo, photoUrl, photos);
     if (!p.mine && !gFix()[p.id]?.gid) { store.set('gfix', { ...gFix(), [p.id]: { ...gFix()[p.id], gid } }); GFIX = null; }
-    if (!$('#sheet').hidden && !$('#sheet-body .place-hero')) $('#sheet-body').insertAdjacentHTML('afterbegin', placeHero({ ...p, photo, photoUrl }));
+    const hero = $('#sheet-body .place-hero');
+    if (!$('#sheet').hidden && (!hero || hero.dataset.pid === String(p.id))) {
+      const html = placeHero({ ...p, photo, photoUrl, photos }, true);
+      if (hero) hero.outerHTML = html; else $('#sheet-body').insertAdjacentHTML('afterbegin', html);
+    }
     if ($('#sheet').hidden) render();
   } catch { /* no photo this time */ }
 }
@@ -4372,7 +4411,7 @@ async function gPlace(id, session) {
   const mask = 'id,displayName,formattedAddress,location,rating,userRatingCount,regularOpeningHours,primaryType,primaryTypeDisplayName,types,photos,googleMapsUri,editorialSummary';
   const d = await gFetch(`places/${encodeURIComponent(id)}`, { mask, query: `?languageCode=ko&regionCode=JP${session ? `&sessionToken=${session}` : ''}` });
   const ja = await gFetch(`places/${encodeURIComponent(id)}`, { mask: 'displayName', query: '?languageCode=ja' }).catch(() => null);
-  const { photo, photoUrl, photoErr } = await gPhoto(d.photos);
+  const { photo, photoUrl, photos, photoErr } = await gPhoto(d.photos);
   const { o, off } = gHours(d.regularOpeningHours?.periods);
   const cat = G_CAT([d.primaryType, ...(d.types || [])].filter(Boolean));
   return {
@@ -4380,7 +4419,7 @@ async function gPlace(id, session) {
     addr: d.formattedAddress || '', ...(d.location ? { lat: d.location.latitude, lng: d.location.longitude } : {}),
     o, off, r: d.rating || null, n: d.userRatingCount ? d.userRatingCount.toLocaleString('ko-KR') : '',
     memo: d.editorialSummary?.text || '', best: [], tips: [], stay: G_STAY[cat], note: '', ai: true, from: 'google',
-    photo, photoUrl, ...(photoErr ? { note: photoErr } : {}), url: d.googleMapsUri || '', kind: d.primaryTypeDisplayName?.text || '', week: d.regularOpeningHours?.weekdayDescriptions || [],
+    photo, photoUrl, photos, ...(photoErr ? { note: photoErr } : {}), url: d.googleMapsUri || '', kind: d.primaryTypeDisplayName?.text || '', week: d.regularOpeningHours?.weekdayDescriptions || [],
   };
 }
 // Claude adds what Google doesn't give: a natural Korean name, one line on why go, picks, tips and visit length.
@@ -4682,7 +4721,7 @@ async function refreshTripPlace(id) {
   const g = await gPlace(gid);
   if (p.lat && g.lat && kmBetween(p, g) > 1) throw new Error(`구글에서 찾은 곳이 1km 넘게 떨어져 있어요 (${g.name})`);
   const fix = { gid, gAt: tokyoNow().date, ...(g.r ? { r: g.r, n: g.n } : {}), ...(g.o ? { o: g.o, off: g.off } : {}), ...(g.addr ? { addr: g.addr } : {}),
-    ...(g.lat ? { lat: g.lat, lng: g.lng } : {}), ...(g.url ? { url: g.url } : {}), ...(g.photo || g.photoUrl ? { photo: g.photo, photoUrl: g.photoUrl } : {}) };
+    ...(g.lat ? { lat: g.lat, lng: g.lng } : {}), ...(g.url ? { url: g.url } : {}), ...(g.photo || g.photoUrl ? { photo: g.photo, photoUrl: g.photoUrl, photos: g.photos || [] } : {}) };
   store.set('gfix', { ...gFix(), [id]: { ...(gFix()[id] || {}), ...fix } });
   GFIX = null;
 }
@@ -6081,7 +6120,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 280;
+const APP_VERSION = 281;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
