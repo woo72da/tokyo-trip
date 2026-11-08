@@ -5200,7 +5200,7 @@ function settingsBody() {
         </div>`)}
       ${sec('spark', 'AI 도우미', aiSettings() + deskSettings(), 'set-ai')}
       ${sec('refresh', '동기화', syncPanel())}
-      ${sec('clock', '일정 알림', alarmPanel())}
+      ${sec('clock', '일정 알림', geoCard() + alarmPanel())}
       ${sec('checklist', '앱 정보', `
         <div class="card set-card">
           <div class="set-row"><span class="grow"><b>앱 버전 v${APP_VERSION}</b><small>${state.latest > APP_VERSION ? `새 버전 v${state.latest}이 있어요` : state.latest === APP_VERSION ? '최신 버전이에요' : '확인 중이에요'}</small></span>
@@ -5901,7 +5901,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 265;
+const APP_VERSION = 266;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5985,7 +5985,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6289,6 +6289,7 @@ document.addEventListener('click', async (e) => {
   else if ('deskTest' in d) ghApi(`repos/${DESK}`).then((r) => toast(r.private ? '요청함에 연결됐어요' : '연결됐지만 요청함이 공개 저장소예요. 비공개로 바꿔 주세요')).catch((e) => toast(e.message));
   else if ('smsPhoto' in d) smsFromPhoto();
   // The AI key lives on each phone, so a phone without one (another person's) still sees the button and is told how to turn it on.
+  else if ('geoSet' in d) geoSet(d.geoSet === 'on');
   else if ('rcptAi' in d) { if (aiKey()) rcptFromPhoto(); else { openSettings('ai'); toast('영수증 사진 읽기는 AI 도우미 키가 있어야 해요. 이 폰에서 키를 넣어 주세요.'); } }
   else if ('menuAi' in d) menuFromPhoto();
   else if ('aiPlan' in d) {
@@ -6747,6 +6748,152 @@ async function init() {
   loadFx();
   loadClips();
   loadLatest();
+  geoStart();
+}
+
+// ---------- 위치로 도착·이동 알아채기 (앱이 켜져 있는 동안만) ----------
+// A: a banner from the top for the everyday ones (arrived? / on the way), C: a centred popup only when a fixed
+// stop is about to be missed. Where the phone is stays on the phone: never stored, never sent.
+// 'geoOn': null = not asked yet, true/false = the traveler's choice.
+const GEO = { watch: null, pos: null, asked: {}, left: {}, late: {}, hideT: null };
+const geoOn = () => store.get('geoOn', null);
+function geoCard() {
+  const on = geoOn() === true;
+  return `<div class="card set-card"><div class="set-row"><span class="grow"><b>위치로 도착·이동 알림</b><small>앱을 열어 둔 동안 다음 장소 근처에 오면 '도착했어요?', 떠나면 '이동 시작'을 알려 줘요. 위치는 이 폰에서만 쓰고 저장하지 않아요</small></span>
+    <button class="btn ${on ? '' : 'primary'}" data-geo-set="${on ? 'off' : 'on'}">${on ? '끄기' : '켜기'}</button></div></div>`;
+}
+const geoToday = () => { const now = tokyoNow(); return state.trip.days.some((d) => d.date === now.date) ? now : null; };
+function geoStart() {
+  if (!navigator.geolocation || !geoToday()) return;
+  if (geoOn() === null) return geoBanner({ key: 'ask', kicker: '위치 알림', title: '도착하면 바로 알려 드릴까요?', sub: '앱을 열어 둔 동안만 위치를 써요 · 저장하지 않아요', yes: ['켜기', () => geoSet(true)], no: ['나중에', () => store.set('geoOn', false)] });
+  if (geoOn() !== true || GEO.watch != null || document.hidden) return;
+  GEO.watch = navigator.geolocation.watchPosition((p) => geoTick({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }), () => {}, { enableHighAccuracy: true, maximumAge: 20000, timeout: 30000 });
+}
+function geoStop() { if (GEO.watch != null) navigator.geolocation.clearWatch(GEO.watch); GEO.watch = null; }
+function geoSet(on) {
+  store.set('geoOn', on);
+  if (on) geoStart(); else geoStop();
+  if (!$('#sheet').hidden && $('#sheet-body .settings')) $('#sheet-body').innerHTML = settingsBody();
+  toast(on ? '위치 알림을 켰어요' : '위치 알림을 껐어요');
+}
+document.addEventListener('visibilitychange', () => (document.hidden ? geoStop() : geoStart()));
+// Each fix: arrived near the next stop → ask; walked away from the stop under way → 'on the way'; a fixed stop
+// out of reach from here → the centred popup. Each asks once ('아직' waits 10 minutes, then once more).
+function geoTick(pos) {
+  GEO.pos = pos;
+  const now = geoToday();
+  if (!now) return;
+  const items = dayItems(dayOf(now.date)).filter((x) => !x.skip && isStopRow(x) && !isDone(x.id));
+  const cur = items.find((x) => isBegun(x));
+  const next = items.find((x) => !isBegun(x) && x !== cur && (!cur || x.startMin >= cur.startMin));
+  const near = (it) => { const pt = it && legPoint(it); return pt?.lat ? kmBetween(pos, pt) * 1000 : null; };
+  const slack = Math.min(pos.acc || 0, 80);
+  // C first: a fixed stop next and not reachable in time from where we are.
+  if (next && isFixed(next)) {
+    const d = near(next);
+    const pt = legPoint(next);
+    const eta = d != null ? geoEta(pos, pt) : null;
+    const last = lastIn(next);
+    const over = eta != null ? now.min + eta - last : 0;
+    const k = next.id;
+    if (d > 200 && over > 0 && Date.now() - (GEO.late[k] || 0) > 10 * 60000) {
+      GEO.late[k] = Date.now();
+      return geoLate(next, over, eta, d, now);
+    }
+  }
+  // A: arrived?
+  if (next) {
+    const d = near(next);
+    const a = GEO.asked[next.id] || { n: 0, at: 0 };
+    if (d != null && d - slack <= 120 && a.n < 2 && Date.now() - a.at > 10 * 60000) {
+      GEO.asked[next.id] = { n: a.n + 1, at: Date.now() };
+      return geoBanner({ key: 'arr:' + next.id, kicker: `지금 위치 · ${Math.max(10, Math.round(d / 10) * 10)}m`, title: `${shortName(next)}에 도착했어요?`,
+        sub: `${next.start} 예정${now.min > next.startMin ? ` · ${formatLeft(now.min - next.startMin)} 늦음` : ''}`,
+        yes: ['도착했어요', () => arrive(next.id)], no: ['아직', () => {}] });
+    }
+    // Walked away again: the next arrival can ask afresh.
+    if (d != null && d > 300 && a.n) GEO.asked[next.id] = { n: 0, at: 0 };
+  }
+  // A: left the stop under way → on the way to the next.
+  if (cur && next && !GEO.left[cur.id]) {
+    const d = near(cur);
+    if (d != null && d - slack > 250) {
+      GEO.left[cur.id] = true;
+      const pt = legPoint(next);
+      const dn = near(next);
+      const eta = pt?.lat ? geoEta(pos, pt) : null;
+      const arriveAt = eta != null ? now.min + eta : null;
+      return geoBanner({ key: 'go:' + cur.id, dark: true, kicker: '이동 시작했어요', title: `${shortName(next)}까지 ${dn != null ? distLabel(dn / 1000) : ''}`,
+        sub: eta != null ? `약 ${eta}분 · ${clock(arriveAt)} 도착 예상${arriveAt <= next.startMin ? ` (여유 ${next.startMin - arriveAt}분)` : ` (${arriveAt - next.startMin}분 늦음)`}` : '',
+        yes: [`${shortName(cur)} 완료`, () => { setDone(cur.id, true); render(); }], no: ['길 안내', () => window.open(geoDir(pt), '_blank', 'noopener')] });
+    }
+  }
+}
+// Minutes from here to a point: the line table when a train helps, else walking.
+function geoEta(a, b) {
+  const t = kmBetween(a, b) > 1.2 && tableRoute(a, b);
+  if (t) return t.min + Math.max(3, Math.ceil(t.min * 0.15));
+  const km = kmBetween(a, b);
+  return km <= 1.5 ? Math.max(1, Math.ceil((km * 1000 * 1.3) / 75)) : Math.ceil(km * 3 + 10);
+}
+const geoDir = (pt) => `https://www.google.com/maps/dir/?api=1&destination=${pt.lat},${pt.lng}&travelmode=transit`;
+// A: the banner from the top. Slides up to close; after 8 s untouched it folds to a small pill that opens it again.
+function geoBanner(o) {
+  let el = $('#geo-pop');
+  if (!el) { el = document.createElement('div'); el.id = 'geo-pop'; document.body.appendChild(el); geoSwipe(el); }
+  clearTimeout(GEO.hideT);
+  el.className = `geo-pop${o.dark ? ' dark' : ''}`;
+  el.innerHTML = `
+    <div class="gp-card" role="alertdialog" aria-live="assertive">
+      <div class="gp-k"><i></i>${esc(o.kicker)}</div>
+      <b class="gp-t">${esc(o.title)}</b>
+      ${o.sub ? `<small class="gp-s">${esc(o.sub)}</small>` : ''}
+      <div class="gp-bs"><button class="gp-yes" type="button">${esc(o.yes[0])}</button><button class="gp-no" type="button">${esc(o.no[0])}</button></div>
+    </div>
+    <button class="gp-pill" type="button">${icon('pin')}<span>${esc(o.title)}</span></button>`;
+  const close = () => { el.classList.remove('in', 'mini'); clearTimeout(GEO.hideT); };
+  el.querySelector('.gp-yes').onclick = () => { close(); o.yes[1](); };
+  el.querySelector('.gp-no').onclick = () => { close(); o.no[1](); };
+  el.querySelector('.gp-pill').onclick = () => { el.classList.remove('mini'); fold(); };
+  const fold = () => { clearTimeout(GEO.hideT); GEO.hideT = setTimeout(() => el.classList.add('mini'), 8000); };
+  requestAnimationFrame(() => el.classList.add('in'));
+  navigator.vibrate?.(60);
+  fold();
+}
+function geoSwipe(el) {
+  let y0 = null;
+  el.addEventListener('touchstart', (e) => { y0 = e.touches[0].clientY; }, { passive: true });
+  el.addEventListener('touchmove', (e) => { if (y0 != null && e.touches[0].clientY - y0 < -30) { el.classList.remove('in', 'mini'); y0 = null; } }, { passive: true });
+}
+// C: the centred popup when a fixed stop slips out of reach; the ways come from the same fitting as '맞추는 방법'.
+function geoLate(W, over, eta, d, now) {
+  const q = squeezeOf(W.date, now);
+  const ways = q ? squeezeWays(q).slice(0, 2) : [];
+  if (q) state.squeeze = { ...q, ways };
+  const k = kmBetween(GEO.pos, legPoint(W));
+  const taxi = k >= 0.4 ? taxiMin(k) : null;
+  let el = $('#geo-modal');
+  if (!el) { el = document.createElement('div'); el.id = 'geo-modal'; document.body.appendChild(el); }
+  el.className = 'geo-modal';
+  el.innerHTML = `
+    <div class="gm-dim"></div>
+    <div class="gm-card" role="alertdialog" aria-modal="true">
+      <div class="gm-k">${icon('warn')}이대로면 ${formatLeft(over)} 늦어요</div>
+      <b class="gm-t">${esc(shortName(W))} ${esc(W.enterBy || W.start)}${W.enterBy ? '까지 입장' : ''}</b>
+      <small class="gm-s">지금 위치에서 약 ${eta}분 · ${distLabel(d / 1000)}${taxi ? ` · 택시면 약 ${taxi}분 (${taxiFare(k).toLocaleString('ko-KR')}엔)` : ''}</small>
+      <div class="gm-bs">
+        ${ways.map((w, i) => `<button class="btn ${i ? '' : 'primary'}" data-gm-way="${i}">${esc(w.title)}</button>`).join('')}
+        <button class="btn ${ways.length ? '' : 'primary'}" data-gm-dir>${icon('nav')}길 안내</button>
+        <button class="btn gm-later" data-gm-close>나중에</button>
+      </div>
+    </div>`;
+  const shut = () => { el.hidden = true; };
+  el.hidden = false;
+  el.querySelector('.gm-dim').onclick = shut;
+  el.querySelector('[data-gm-close]').onclick = shut;
+  el.querySelector('[data-gm-dir]').onclick = () => { shut(); window.open(geoDir(legPoint(W)), '_blank', 'noopener'); };
+  el.querySelectorAll('[data-gm-way]').forEach((b) => { b.onclick = () => { shut(); applySqueeze(+b.dataset.gmWay); }; });
+  navigator.vibrate?.([80, 60, 80]);
 }
 
 if ('serviceWorker' in navigator) {

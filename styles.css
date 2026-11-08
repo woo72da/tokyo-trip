@@ -2339,3 +2339,43 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .sheet-head h3.sh-c { flex: 1; text-align: center; }
 .top-gear { background: none; color: var(--ink); }
 .top-gear .ico { width: 24px; height: 24px; }
+
+/* v266: 위치 알림 — A: a banner that drops from the top (arrived? / on the way), folds to a pill after 8 s;
+   C: a centred popup only when a fixed stop slips out of reach */
+.geo-pop { position: fixed; left: 0; right: 0; top: 0; z-index: 40; padding: calc(env(safe-area-inset-top) + 8px) 10px 0; pointer-events: none;
+  transform: translateY(-120%); transition: transform .28s cubic-bezier(.2,.8,.2,1); max-width: 640px; margin: 0 auto; }
+.geo-pop.in { transform: none; }
+.gp-card { pointer-events: auto; background: var(--paper); color: var(--ink); border-radius: 18px; padding: 12px 14px; box-shadow: 0 12px 32px rgba(10,14,22,.22), 0 0 0 1px var(--line); }
+.geo-pop.dark .gp-card { background: var(--night); color: var(--on-night); box-shadow: 0 12px 32px rgba(0,0,0,.4), inset 0 0 0 1.5px var(--gold); }
+.gp-k { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--gold-ink); }
+.geo-pop.dark .gp-k { color: var(--gold); }
+.gp-k i { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 0 var(--gold); animation: gp-ping 1.6s ease-out infinite; }
+@keyframes gp-ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--gold) 60%, transparent); } 100% { box-shadow: 0 0 0 8px transparent; } }
+.gp-t { display: block; margin-top: 3px; font-size: 16px; font-weight: 800; letter-spacing: -.02em; }
+.gp-s { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
+.geo-pop.dark .gp-s { color: var(--on-night-muted); }
+.gp-bs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.gp-bs button { min-height: 42px; border: 0; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 800; }
+.gp-yes { background: var(--gold); color: #2b1405; }
+.gp-no { background: var(--soft); color: var(--ink); }
+.geo-pop.dark .gp-no { background: rgba(255,255,255,.1); color: var(--on-night); }
+.gp-pill { display: none; pointer-events: auto; margin: 0 auto; align-items: center; gap: 6px; max-width: 80%; padding: 7px 12px; border: 0; border-radius: 999px;
+  background: var(--night); color: var(--on-night); font: inherit; font-size: 13px; font-weight: 700; box-shadow: 0 6px 18px rgba(0,0,0,.25), inset 0 0 0 1.5px var(--gold); }
+.gp-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gp-pill .ico { width: 15px; height: 15px; color: var(--gold); }
+.geo-pop.mini .gp-card { display: none; }
+.geo-pop.mini .gp-pill { display: flex; }
+.geo-modal { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 20px; }
+.geo-modal[hidden] { display: none; }
+.gm-dim { position: absolute; inset: 0; background: rgba(5,8,15,.55); }
+.gm-card { position: relative; width: 100%; max-width: 380px; background: var(--paper); color: var(--ink); border-radius: 22px; padding: 18px; box-shadow: 0 20px 50px rgba(0,0,0,.35); animation: up .22s cubic-bezier(.2,.8,.2,1); }
+.gm-k { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: #E5534B; }
+.gm-k .ico { width: 16px; height: 16px; }
+.gm-t { display: block; margin-top: 6px; font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+.gm-s { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
+.gm-bs { display: grid; gap: 8px; margin-top: 14px; }
+.gm-bs .btn { width: 100%; justify-content: center; }
+.gm-bs .btn.primary { background: var(--gold); color: #2b1405; }
+.gm-later { background: none; color: var(--muted); }
+@media (prefers-color-scheme: dark) { .gm-card { box-shadow: 0 20px 50px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.18); } }
+@media (prefers-reduced-motion: reduce) { .geo-pop { transition: none; } .gp-k i { animation: none; } }
