@@ -2516,3 +2516,13 @@ button.talk-card-head { width: 100%; border: 0; background: none; padding: 0; fo
   .sheet-panel { box-shadow: 0 -16px 40px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.2), 0 -1px 0 rgba(255,255,255,.22); }
   .bigja-panel { box-shadow: 0 -16px 40px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.25), 0 -1px 0 rgba(255,255,255,.25); }
 }
+
+/* v277: the centred popups (confirm/text, running late) and the location banner get the same edge as the popups from
+   below — a thin ring all round and a 1px brighter line along the rounded top */
+.gm-card, .ask-card { box-shadow: 0 20px 50px rgba(10,14,22,.3), 0 0 0 1px rgba(10,14,22,.14), 0 -1px 0 rgba(10,14,22,.08); }
+.gp-card { box-shadow: 0 12px 32px rgba(10,14,22,.24), 0 0 0 1px rgba(10,14,22,.14), 0 -1px 0 rgba(10,14,22,.08); }
+@media (prefers-color-scheme: dark) {
+  .gm-card, .ask-card { box-shadow: 0 20px 50px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.2), 0 -1px 0 rgba(255,255,255,.22); }
+  .gp-card { background: #1d2230; box-shadow: 0 12px 32px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.2), 0 -1px 0 rgba(255,255,255,.22); }
+}
+.geo-pop.dark .gp-card { box-shadow: 0 12px 32px rgba(0,0,0,.45), 0 0 0 1.5px var(--gold); }
