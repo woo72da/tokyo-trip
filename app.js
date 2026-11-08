@@ -2201,7 +2201,7 @@ async function reportImage() {
   g.fillStyle = '#141a28'; g.fillRect(0, 0, W, H);
   g.fillStyle = '#c84b3c'; g.beginPath(); g.arc(W - 120, 150, 230, 0, Math.PI * 2); g.fill();
   g.fillStyle = 'rgba(200,75,60,.18)'; g.beginPath(); g.arc(W - 120, 150, 300, 0, Math.PI * 2); g.fill();
-  g.fillStyle = '#c9a66b'; g.font = font(700, 34); g.fillText(`${dayLabel(f.trip.start)} – ${dayLabel(f.trip.end)}`, 80, 140);
+  g.fillStyle = '#F37021'; g.font = font(700, 34); g.fillText(`${dayLabel(f.trip.start)} – ${dayLabel(f.trip.end)}`, 80, 140);
   g.fillStyle = '#f4f1ea'; g.font = font(800, 92); g.fillText(f.trip.title, 80, 250);
   g.font = font(500, 38); g.fillStyle = 'rgba(244,241,234,.7)'; g.fillText(`${f.days.length}일 동안 ${f.visited}곳을 다녀왔어요`, 80, 320);
   const tiles = [[`${f.visited}`, '방문한 곳'], [`${f.done}`, '마친 일정'], [`${Math.round(f.cost.totalWon / 10000).toLocaleString('ko-KR')}만원`, '총 여행 경비'], [`${f.stamps}/${f.days.length}`, '받은 도장']];
@@ -2212,7 +2212,7 @@ async function reportImage() {
     g.fillStyle = 'rgba(244,241,234,.62)'; g.font = font(600, 32); g.fillText(l, x + 36, y + 165);
   });
   if (f.best.length) {
-    g.fillStyle = '#c9a66b'; g.font = font(700, 32); g.fillText('강력 추천', 80, 1010);
+    g.fillStyle = '#F37021'; g.font = font(700, 32); g.fillText('강력 추천', 80, 1010);
     g.fillStyle = '#f4f1ea'; g.font = font(700, 42);
     f.best.forEach((n, i) => g.fillText(`· ${n}`, 80, 1075 + i * 62));
   }
@@ -5900,7 +5900,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 261;
+const APP_VERSION = 262;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

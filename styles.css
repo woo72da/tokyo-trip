@@ -22,7 +22,9 @@
   --now-soft: #e0efea;
   --warn: #8f6220;
   --warn-soft: #f4ecdc;
-  --gold: #c9a66b;
+  --gold: #F37021;
+  --gold-ink: #B84A0E;
+  --gold-deep: #C2541A;
   --shadow: 0 0 0 1px rgba(16,18,22,.06), 0 1px 2px rgba(16,18,22,.05), 0 8px 18px -10px rgba(16,18,22,.18);
   /* selected chips (day picker, "now" hour, pass tag): dark on light, light on dark */
   --sel-bg: var(--night);
@@ -808,14 +810,14 @@ ol.sync-note { padding-left: 18px; }
 .day-end-next { margin-top: 4px; font-size: 13px; color: var(--on-night-muted); }
 .day-end-sum + .day-end-next { margin-top: 2px; }
 @media (prefers-reduced-motion: reduce) { .day-end, .day-end .star, .seal.hit { animation: none; } }
-/* Running late: an orange alert, not the gold of '다음' — badge with a warning mark, orange edge and wash */
-.hero.wait { --late: #f08a3c; --late-ink: #2b1405; margin-bottom: 12px;
-  background: linear-gradient(180deg, rgba(240,138,60,.20), rgba(240,138,60,0) 120px), var(--night);
+/* Running late: a red alert (v262: orange is now the app's highlight colour) — badge with a warning mark, orange edge and wash */
+.hero.wait { --late: #E5534B; --late-ink: #ffffff; margin-bottom: 12px;
+  background: linear-gradient(180deg, rgba(229,83,75,.20), rgba(229,83,75,0) 120px), var(--night);
   box-shadow: 0 18px 40px -18px rgba(13,18,32,.6), inset 0 0 0 2px var(--late); }
 .hero.wait .eyebrow { color: var(--late); }
 .late-badge { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px 7px 9px; border-radius: 999px; background: var(--late); color: var(--late-ink); font-size: 13.5px; font-weight: 800; animation: late-glow 2s ease-in-out infinite; }
 .late-badge .ico { width: 16px; height: 16px; }
-@keyframes late-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(240,138,60,.55); } 50% { box-shadow: 0 0 0 6px rgba(240,138,60,0); } }
+@keyframes late-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(229,83,75,.55); } 50% { box-shadow: 0 0 0 6px rgba(229,83,75,0); } }
 @media (prefers-reduced-motion: reduce) { .late-badge { animation: none; } }
 .hero.wait .start-ask .start-yes { background: var(--late); color: var(--late-ink); }
 .hero.wait .start-ask > .grow { color: var(--late); }
@@ -1052,7 +1054,7 @@ ol.alarm-note { padding-left: 18px; }
 .bl-act .btn { min-height: 44px; background: rgba(255,255,255,.1); color: var(--on-night); font-size: 14px; }
 .bl-act .btn.primary { background: var(--gold); color: #141a28; }
 .bl-act .ico { width: 16px; height: 16px; }
-.catch-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 44px; margin-top: 10px; border-radius: 12px; border: 1.5px dashed rgba(201,166,107,.6); background: none; color: var(--gold); font: inherit; font-size: 14px; font-weight: 700; }
+.catch-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 44px; margin-top: 10px; border-radius: 12px; border: 1.5px dashed color-mix(in srgb, var(--gold) 60%, transparent); background: none; color: var(--gold); font: inherit; font-size: 14px; font-weight: 700; }
 .catch-btn .ico { width: 16px; height: 16px; }
 
 /* Timeline: a stop running behind keeps full view; a time the app moved says so. */
@@ -2159,9 +2161,9 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .g-set .ai-sub.first .ico { width: 17px; height: 17px; color: var(--now); }
 
 /* v235: 하루 완주 = 금색 별 (세부 일정 완료의 초록 체크와 다르게) */
-.dp-ok { width: 20px; height: 20px; top: -6px; right: -5px; background: color-mix(in srgb, var(--gold) 80%, #6b4a10); color: #fff; }
+.dp-ok { width: 20px; height: 20px; top: -6px; right: -5px; background: var(--gold-deep); color: #fff; }
 .dp-ok .star5 { width: 12px; height: 12px; }
-.rp-done { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px 2px 6px; border-radius: 999px; background: color-mix(in srgb, var(--gold) 80%, #6b4a10); color: #fff; font-size: 11.5px; font-weight: 800; font-style: normal; white-space: nowrap; }
+.rp-done { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px 2px 6px; border-radius: 999px; background: var(--gold-deep); color: #fff; font-size: 11.5px; font-weight: 800; font-style: normal; white-space: nowrap; }
 .rp-done .star5 { width: 12px; height: 12px; }
 
 /* v235: 새 버전이 있을 때 = 굵고 큰 글자 + 앞에서 퍼지듯 깜빡이는 빨간 점 */
@@ -2208,19 +2210,19 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 
 /* v240: 하루 요약 완주 도장 = 여권 도장(금색 이중 테두리, 살짝 기울임) + 뒤에 비치는 노란 별 (날짜 칸 ★ 배지와 연결) */
 .pstamp { position: relative; flex: none; display: grid; place-content: center; width: 64px; height: 56px; margin: 0 2px; border-radius: 12px;
-  border: 2px solid var(--gold-ink, #a8823c); box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3.5px var(--gold-ink, #a8823c);
-  color: var(--gold-ink, #a8823c); text-align: center; line-height: 1.1; transform: rotate(-7deg); }
+  border: 2px solid var(--gold-ink); box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3.5px var(--gold-ink);
+  color: var(--gold-ink); text-align: center; line-height: 1.1; transform: rotate(-7deg); }
 .pstamp b { position: relative; font-size: 14px; font-weight: 800; }
 .pstamp small { position: relative; font-size: 8.5px; font-weight: 800; letter-spacing: .04em; }
 .pstamp b, .pstamp small { text-shadow: 0 0 2px var(--paper), 0 0 3px var(--paper); }
-.ps-star { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; color: #f2c14e; opacity: .55; }
+.ps-star { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; color: var(--gold); opacity: .4; }
 .ps-star .star5 { width: 50px; height: 50px; }
 .pslot { position: relative; flex: none; display: grid; place-items: center; width: 60px; height: 52px; margin: 0 2px; border-radius: 12px; border: 1.5px dashed var(--line); background: none; color: var(--muted); font: inherit; font-size: 11.5px; font-weight: 700; line-height: 1.25; text-align: center; }
 .pslot .ps-star { color: var(--line); opacity: .9; }
 .pslot .ps-star .star5 { width: 42px; height: 42px; }
 .pslot span { position: relative; text-shadow: 0 0 3px var(--paper), 0 0 3px var(--paper); }
 @media (prefers-color-scheme: dark) {
-  .pstamp { --gold-ink: #d4b06a; }
+  .pstamp { --gold-ink: #FF9A55; }
   .ps-star { opacity: .4; }
 }
 
@@ -2310,9 +2312,10 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .ls li.ls-pt small::before, .ls li.ls-st small::before { content: "· "; }
 
 /* v259: popup grip in yellow so a popup reads as one at a glance; title icons; full-screen card grip */
-:root { --grip: #f2b705; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --grip: #ffcc33; } }
-:root[data-theme="dark"] { --grip: #ffcc33; }
+:root { --grip: var(--gold); }
+/* v262: the gold became Hermès-style orange (#F37021); brighter in dark mode, deep ink for small text on white */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --gold: #FF8A3D; --gold-ink: #FF9A55; --gold-deep: #E0651F; } }
+:root[data-theme="dark"] { --gold: #FF8A3D; --gold-ink: #FF9A55; --gold-deep: #E0651F; }
 .sheet-grip { width: 48px; height: 6px; background: var(--grip); box-shadow: 0 0 0 3px color-mix(in srgb, var(--grip) 22%, transparent); }
 .bigja-grip { position: absolute; top: calc(env(safe-area-inset-top) + 10px); left: 50%; margin: 0; transform: translateX(-50%); }
 .sheet-head h3.sh-ic { display: flex; align-items: center; gap: 8px; }
