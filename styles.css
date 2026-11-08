@@ -2333,3 +2333,9 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
   .sheet-backdrop { background: rgba(0,0,0,.6); }
   .sheet-panel { box-shadow: 0 -16px 40px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.22); }
 }
+
+/* v265: 설정·지출 수정 titles centred (side padding keeps clear of the close button); the top gear is just the gear */
+.sheet-head:has(h3.sh-c) { padding-left: 44px; }
+.sheet-head h3.sh-c { flex: 1; text-align: center; }
+.top-gear { background: none; color: var(--ink); }
+.top-gear .ico { width: 24px; height: 24px; }

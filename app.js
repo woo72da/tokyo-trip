@@ -1228,7 +1228,7 @@ function openExpEdit(id) {
   const e = expenses().find((x) => x.id === id);
   if (!e) return;
   $('#sheet-body').innerHTML = `
-    <div class="sheet-head"><h3>지출 수정</h3></div>
+    <div class="sheet-head"><h3 class="sh-c">지출 수정</h3></div>
     <form class="exp-edit exp-form" data-id="${esc(id)}">
       <input class="input exp-wide" name="memo" placeholder="제목 (예: 이치란 라멘)" value="${esc(expTitle(e) === e.cat && !e.memo ? '' : expTitle(e))}" autocomplete="off" aria-label="제목">
       ${expDatePick(e.date)}
@@ -5190,7 +5190,7 @@ function settingsBody() {
   // Section titles like the rest of the app: a short bar + the title; AI 도우미 keeps its star, after the words.
   const sec = (ic, title, html, cls = '') => `<section class="set-sec ${cls}"><div class="section-title set-h"><span>${title}</span>${ic === 'spark' ? aiBadge('set') : ''}</div>${html}</section>`;
   return `
-    <div class="sheet-head"><h3>설정</h3></div>
+    <div class="sheet-head"><h3 class="sh-c">설정</h3></div>
     <div class="settings">
       ${sec('id', '내 정보', `
         <div class="card set-card">
@@ -5901,7 +5901,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 264;
+const APP_VERSION = 265;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
