@@ -299,24 +299,45 @@ async function fetchRoute(a, b, date, min, key) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const why = data.error?.message || '';
+      store.set('routeErr', { at: Date.now(), status: res.status, msg: why.slice(0, 200) });
       if (res.status === 403 || (res.status === 400 && /API key/i.test(why))) store.set('routeOff', /not been used|disabled|SERVICE_DISABLED|blocked|not authorized/i.test(why) ? 'api' : 'key');
+      render();
       return;
     }
     const route = routeOf(data.routes?.[0]);
+    if (!route) store.set('routeErr', { at: Date.now(), status: 200, msg: '구글이 이 구간의 경로를 찾지 못했어요' });
+    else store.set('routeErr', null);
     store.set(key, route || { at: Date.now(), none: true });
     routeBusy.delete(key);
     render();
-  } catch { /* offline or blocked: try again in a few minutes */ }
+  } catch (e) { store.set('routeErr', { at: Date.now(), status: 0, msg: `연결 실패 · ${String(e.message || e).slice(0, 120)}` }); }
 }
 // The cached Google route for a leg, or null (and a lookup is started when possible).
 function googleLeg(a, b, date, min) {
   if (!gKey() || routeOff() || !a?.lat || !b?.lat) return null;
   const key = routeKey(a, b, date, min);
   const hit = store.get(key, null);
-  if (hit) return hit.none ? null : hit;
+  if (hit && !(hit.none && Date.now() - hit.at > 30 * 60000)) return hit.none ? null : hit;
   const since = routeBusy.get(key);
   if (navigator.onLine && (!since || Date.now() - since > 5 * 60000)) { routeBusy.set(key, Date.now()); setTimeout(() => fetchRoute(a, b, date, min, key), 0); }
   return null;
+}
+const routeWhy = () => {
+  if (!gKey()) return '설정 › AI 도우미에 구글 장소 키가 없어요';
+  const e = store.get('routeErr', null);
+  if (routeOff()) return `구글 키로 경로를 쓸 수 없어요${e ? ` (${e.status} · ${e.msg})` : ''} · Routes API를 켜고 키 제한에 추가해 주세요`;
+  if (e) return `구글 경로 오류 (${e.status || '연결'} · ${e.msg})`;
+  if (!navigator.onLine) return '인터넷이 연결되어 있지 않아요';
+  return '구글 경로를 받는 중이에요';
+};
+// Retry: forget this leg's cached answer and the off switch, then look it up again.
+function routeRetry(id) {
+  store.set('routeOff', ''); store.set('routeErr', null);
+  for (const k of Object.keys(localStorage)) if (k.startsWith('route:')) { try { const v = JSON.parse(localStorage.getItem(k)); if (v?.none) localStorage.removeItem(k); } catch { /* skip */ } }
+  routeBusy.clear();
+  render();
+  if ($('#sheet') && !$('#sheet').hidden) openItem(id);
+  toast('구글 경로를 다시 받아요');
 }
 // Tokyo names Google gives in Japanese → the trip's own line table (Korean names, station numbers) when it knows them.
 const LINE_ST = () => LINES.flatMap((l) => l.st.map((st) => ({ l, st })));
@@ -2972,7 +2993,7 @@ function transitRow(it, cls, late, now, edit, tail) {
           ${sub || late ? `<div class="mv-sub">${late ? `<em class="mv-late">${esc(delayText(late))}</em>` : ''}${esc(sub)}${it.leg ? `${it.leg.km != null ? ` · ${distLabel(it.leg.km)}` : ''}${it.leg.source === 'google' ? `<i class="leg-src g" title="구글 경로로 계산했어요">구글 · ${esc(new Date(it.leg.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Tokyo' }))} 기준</i>` : '<i class="leg-src" title="직선거리로 계산한 값이에요">추정</i>'}` : ''}</div>` : ''}
           ${it.leg?.steps ? legGuide(it.leg.steps, !!it.line) : ''}
           ${it.leg?.short ? `<div class="leg-short">${icon('warn')}다음 일정까지 ${formatLeft(it.leg.short)} 모자라요</div>` : ''}
-          ${it.leg ? `<div class="leg-why">${store.get('edit:' + it.id, null)?.releg ? '지금 앞뒤 일정 기준으로 다시 계산했어요' : '앞뒤 장소가 바뀌어 이동을 다시 계산했어요'}${it.leg.source === 'estimate' && it.leg.mode === 'transit' ? ` · ${!gKey() ? '구글 장소 키를 넣으면' : routeOff() ? '구글 키에 Routes API를 켜면' : '구글 경로를 받으면'} 노선·역 번호가 나와요` : ''}</div>` : ''}
+          ${it.leg ? `<div class="leg-why">${store.get('edit:' + it.id, null)?.releg ? '지금 앞뒤 일정 기준으로 다시 계산했어요' : '앞뒤 장소가 바뀌어 이동을 다시 계산했어요'}${it.leg.source === 'estimate' ? ` · 직선거리 추정 · ${esc(routeWhy())}` : ''}</div>` : ''}
           ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
         </div>
         ${edit ? `<span class="mv-nav">${icon('pen')}</span>` : it.place ? `<button class="mv-nav" data-nav="${esc(it.id)}" aria-label="구글맵 길찾기">${icon('nav')}</button>` : ''}
@@ -4325,9 +4346,15 @@ async function gTest() {
   const pt = (lat, lng) => ({ location: { latLng: { latitude: lat, longitude: lng } } });
   try {
     const res = await fetch(R_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': gKey(), 'X-Goog-FieldMask': 'routes.duration' }, body: JSON.stringify({ origin: pt(35.7141, 139.7774), destination: pt(35.7106, 139.7966), travelMode: 'TRANSIT', departureTime: departIso(tokyoNow().date, 600) }) });
-    if (res.ok) msg += ' · 이동 경로도 연결됐어요';
-    else { store.set('routeOff', 'api'); msg += ' · 이동 경로는 꺼져 있어요(Routes API를 켜 주세요)'; }
-  } catch { msg += ' · 이동 경로는 확인하지 못했어요'; }
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) { store.set('routeErr', null); msg += ' · 이동 경로도 연결됐어요'; }
+    else {
+      const why = data.error?.message || '';
+      store.set('routeErr', { at: Date.now(), status: res.status, msg: why.slice(0, 200) });
+      store.set('routeOff', 'api');
+      msg += ` · 이동 경로 오류 ${res.status}: ${/not been used|disabled|SERVICE_DISABLED/i.test(why) ? 'Routes API가 꺼져 있어요' : /blocked|not authorized/i.test(why) ? '키의 API 제한에 Routes API가 없어요' : /referer|referrer/i.test(why) ? '키의 웹사이트 제한을 확인해 주세요' : /billing/i.test(why) ? '결제 계정 연결이 필요해요' : why.slice(0, 80)}`;
+    }
+  } catch (e) { msg += ` · 이동 경로 연결 실패 (${String(e.message || e).slice(0, 60)})`; }
   state.gTest = { msg, ok: /연결됐어요/.test(msg) }; render(); toast(msg);
 }
 
@@ -5511,7 +5538,7 @@ function openItem(id) {
       </div>
     </div>
     ${it.line ? lineCard(it) : ''}
-    ${it.leg?.steps ? `<div class="card">${legGuide(it.leg.steps, !!it.line)}</div>` : it.leg?.source === 'estimate' && it.leg.mode === 'transit' ? `<div class="ai-note">직선거리로 계산한 이동이에요. ${!gKey() ? '설정 › AI 도우미에 구글 장소 키를 넣고 Routes API를 켜면' : routeOff() ? '구글 키에 Routes API를 켜고 설정에서 연결 확인을 누르면' : '인터넷이 연결되면'} 노선·역 번호·출발 시각이 나와요.</div>` : ''}
+    ${it.leg?.steps ? `<div class="card">${legGuide(it.leg.steps, !!it.line)}</div>` : it.leg?.source === 'estimate' ? `<div class="ai-note">직선거리로 계산한 이동이에요. 노선·역 번호는 구글 경로에서 받아요.<br><b>이유:</b> ${esc(routeWhy())}</div>${gKey() ? `<div class="btns"><button class="btn wide" data-route-retry="${esc(it.id)}">${icon('refresh')}구글 경로 다시 받기</button></div>` : ''}` : ''}
     ${isLegRow(it) && !isFixed(it) && !it.skip ? `<div class="btns"><button class="btn wide" data-releg="${esc(it.id)}">${icon('refresh')}이동 다시 계산 · 지금 앞뒤 일정 기준</button></div>` : ''}
     ${it.docs ? `<div class="section-title"><span>여기서 쓸 바우처</span></div><div class="btns">${docBtns(it, 'btn wide')}</div>` : ''}
     ${it.link ? `<div class="section-title"><span>${esc(it.link.title || '위치 안내')}</span></div><div class="btns"><a class="btn wide" href="${esc(/Android/i.test(navigator.userAgent) && it.link.android || it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
@@ -5607,7 +5634,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 247;
+const APP_VERSION = 248;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5691,7 +5718,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-qk-apply],[data-qk-swap],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -5880,6 +5907,7 @@ document.addEventListener('click', async (e) => {
   else if ('settings' in d) openSettings(d.settings);
   else if ('reportPreview' in d) { state.reportPreview = true; window.scrollTo(0, 0); render(); }
   else if (d.releg) relegMove(d.releg);
+  else if (d.routeRetry) routeRetry(d.routeRetry);
   else if (d.qk) { const [k, id] = d.qk.split('|'); openQuick(k, id); }
   else if (d.qkMin) openQuick(state.qk.kind, state.qk.id, Number(d.qkMin));
   else if ('qkApply' in d) applyQuick();
