@@ -1228,14 +1228,14 @@ function openExpEdit(id) {
   const e = expenses().find((x) => x.id === id);
   if (!e) return;
   $('#sheet-body').innerHTML = `
-    <div class="sheet-head"><h3>지출 수정</h3></div>
+    <div class="sheet-head"><h3 class="sh-ic">${icon('money')}지출 수정</h3></div>
     <form class="exp-edit exp-form" data-id="${esc(id)}">
-      <input class="input amount" name="amount" inputmode="numeric" value="${commas(e.orig?.value || e.amount)}" autocomplete="off" required aria-label="금액">
-      ${expPick(e.orig?.cur || 'JPY', e.pay || 'card')}
-      ${catPick(e.cat)}
+      <input class="input exp-wide" name="memo" placeholder="제목 (예: 이치란 라멘)" value="${esc(expTitle(e) === e.cat && !e.memo ? '' : expTitle(e))}" autocomplete="off" aria-label="제목">
       ${expDatePick(e.date)}
       <input class="input" type="time" name="time" value="${esc(expTime(e))}" aria-label="결제 시간">
-      <input class="input exp-wide" name="memo" placeholder="메모" value="${esc(expTitle(e) === e.cat && !e.memo ? '' : expTitle(e))}" autocomplete="off">
+      <input class="input amount" name="amount" inputmode="numeric" value="${commas(e.orig?.value || e.amount)}" autocomplete="off" required aria-label="금액">
+      ${catPick(e.cat)}
+      ${expPick(e.orig?.cur || 'JPY', e.pay || 'card')}
       ${hasRcpt(id) ? `<button class="btn" type="button" data-doc-add="${rcptSlot(id)}">${icon('camera')}영수증 더 넣기</button>
       <button class="btn" type="button" data-doc-view="${rcptSlot(id)}">${icon('image')}영수증 보기</button>` : `<button class="btn exp-wide" type="button" data-doc-add="${rcptSlot(id)}">${icon('camera')}영수증 사진 넣기</button>`}
       <div class="btns exp-wide exp-act">
@@ -1419,8 +1419,8 @@ function expenseSection() {
       <div class="cash-left"><span>엔화 현금 남음</span><b>${yen(Math.max(0, cashTotal() - cashSpent()))}</b><small>환전 ${yen(cashTotal())} 중 ${yen(cashSpent())} 사용</small><button class="link" data-cash>환전액 바꾸기</button></div>
       ${expForm()}
       <div class="btns exp-quick">
-        <button class="btn ${aiKey() ? '' : 'wide'}" data-sms-open>${icon('copy')}카드 문자로</button>
-        ${aiKey() ? `<button class="btn ai" data-rcpt-ai>${aiLabel('영수증 사진으로')}</button>` : ''}
+        <button class="btn" data-sms-open>${icon('copy')}카드 문자로</button>
+        <button class="btn ai" data-rcpt-ai>${aiLabel('영수증 사진으로')}</button>
       </div>
       ${list.length ? expDays(list) : '<div class="small muted exp-empty">아직 기록이 없어요. 일정을 눌러서도 기록할 수 있어요.</div>'}`}
     </div>`;
@@ -5188,7 +5188,7 @@ function settingsBody() {
   const me = who();
   const sec = (ic, title, html, cls = '') => `<section class="set-sec ${cls}"><div class="set-h">${secIcon(ic)}<span>${title}</span></div>${html}</section>`;
   return `
-    <div class="sheet-head"><h3>설정</h3></div>
+    <div class="sheet-head"><h3 class="sh-ic">${icon('gear')}설정</h3></div>
     <div class="settings">
       ${sec('id', '내 정보', `
         <div class="card set-card">
@@ -5196,7 +5196,7 @@ function settingsBody() {
           <div class="seg-row">${PEOPLE.map((w) => `<button class="seg ${me === w ? 'on' : ''}" data-who="${w}">${w}폰</button>`).join('')}</div>
           <button class="set-row tap" data-nick="${esc(me)}"><span class="grow"><b>부르는 이름</b><small>아침 준비 카드에서 이렇게 불러요</small></span><em>${esc(callOf(me))}</em>${icon('pen')}</button>
         </div>`)}
-      ${sec('spark', 'AI 도우미', aiSettings() + deskSettings())}
+      ${sec('spark', 'AI 도우미', aiSettings() + deskSettings(), 'set-ai')}
       ${sec('refresh', '동기화', syncPanel())}
       ${sec('clock', '일정 알림', alarmPanel())}
       ${sec('checklist', '앱 정보', `
@@ -5211,8 +5211,8 @@ function openSettings(at = '') {
   $('#sheet-body').innerHTML = settingsBody();
   $('#sheet').hidden = false;
   // Bring the 동기화 heading to the top of the sheet (beside the close button), not the section above it.
-  if (at === 'sync') setTimeout(() => {
-    const sec = $('#sheet-body .sync-panel')?.closest('.set-sec');
+  if (at === 'sync' || at === 'ai') setTimeout(() => {
+    const sec = $(at === 'ai' ? '#sheet-body .set-ai' : '#sheet-body .sync-panel')?.closest('.set-sec');
     const box = $('.sheet-panel');
     if (!sec || !box) return;
     box.scrollTo({ top: box.scrollTop + sec.getBoundingClientRect().top - box.getBoundingClientRect().top - 14, behavior: 'smooth' });
@@ -5899,7 +5899,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 258;
+const APP_VERSION = 259;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6286,7 +6286,8 @@ document.addEventListener('click', async (e) => {
   else if ('deskForget' in d) { if (confirm('이 폰에서 요청함 토큰을 지울까요?')) { store.set('deskKey', ''); render(); } }
   else if ('deskTest' in d) ghApi(`repos/${DESK}`).then((r) => toast(r.private ? '요청함에 연결됐어요' : '연결됐지만 요청함이 공개 저장소예요. 비공개로 바꿔 주세요')).catch((e) => toast(e.message));
   else if ('smsPhoto' in d) smsFromPhoto();
-  else if ('rcptAi' in d) rcptFromPhoto();
+  // The AI key lives on each phone, so a phone without one (another person's) still sees the button and is told how to turn it on.
+  else if ('rcptAi' in d) { if (aiKey()) rcptFromPhoto(); else { openSettings('ai'); toast('영수증 사진 읽기는 AI 도우미 키가 있어야 해요. 이 폰에서 키를 넣어 주세요.'); } }
   else if ('menuAi' in d) menuFromPhoto();
   else if ('aiPlan' in d) {
     if (d.aiPlan === 'late') {
@@ -6543,6 +6544,42 @@ const endVPull = () => {
   }, 200);
 };
 viewerEl.addEventListener('touchend', endVPull);
+// The full-screen phrase / address card closes the same way: pull it down and let go.
+const bigEl = $('#bigja');
+let bpull = null;
+bigEl.addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  bpull = e.touches.length === 1 && bigEl.scrollTop <= 0 && !e.target.closest('button') ? { x: t.clientX, y: t.clientY, at: Date.now(), dy: 0, on: false } : null;
+}, { passive: true });
+bigEl.addEventListener('touchmove', (e) => {
+  if (!bpull) return;
+  const t = e.touches[0];
+  const dx = Math.abs(t.clientX - bpull.x);
+  const dy = t.clientY - bpull.y;
+  if (!bpull.on) {
+    if (dx + Math.abs(dy) < 8) return;
+    if (dy <= 0 || dx > dy) { bpull = null; return; }
+    bpull.on = true;
+    bigEl.style.transition = 'none';
+  }
+  bpull.dy = Math.max(0, dy);
+  bigEl.style.transform = `translateY(${bpull.dy}px)`;
+  e.preventDefault();
+}, { passive: false });
+const endBPull = () => {
+  if (!bpull?.on) { bpull = null; return; }
+  const { dy, at } = bpull;
+  bpull = null;
+  const close = dy > 110 || (dy > 40 && dy / (Date.now() - at) > 0.5);
+  bigEl.style.transition = 'transform .2s ease';
+  bigEl.style.transform = close ? 'translateY(100%)' : '';
+  setTimeout(() => {
+    if (close) $('[data-close-ja]').click();
+    bigEl.style.transition = bigEl.style.transform = '';
+  }, 200);
+};
+bigEl.addEventListener('touchend', endBPull);
+bigEl.addEventListener('touchcancel', endBPull);
 viewerEl.addEventListener('touchcancel', endVPull);
 document.addEventListener('touchmove', (e) => {
   if (!overlayOpen() || e.touches.length > 1) return;

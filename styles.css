@@ -2308,3 +2308,12 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .ls li.ls-pt .grow b, .ls li.ls-st .grow b { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ls li.ls-pt small, .ls li.ls-st small { width: auto; flex: none; margin-left: 2px; }
 .ls li.ls-pt small::before, .ls li.ls-st small::before { content: "· "; }
+
+/* v259: popup grip in yellow so a popup reads as one at a glance; title icons; full-screen card grip */
+:root { --grip: #f2b705; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --grip: #ffcc33; } }
+:root[data-theme="dark"] { --grip: #ffcc33; }
+.sheet-grip { width: 48px; height: 6px; background: var(--grip); box-shadow: 0 0 0 3px color-mix(in srgb, var(--grip) 22%, transparent); }
+.bigja-grip { position: absolute; top: calc(env(safe-area-inset-top) + 10px); left: 50%; margin: 0; transform: translateX(-50%); }
+.sheet-head h3.sh-ic { display: flex; align-items: center; gap: 8px; }
+.sheet-head h3.sh-ic .ico { width: 24px; height: 24px; flex: none; color: var(--accent); }
