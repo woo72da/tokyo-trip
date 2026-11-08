@@ -146,7 +146,7 @@ function planItems() {
   });
   // A move renamed to '이동 → 시부야 스카이' goes there: directions follow the name, not the old place.
   // Renamed off its train ('도보 → 숙소'), the old line and its '약 35분' go too; '숙소'/'호텔' is the hotel.
-  return list.map((it) => {
+  return autoLegs(list.map((it) => {
     const edit = store.get('edit:' + it.id, null);
     if (!edit?.title || glyph(it.icon)[1] !== 'move') return it;
     const name = stripEmoji(edit.title);
@@ -160,7 +160,112 @@ function planItems() {
     if (/숙소|호텔/.test(to) || to.startsWith(st.name)) return { ...out, place: { nameJa: st.nameJa, query: st.address || st.query }, placeId: undefined };
     const dest = list.find((x) => x !== it && x.date === it.date && x.place && stripEmoji(x.title).startsWith(to));
     return dest ? { ...out, place: dest.place, placeId: dest.placeId } : out;
-  });
+  }));
+}
+
+// ---------- 일정 엔진 S1: 이동 구간(Leg)은 앞뒤 장소에서 계산되는 값 (travel-app-native/docs/09-schedule-engine.md) ----------
+// A planned move row (🚇 히비야선 …, 약 35분) belongs to the two stops around it in the original plan. When either
+// of those stops changes — another place, skipped, deleted, or the order around it shifts — the row's line, note
+// and length no longer fit, so it is rebuilt from the stops actually around it now. For now the length is the
+// straight-line estimate (S2 swaps in Google routes); booked or hand-edited moves are never touched.
+const placeKey = (it, p) => (p ? 'p:' + p.id : it.place?.query ? 'q:' + it.place.query : 't:' + stripEmoji(it.title || ''));
+// Only rows that are a ride or a walk are legs; check-in counters, baggage and stations are places you stop at.
+const LEG_KINDS = ['bus', 'walk', 'train', 'metro', 'local', 'tram'];
+const isLegRow = (it) => isMove(it) && LEG_KINDS.includes(glyph(it.icon)[0]);
+const isStopRow = (it) => !isLegRow(it); // a flight row counts too: it is where you land
+let rawLegsMemo = null;
+// For each planned move: the stop before and after it in the plan as written (id and place).
+function rawLegs() {
+  if (rawLegsMemo?.trip === state.trip) return rawLegsMemo.map;
+  const map = {};
+  for (const d of state.trip.days) {
+    const items = [...d.items].sort((a, b) => toMin(a.start) - toMin(b.start));
+    items.forEach((m, i) => {
+      if (!isLegRow(m)) return;
+      const prev = items.slice(0, i).reverse().find(isStopRow);
+      const next = items.slice(i + 1).find(isStopRow);
+      const keyOf = (x) => x && placeKey(x, allPlaces().find((p) => p.itemId === x.id));
+      map[m.id] = { prev: prev?.id || null, next: next?.id || null, prevKey: keyOf(prev), nextKey: keyOf(next), prevPt: rawPoint(prev), nextPt: rawPoint(next) };
+    });
+  }
+  rawLegsMemo = { trip: state.trip, map };
+  return map;
+}
+// The same point as the plan was written (no edits), to tell whether a stop really moved.
+const rawPoint = (it) => {
+  if (!it) return { lat: state.trip.stay.lat, lng: state.trip.stay.lng };
+  const p = allPlaces().find((x) => x.itemId === it.id);
+  if (p?.lat) return { lat: p.lat, lng: p.lng };
+  return /호텔|숙소/.test(it.title) ? { lat: state.trip.stay.lat, lng: state.trip.stay.lng } : null;
+};
+// Two ends are the same place when within 500 m (1 km for a train ride) (breakfast at the hotel = the hotel); without coordinates, the same stop.
+const samePlace = (pt, rawPt, key, rawKey, km = 0.5) => (pt?.lat && rawPt?.lat ? kmBetween(pt, rawPt) <= km : key === rawKey);
+// Where a stop is, for distance: its place, the hotel for hotel rows, else unknown.
+const legPoint = (it) => {
+  if (!it) return { name: '호텔', lat: state.trip.stay.lat, lng: state.trip.stay.lng, query: state.trip.stay.address || state.trip.stay.query, hotel: true };
+  const p = placeOfItem(it.id);
+  if (p?.lat) return { name: p.name, lat: p.lat, lng: p.lng, query: p.verified?.name || p.name };
+  if (/호텔|숙소/.test(it.title)) return { name: '호텔', lat: state.trip.stay.lat, lng: state.trip.stay.lng, query: state.trip.stay.address || state.trip.stay.query, hotel: true };
+  return { name: shortName(it), query: it.place?.query || it.place?.nameJa || shortName(it) };
+};
+// Estimated leg between two points: walk if close (corners add a third, 75 m a minute), else transit (~3 min/km + 10).
+function estimateLeg(a, b) {
+  if (!a?.lat || !b?.lat) return { mode: 'unknown', min: null, km: null };
+  const km = kmBetween(a, b);
+  if (km < 0.15) return { mode: 'walk', min: 1, km };
+  return km <= 1.2 ? { mode: 'walk', min: Math.max(1, Math.ceil((km * 1000 * 1.3) / 75)), km } : { mode: 'transit', min: Math.ceil(km * 3 + 10), km };
+}
+const LEG_ICON = { walk: '🚶', transit: '🚇', unknown: '🚶' };
+function autoLegs(list) {
+  const raw = rawLegs();
+  const byDate = {};
+  for (const it of list) (byDate[it.date] ||= []).push(it);
+  const out = new Map();
+  for (const day of Object.values(byDate)) {
+    const items = day.filter((x) => !x.del).sort((a, b) => toMin(a.start) - toMin(b.start));
+    items.forEach((m, i) => {
+      const r = raw[m.id];
+      if (!r || !isLegRow(m) || isFixed(m) || m.skip || m.booking || glyph(m.icon)[0] === 'plane') return;
+      const edit = store.get('edit:' + m.id, null);
+      if (edit?.title || edit?.manualLeg) return; // the traveler wrote this move by hand
+      const prev = items.slice(0, i).reverse().find((x) => isStopRow(x) && !x.skip);
+      const next = items.slice(i + 1).find((x) => isStopRow(x) && !x.skip);
+      const key = (x) => x && placeKey(x, placeOfItem(x.id));
+      const a = legPoint(prev);
+      const b = legPoint(next);
+      // A train ride still works when the new stop is near the old one (same station area, about 1 km); a walk less so.
+      const near = m.line ? 1 : 0.5;
+      if (samePlace(a, r.prevPt, key(prev), r.prevKey, near) && samePlace(b, r.nextPt, key(next), r.nextKey, near)) return;
+      const leg = estimateLeg(a, b);
+      const start = toMin(m.start);
+      const label = leg.mode === 'walk' ? '도보' : leg.mode === 'transit' ? '대중교통' : '이동';
+      const room = next ? toMin(next.start) - start : null;
+      out.set(m, {
+        ...m,
+        title: `${label} → ${b.name}`, icon: LEG_ICON[leg.mode], line: undefined, docs: undefined, info: undefined,
+        note: leg.min ? `약 ${leg.min}분` : '시간 확인 필요',
+        place: { nameJa: b.query, query: b.query }, placeId: undefined,
+        ...(m.end && leg.min ? { end: clock(Math.min(1439, start + leg.min)) } : {}),
+        leg: { auto: true, mode: leg.mode, min: leg.min, km: leg.km, from: a.name, to: b.name, source: 'estimate', short: leg.min && room != null && leg.min > room ? leg.min - room : 0 },
+      });
+    });
+  }
+  // Skipping the stop between two rides leaves both pointing at the same next stop: keep the first, drop the rest.
+  const done = list.map((it) => out.get(it) || it);
+  const byDay = {};
+  for (const it of done) if (!it.del) (byDay[it.date] ||= []).push(it);
+  const drop = new Set();
+  for (const day of Object.values(byDay)) {
+    const items = day.sort((a, b) => toMin(a.start) - toMin(b.start));
+    let last = null;
+    for (const it of items) {
+      if (it.skip) continue;
+      if (!isLegRow(it)) { last = null; continue; }
+      if (last?.leg && it.leg && last.leg.to === it.leg.to) drop.add(it);
+      else last = it;
+    }
+  }
+  return out.size ? done.map((it) => (drop.has(it) ? { ...it, del: true, legMerged: true } : it)) : list;
 }
 // Lines the trip rides, station by station (official numbers and colours), so a move added later by hand
 // or by AI — '히비야선 에비스 → 우에노' — gets the same station boxes and line card as the planned ones.
@@ -2590,7 +2695,9 @@ function transitRow(it, cls, late, now, edit, tail) {
         <div class="tl-main">
           <div class="mv-title">${current ? '<i class="mv-now">이동 중</i>' : ''}${esc(it.title)}</div>
           ${it.line ? `<div class="mv-line">${lnRoute(it.line)}</div>` : ''}
-          ${sub || late ? `<div class="mv-sub">${late ? `<em class="mv-late">${esc(delayText(late))}</em>` : ''}${esc(sub)}</div>` : ''}
+          ${sub || late ? `<div class="mv-sub">${late ? `<em class="mv-late">${esc(delayText(late))}</em>` : ''}${esc(sub)}${it.leg ? `${it.leg.km != null ? ` · ${distLabel(it.leg.km)}` : ''}<i class="leg-src" title="직선거리로 계산한 값이에요">추정</i>` : ''}</div>` : ''}
+          ${it.leg?.short ? `<div class="leg-short">${icon('warn')}다음 일정까지 ${formatLeft(it.leg.short)} 모자라요</div>` : ''}
+          ${it.leg ? '<div class="leg-why">앞뒤 장소가 바뀌어 이동을 다시 계산했어요</div>' : ''}
           ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
         </div>
         ${edit ? `<span class="mv-nav">${icon('pen')}</span>` : it.place ? `<button class="mv-nav" data-nav="${esc(it.id)}" aria-label="구글맵 길찾기">${icon('nav')}</button>` : ''}
@@ -5187,7 +5294,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 241;
+const APP_VERSION = 242;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

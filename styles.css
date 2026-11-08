@@ -2223,3 +2223,9 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
   .pstamp { --gold-ink: #d4b06a; }
   .ps-star { opacity: .4; }
 }
+
+/* v242 일정 엔진 S1: 다시 계산된 이동 줄 — 출처(추정) 배지, 모자란 시간, 바뀐 이유 */
+.leg-src { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; background: var(--soft); color: var(--muted); font-size: 11px; font-weight: 700; font-style: normal; vertical-align: 1px; }
+.leg-short { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12.5px; font-weight: 700; color: var(--warn); }
+.leg-short .ico { width: 14px; height: 14px; }
+.leg-why { margin-top: 3px; font-size: 11.5px; color: var(--muted); }
