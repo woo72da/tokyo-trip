@@ -2420,3 +2420,17 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
   .sheet-backdrop { background: rgba(5,8,15,.30); }
   .sheet-panel { box-shadow: 0 -10px 30px rgba(10,14,22,.16), 0 -1px 0 rgba(10,14,22,.06); }
 }
+
+/* v269: the phrase / address card is a big popup like the others — dimmed page behind, rounded top, orange grip,
+   soft shadow; the card itself stays white with black text in both modes so staff can read it */
+.bigja { padding: 0; background: none; display: block; }
+.bigja-dim { position: absolute; inset: 0; background: rgba(5,8,15,.30); }
+.bigja-panel { position: absolute; left: 0; right: 0; bottom: 0; top: calc(env(safe-area-inset-top) + 28px); max-width: 640px; margin: 0 auto; overflow: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; justify-content: center; padding: 48px 24px calc(env(safe-area-inset-bottom) + 28px);
+  background: #fff; color: #000; border-radius: 28px 28px 0 0; box-shadow: 0 -10px 30px rgba(10,14,22,.16), 0 -1px 0 rgba(10,14,22,.06); animation: up .24s cubic-bezier(.2,.8,.2,1); }
+.bigja-panel > .bigja-grip { position: absolute; top: 9px; left: 50%; margin: 0; transform: translateX(-50%); }
+.bigja-panel > .overlay-close { top: 10px; right: 12px; width: 40px; height: 40px; background: #ecece8; color: #17191e; }
+@media (prefers-color-scheme: dark) {
+  .bigja-dim { background: rgba(0,0,0,.6); }
+  .bigja-panel { box-shadow: 0 -16px 40px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.4); }
+}

@@ -5972,7 +5972,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 268;
+const APP_VERSION = 269;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6625,10 +6625,11 @@ const endVPull = () => {
 viewerEl.addEventListener('touchend', endVPull);
 // The full-screen phrase / address card closes the same way: pull it down and let go.
 const bigEl = $('#bigja');
+const bigPanel = $('#bigja .bigja-panel');
 let bpull = null;
 bigEl.addEventListener('touchstart', (e) => {
   const t = e.touches[0];
-  bpull = e.touches.length === 1 && bigEl.scrollTop <= 0 && !e.target.closest('button') ? { x: t.clientX, y: t.clientY, at: Date.now(), dy: 0, on: false } : null;
+  bpull = e.touches.length === 1 && (bigPanel.scrollTop <= 0 || e.target.closest('.bigja-grip')) && !e.target.closest('button') ? { x: t.clientX, y: t.clientY, at: Date.now(), dy: 0, on: false } : null;
 }, { passive: true });
 bigEl.addEventListener('touchmove', (e) => {
   if (!bpull) return;
@@ -6639,10 +6640,10 @@ bigEl.addEventListener('touchmove', (e) => {
     if (dx + Math.abs(dy) < 8) return;
     if (dy <= 0 || dx > dy) { bpull = null; return; }
     bpull.on = true;
-    bigEl.style.transition = 'none';
+    bigPanel.style.transition = 'none';
   }
   bpull.dy = Math.max(0, dy);
-  bigEl.style.transform = `translateY(${bpull.dy}px)`;
+  bigPanel.style.transform = `translateY(${bpull.dy}px)`;
   e.preventDefault();
 }, { passive: false });
 const endBPull = () => {
@@ -6650,11 +6651,11 @@ const endBPull = () => {
   const { dy, at } = bpull;
   bpull = null;
   const close = dy > 110 || (dy > 40 && dy / (Date.now() - at) > 0.5);
-  bigEl.style.transition = 'transform .2s ease';
-  bigEl.style.transform = close ? 'translateY(100%)' : '';
+  bigPanel.style.transition = 'transform .2s ease';
+  bigPanel.style.transform = close ? 'translateY(100%)' : '';
   setTimeout(() => {
-    if (close) $('[data-close-ja]').click();
-    bigEl.style.transition = bigEl.style.transform = '';
+    if (close) $('.overlay-close[data-close-ja]').click();
+    bigPanel.style.transition = bigPanel.style.transform = '';
   }, 200);
 };
 bigEl.addEventListener('touchend', endBPull);
