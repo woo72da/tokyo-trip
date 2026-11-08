@@ -217,6 +217,34 @@ function estimateLeg(a, b) {
 }
 const LEG_ICON = { walk: '🚶', transit: '🚇', unknown: '🚶' };
 
+// '이동 다시 계산': the rides and walks between the stop before and the stop after this one become one leg from
+// where we really are to where we go next, leaving right when the stop before ends. Skipped stops don't count.
+function relegMove(id, { silent = false } = {}) {
+  const it = findItem(id);
+  if (!it) return null;
+  const items = dayItems(dayOf(it.date)).filter((x) => !x.skip);
+  const i = items.findIndex((x) => x.id === id);
+  if (i < 0) return null;
+  let a = i; while (a > 0 && isLegRow(items[a - 1])) a -= 1;
+  let b = i; while (b < items.length - 1 && isLegRow(items[b + 1])) b += 1;
+  const chain = items.slice(a, b + 1).filter((x) => isLegRow(x) && !isFixed(x));
+  const prev = items[a - 1];
+  const undo = {};
+  chain.forEach((m, k) => {
+    undo[m.id] = store.get('edit:' + m.id, null);
+    const old = { ...(undo[m.id] || {}) };
+    if (k === 0 && prev) { old.start = clock(prev.endMin); old.auto = true; }
+    store.set('edit:' + m.id, { ...old, releg: true });
+  });
+  if (!silent) {
+    closeSheet();
+    render();
+    const leg = planItems().find((x) => x.id === chain[0]?.id);
+    toast(`${leg ? `${leg.start} ${stripEmoji(leg.title)} · ${leg.note}` : '이동'}${chain.length > 1 ? ` · 겹친 이동 ${chain.length - 1}개 정리` : ''}`, () => { for (const [k, v] of Object.entries(undo)) store.set('edit:' + k, v); render(); }, '되돌리기');
+  }
+  return undo;
+}
+
 // ---------- 일정 엔진 S2: 구글 경로(Routes API)로 이동 시간·노선 ----------
 // Same Google key as places (설정 › AI 도우미 › 구글 장소 키), with Routes API turned on for it. One transit request
 // per leg covers walking too (a short hop comes back as a walk). Results are kept per from/to/weekday/half-hour and
@@ -311,9 +339,11 @@ function autoLegs(list) {
     const items = day.filter((x) => !x.del).sort((a, b) => toMin(a.start) - toMin(b.start));
     items.forEach((m, i) => {
       const r = raw[m.id];
-      if (!r || !isLegRow(m) || isFixed(m) || m.skip || m.booking || glyph(m.icon)[0] === 'plane') return;
       const edit = store.get('edit:' + m.id, null);
-      if (edit?.title || edit?.manualLeg) return; // the traveler wrote this move by hand
+      // '이동 다시 계산' (or the AI's releg) asks for it even on a move written by hand or added later.
+      const re = !!edit?.releg;
+      if (!isLegRow(m) || isFixed(m) || m.skip || m.booking || glyph(m.icon)[0] === 'plane') return;
+      if (!re && (!r || edit?.title || edit?.manualLeg)) return; // the traveler wrote this move by hand
       const prev = items.slice(0, i).reverse().find((x) => isStopRow(x) && !x.skip);
       const next = items.slice(i + 1).find((x) => isStopRow(x) && !x.skip);
       const key = (x) => x && placeKey(x, placeOfItem(x.id));
@@ -321,7 +351,7 @@ function autoLegs(list) {
       const b = legPoint(next);
       // A train ride still works when the new stop is near the old one (same station area, about 1 km); a walk less so.
       const near = m.line ? 1 : 0.5;
-      if (samePlace(a, r.prevPt, key(prev), r.prevKey, near) && samePlace(b, r.nextPt, key(next), r.nextKey, near)) return;
+      if (!re && samePlace(a, r.prevPt, key(prev), r.prevKey, near) && samePlace(b, r.nextPt, key(next), r.nextKey, near)) return;
       const start = toMin(m.start);
       const g = googleLeg(a, b, m.date, start);
       const rides = g?.steps.filter((x) => x.mode === 'ride') || [];
@@ -2930,7 +2960,7 @@ function transitRow(it, cls, late, now, edit, tail) {
           ${sub || late ? `<div class="mv-sub">${late ? `<em class="mv-late">${esc(delayText(late))}</em>` : ''}${esc(sub)}${it.leg ? `${it.leg.km != null ? ` · ${distLabel(it.leg.km)}` : ''}${it.leg.source === 'google' ? `<i class="leg-src g" title="구글 경로로 계산했어요">구글 · ${esc(new Date(it.leg.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Tokyo' }))} 기준</i>` : '<i class="leg-src" title="직선거리로 계산한 값이에요">추정</i>'}` : ''}</div>` : ''}
           ${it.leg?.steps ? legGuide(it.leg.steps) : ''}
           ${it.leg?.short ? `<div class="leg-short">${icon('warn')}다음 일정까지 ${formatLeft(it.leg.short)} 모자라요</div>` : ''}
-          ${it.leg ? '<div class="leg-why">앞뒤 장소가 바뀌어 이동을 다시 계산했어요</div>' : ''}
+          ${it.leg ? `<div class="leg-why">${store.get('edit:' + it.id, null)?.releg ? '지금 앞뒤 일정 기준으로 다시 계산했어요' : '앞뒤 장소가 바뀌어 이동을 다시 계산했어요'}</div>` : ''}
           ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
         </div>
         ${edit ? `<span class="mv-nav">${icon('pen')}</span>` : it.place ? `<button class="mv-nav" data-nav="${esc(it.id)}" aria-label="구글맵 길찾기">${icon('nav')}</button>` : ''}
@@ -4511,7 +4541,7 @@ const PLAN_SCHEMA = {
     options: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['title', 'summary', 'ops'], properties: {
       title: { type: 'string' }, summary: { type: 'string' },
       ops: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['op', 'id', 'start', 'end', 'title', 'kind', 'place'], properties: {
-        op: { type: 'string', enum: ['move', 'skip', 'unskip', 'add', 'rename'] },
+        op: { type: 'string', enum: ['move', 'skip', 'unskip', 'add', 'rename', 'releg'] },
         id: { type: 'string', description: 'stop id for move/skip/unskip/rename, empty for add' },
         start: { type: 'string', description: 'HH:MM for move/add, else empty' }, end: { type: 'string', description: 'HH:MM or empty' },
         title: { type: 'string', description: 'for add/rename, else empty' }, kind: { type: 'string', enum: ['eat', 'drink', 'see', 'shop', 'move', 'rest', ''] },
@@ -4522,7 +4552,7 @@ const PLAN_SCHEMA = {
 };
 const PLAN_SYSTEM = `You adjust one day of a Korean couple's Tokyo trip plan. You get the day's stops (id, times, title, fixed, done, skipped), the time now if it is that day, and what the traveler asks.
 Return 1 option for a clear request, or 2-3 options when asked for suggestions. Each option is a list of ops on stop ids from the list:
-move (new start, and end if the length changes), skip, unskip, rename, add (new stop with start, end, title, kind, and place if one of the known places fits).
+move (new start, and end if the length changes), skip, unskip, rename, add (new stop with start, end, title, kind, and place if one of the known places fits), releg (id of a travel stop: the app recomputes that ride or walk from the stop before to the stop after it, with real route, line and minutes, leaving when the stop before ends).\nUse releg — never move or rename — when the traveler asks to update or fix travel/이동 info, or when stops around a travel stop were skipped or changed; the app works out travel times and routes, so never guess them yourself.
 Rules: never move or skip a fixed stop unless the traveler names it; keep stops in a sensible order without overlaps; travel stops (kind move) usually shift with what they connect; title an added train ride "<노선명> <타는 역> → <내리는 역>" in Korean (e.g. "히비야선 에비스 → 우에노", "JR 야마노테선 시부야 → 우에노", "긴자선 시부야 → 아사쿠사") and a walk "도보 → <곳>"; don't touch stops that are done; prefer shortening or skipping optional stops over moving fixed ones.
 Write title, summary and reply in natural Korean. If the request can't be done, return no options and explain in reply.`;
 const PLAN_KIND = { eat: '🍽', drink: '☕', see: '🏛', shop: '🛍', move: '🚇', rest: '🏨', '': '📍' };
@@ -4594,6 +4624,7 @@ function cleanOps(ops = [], items) {
     if (op.op === 'skip') return { ...op, warn, text: `건너뛰기 · ${it.start} ${name}${warn ? ' · 고정 일정' : ''}` };
     if (op.op === 'unskip') return { ...op, text: `다시 넣기 · ${it.start} ${name}` };
     if (op.op === 'rename' && op.title) return { ...op, text: `이름 바꾸기 · ${name} → ${op.title}` };
+    if (op.op === 'releg') return isLegRow(it) && !isFixed(it) ? { ...op, text: `이동 다시 계산 · ${it.start} ${name} → 지금 앞뒤 일정 기준(구글 경로)` } : null;
     return null;
   }).filter(Boolean);
 }
@@ -4618,6 +4649,10 @@ function aiPlanApply(i) {
     if (op.op === 'skip') store.set('edit:' + op.id, { ...old, skip: true });
     if (op.op === 'unskip') store.set('edit:' + op.id, { ...old, skip: false });
     if (op.op === 'rename') store.set('edit:' + op.id, { ...old, title: op.title });
+    if (op.op === 'releg') {
+      delete undo[op.id];
+      for (const [k, v] of Object.entries(relegMove(op.id, { silent: true }) || {})) if (!(k in undo)) undo[k] = v;
+    }
   }
   state.aiPlan = null;
   closeSheet(); render();
@@ -5460,6 +5495,7 @@ function openItem(id) {
       </div>
     </div>
     ${it.line ? lineCard(it) : ''}
+    ${isLegRow(it) && !isFixed(it) && !it.skip ? `<div class="btns"><button class="btn wide" data-releg="${esc(it.id)}">${icon('refresh')}이동 다시 계산 · 지금 앞뒤 일정 기준</button></div>` : ''}
     ${it.docs ? `<div class="section-title"><span>여기서 쓸 바우처</span></div><div class="btns">${docBtns(it, 'btn wide')}</div>` : ''}
     ${it.link ? `<div class="section-title"><span>${esc(it.link.title || '위치 안내')}</span></div><div class="btns"><a class="btn wide" href="${esc(/Android/i.test(navigator.userAgent) && it.link.android || it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
     <div class="btns">
@@ -5554,7 +5590,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 245;
+const APP_VERSION = 246;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5638,7 +5674,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-qk-apply],[data-qk-swap],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-qk-apply],[data-qk-swap],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -5826,6 +5862,7 @@ document.addEventListener('click', async (e) => {
   }
   else if ('settings' in d) openSettings(d.settings);
   else if ('reportPreview' in d) { state.reportPreview = true; window.scrollTo(0, 0); render(); }
+  else if (d.releg) relegMove(d.releg);
   else if (d.qk) { const [k, id] = d.qk.split('|'); openQuick(k, id); }
   else if (d.qkMin) openQuick(state.qk.kind, state.qk.id, Number(d.qkMin));
   else if ('qkApply' in d) applyQuick();
