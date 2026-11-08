@@ -3047,6 +3047,7 @@ function transitRow(it, cls, late, now, edit, tail) {
           ${sub || late ? `<div class="mv-sub">${late ? `<em class="mv-late">${esc(delayText(late))}</em>` : ''}${esc(sub)}${it.leg ? `${it.leg.km != null ? ` · ${distLabel(it.leg.km)}` : ''}${it.leg.source === 'table' ? '<i class="leg-src" title="앱의 역 위치와 노선표로 계산했어요 · 시간은 추정">노선표 · 추정</i>' : it.leg.source === 'google' ? `<i class="leg-src g" title="구글 경로로 계산했어요">구글 · ${esc(new Date(it.leg.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Tokyo' }))} 기준</i>` : '<i class="leg-src" title="직선거리로 계산한 값이에요">추정</i>'}` : ''}</div>` : ''}
           ${it.leg?.steps ? legGuide(it.leg.steps, !!it.line) : ''}
           ${it.leg?.short ? `<div class="leg-short">${icon('warn')}다음 일정까지 ${formatLeft(it.leg.short)} 모자라요</div>` : ''}
+          ${it.leg ? `<div class="leg-why">구간: ${esc(it.leg.from)} → ${esc(it.leg.to)}</div>` : ''}
           ${it.leg ? `<div class="leg-why">${store.get('edit:' + it.id, null)?.releg ? '지금 앞뒤 일정 기준으로 다시 계산했어요' : '앞뒤 장소가 바뀌어 이동을 다시 계산했어요'}${it.leg.source === 'estimate' ? ` · 직선거리 추정 · ${esc(routeWhy())}` : ''}</div>` : ''}
           ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
         </div>
@@ -5689,7 +5690,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 250;
+const APP_VERSION = 251;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
