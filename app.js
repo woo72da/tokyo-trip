@@ -357,7 +357,7 @@ function rideOf(L, ia, ib) {
   const n = L.st.length;
   const fwd = L.loop ? (ib - ia + n) % n <= n / 2 : ib > ia;
   const stops = L.loop ? Math.min((ib - ia + n) % n, (ia - ib + n) % n) : Math.abs(ib - ia);
-  return { mode: 'ride', min: Math.max(2, stops * 2), line: { name: L.name, short: L.code, color: L.color, text: lnInk(L.color) }, from: L.st[ia].ja, to: L.st[ib].ja, dep: '', arr: '', head: fwd ? L.up : L.down, stops, every: 0 };
+  return { mode: 'ride', min: Math.max(2, stops * 2), line: { name: L.name, short: L.code, color: L.color, text: lnInk(L.color) }, from: L.st[ia].ja, to: L.st[ib].ja, dep: '', arr: '', head: dirOf(L, ia, fwd), stops, every: 0 };
 }
 function tableRoute(a, b) {
   if (!a?.lat || !b?.lat) return null;
@@ -435,7 +435,7 @@ function autoLegs(list) {
         if (!s0 || !s1 || s0.l !== L || s1.l !== L) return null;
         const ia = L.st.indexOf(s0.st); const ib = L.st.indexOf(s1.st);
         const fwd = L.loop ? (ib - ia + L.st.length) % L.st.length <= L.st.length / 2 : ib > ia;
-        return { code: L.code, name: L.name, color: L.color, from: { no: s0.st.no, name: s0.st.name }, to: { no: s1.st.no, name: s1.st.name }, dir: x.head ? koHead(x.head) : fwd ? L.up : L.down };
+        return { code: L.code, name: L.name, color: L.color, from: { no: s0.st.no, name: s0.st.name }, to: { no: s1.st.no, name: s1.st.name }, dir: x.head ? koHead(x.head) : dirOf(L, ia, fwd) };
       });
       const known = rides.length && lineLegs.every(Boolean) ? lineLegs : null;
       const room = next ? toMin(next.start) - start : null;
@@ -483,6 +483,19 @@ const LINES = [
 // walk → nearest station → ride → station → walk when Google won't (its API returns no transit routes in Japan).
 const LINE_PTS = {"H": "35.64414,139.69883|35.64697,139.70865|35.65206,139.7222|35.66284,139.73133|35.66296,139.74505|35.66747,139.74776|35.6725,139.75162|35.67374,139.75837|35.67284,139.7631|35.66968,139.76695|35.66808,139.77259|35.675,139.77707|35.68023,139.77942|35.68618,139.78242|35.69075,139.77845|35.69846,139.7755|35.70649,139.7762|35.71171,139.77615|35.72071,139.78458|35.72955,139.7913|35.73235,139.7988|35.74966,139.80451", "G": "35.659,139.70244|35.66523,139.71239|35.67046,139.71788|35.67278,139.72402|35.67632,139.73753|35.67299,139.74142|35.67019,139.75006|35.66719,139.75886|35.67284,139.7631|35.6767,139.77004|35.68208,139.7734|35.68495,139.77307|35.69371,139.77089|35.70294,139.77168|35.70783,139.77299|35.71171,139.77615|35.71139,139.78269|35.70984,139.79075|35.71084,139.79782", "JY": "35.68125,139.76671|35.69179,139.77091|35.69837,139.77303|35.70695,139.77463|35.71341,139.77654|35.7217,139.77792|35.72815,139.77066|35.7322,139.76667|35.73737,139.76171|35.73658,139.74724|35.73341,139.73943|35.73169,139.72859|35.73018,139.71115|35.72119,139.70646|35.71268,139.70364|35.7013,139.70024|35.69026,139.70051|35.68395,139.70208|35.67021,139.70243|35.65808,139.70176|35.64644,139.71021|35.63407,139.71573|35.62626,139.72363|35.61939,139.72849|35.62867,139.73917|35.6354,139.74066|35.64574,139.74769|35.65511,139.75706|35.66617,139.75822|35.67496,139.76304", "TY": "35.65845,139.70284|35.64816,139.70329|35.64414,139.69883|35.63757,139.69101|35.62895,139.68535|35.61754,139.67618|35.60754,139.66883"};
 for (const l of LINES) (LINE_PTS[l.code] || '').split('|').forEach((p, i) => { const [lat, lng] = p.split(',').map(Number); if (l.st[i]) Object.assign(l.st[i], { lat, lng }); });
+// Which way a ride goes, as signs say it. On the Yamanote loop that depends on where you board: the next two
+// big stations ahead (from Ebisu toward Okachimachi the inner loop reads 시나가와·도쿄 방면).
+const LOOP_MAJOR = ['도쿄', '우에노', '이케부쿠로', '신주쿠', '시부야', '시나가와'];
+function dirOf(L, ia, fwd) {
+  if (!L.loop) return fwd ? L.up : L.down;
+  const n = L.st.length;
+  const ahead = [];
+  for (let k = 1; k < n && ahead.length < 2; k += 1) {
+    const st = L.st[(ia + (fwd ? k : -k) + n) % n];
+    if (LOOP_MAJOR.includes(st.name)) ahead.push(st.name);
+  }
+  return `${ahead.join('·')} 방면 (${fwd ? '내선순환' : '외선순환'})`;
+}
 function lineFromTitle(title) {
   const t = stripEmoji(title || '').replace(/\s+/g, ' ');
   const m = /^(.*?)\s*(?:→|->)\s*(.+)$/.exec(t);
@@ -496,7 +509,7 @@ function lineFromTitle(title) {
   if (!a || !b || a === b) return null;
   const ia = l.st.indexOf(a), ib = l.st.indexOf(b);
   const fwd = l.loop ? (ib - ia + l.st.length) % l.st.length <= l.st.length / 2 : ib > ia;
-  return { leg: { code: l.code, name: l.name, color: l.color, from: { no: a.no, name: a.name }, to: { no: b.no, name: b.name }, dir: fwd ? l.up : l.down }, ja: b.ja };
+  return { leg: { code: l.code, name: l.name, color: l.color, from: { no: a.no, name: a.name }, to: { no: b.no, name: b.name }, dir: dirOf(l, ia, fwd) }, ja: b.ja };
 }
 const effectiveItems = (day, withDeleted = false) => planItems().filter((it) => it.date === day.date && (withDeleted || !it.del));
 const rawItem = (id) => state.trip.days.flatMap((d) => d.items.map((it) => ({ ...it, date: d.date }))).find((x) => x.id === id)
@@ -5690,7 +5703,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 251;
+const APP_VERSION = 252;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
