@@ -2686,7 +2686,8 @@ function squeezeOf(date, now) {
   const items = dayItems(dayOf(date)).filter((x) => !x.skip);
   for (let w = 0; w < items.length; w += 1) {
     const W = items[w];
-    if (!isFixed(W) || isDone(W.id) || W.startMin <= now.min) continue;
+    // A booked slot still counts until its entry window closes (13:40 slot, in by 13:59) and we haven't arrived.
+    if (!isFixed(W) || isDone(W.id) || isBegun(W) || lastIn(W) <= now.min) continue;
     // Stops planned before it, by the original plan: one already pushed past it (the walk there) still counts.
     const planned = (x) => toMin(rawItem(x.id)?.start || x.start);
     const from = items.filter((x) => isDone(x.id) && x.startMin <= now.min).pop() || null;
@@ -2907,7 +2908,7 @@ const GUARD = 20; // 고정 일정 앞 완충 (분)
 function slackTo(date, now) {
   if (!now || now.date !== date) return null;
   const items = dayItems(dayOf(date)).filter((x) => !x.skip);
-  const W = items.find((x) => isFixed(x) && !isDone(x.id) && x.startMin > now.min && glyph(x.icon)[0] !== 'plane');
+  const W = items.find((x) => isFixed(x) && !isDone(x.id) && !isBegun(x) && lastIn(x) > now.min && glyph(x.icon)[0] !== 'plane');
   if (!W) return null;
   const from = items.filter((x) => isDone(x.id) && x.startMin <= now.min).pop() || null;
   const pend = items.filter((x) => x !== W && !isFixed(x) && !isDone(x.id) && x.startMin < W.startMin && (x.endMin > now.min || isBegun(x)));
@@ -2932,6 +2933,7 @@ function quickBar(it, kind) {
     food ? b('wait', 'clock', '웨이팅') : '',
     fixed ? '' : b('alt', 'swap', pinnedAlts(it.id).length ? `다른 곳 <em class="qk-n">${pinnedAlts(it.id).length}</em>` : '다른 곳'),
     fixed ? '' : `<button type="button" data-item-skip="${esc(it.id)}">${icon('skip')}건너뛰기</button>`,
+    tokyoNow().date === it.date ? b('home', 'home', '오늘은 여기까지') : '',
   ].filter(Boolean);
   return btns.length ? `<div class="qk-bar">${btns.join('')}</div>` : '';
 }
@@ -2972,6 +2974,7 @@ function openQuick(kind, id, min) {
   const it = findItem(id);
   if (!it) return;
   if (kind === 'alt') return openAlts(id);
+  if (kind === 'home') return endDay(it.date);
   const q = QK[kind];
   min = min || q.opts[1];
   state.qk = { kind, id, min };
@@ -5734,10 +5737,55 @@ function toggleSkip(id) {
   render();
   // Bringing a stop back can squeeze a fixed one; the ways to fit it open right away.
   const it = findItem(id);
+  // Brought back after its time has passed today (skipped in the morning, done in the afternoon): it goes in now,
+  // with the same length, and the stops after it move along; the fitting opens if a fixed one is hit.
+  if (old.skip && it && bringBackNow(id)) return;
   if (old.skip && it && squeezeOf(it.date, tokyoNow())) openSqueeze(it.date);
   // Skipping today leaves a hole: offer (never apply on its own) to bring the stops right after it forward.
   const pull = !old.skip && it && pullEarlier(it);
   if (pull) toast(`${shortName(it)} 건너뜀 · 다음 ${pull.length}개를 최대 ${formatLeft(Math.max(...pull.map((c) => c.it.startMin - c.start)))} 앞당길 수 있어요`, () => applyPull(pull), '앞당기기');
+}
+function bringBackNow(id) {
+  const now = tokyoNow();
+  const all = dayItems(dayOf(findItem(id).date));
+  const it = all.find((x) => x.id === id);
+  if (!it || now.date !== it.date || it.endMin > now.min || isFixed(it) || isDone(it.id)) return false;
+  const len = Math.max(15, it.endMin - it.startMin);
+  const cur = all.find((x) => x.id !== id && !x.skip && isBegun(x) && !isDone(x.id));
+  const s = Math.min(1439, Math.ceil(Math.max(now.min, cur ? cur.endMin : 0) / 5) * 5);
+  const e = Math.min(1439, s + len);
+  const list = all.filter((x) => x.id !== id && !x.skip && !isDone(x.id) && x.startMin >= now.min - 1);
+  const plan = ripple(list, -1, s, e);
+  const undo = { [id]: store.get('edit:' + id, null) };
+  store.set('edit:' + id, { ...(undo[id] || {}), skip: false, start: clock(s), end: clock(e), auto: true });
+  for (const c of plan.changes) {
+    undo[c.it.id] = store.get('edit:' + c.it.id, null);
+    store.set('edit:' + c.it.id, { ...(undo[c.it.id] || {}), start: clock(c.start), ...(c.it.end || undo[c.it.id]?.end ? { end: clock(c.end) } : {}), auto: true });
+  }
+  render();
+  toast(`${shortName(it)} 지금 ${clock(s)}로 다시 넣었어요${plan.changes.length ? ` · 뒤 일정 ${plan.changes.length}개 밀림` : ''}`, () => { for (const [k, v] of Object.entries(undo)) store.set('edit:' + k, v); render(); }, '되돌리기');
+  if (squeezeOf(it.date, now)) openSqueeze(it.date);
+  return true;
+}
+// 오늘은 여기까지: what's left today is skipped in one go and the hotel becomes the last stop, timed from where we are.
+async function endDay(date) {
+  const now = tokyoNow();
+  if (now.date !== date) return;
+  const all = dayItems(dayOf(date));
+  const cur = all.find((x) => !x.skip && isBegun(x) && !isDone(x.id));
+  const left = all.filter((x) => x !== cur && !x.skip && !isDone(x.id) && !x.autoHotel && !isFixed(x) && x.endMin > now.min);
+  const stops = left.filter((x) => !isLegRow(x));
+  if (!left.length) return toast('오늘 남은 일정이 없어요');
+  if (!(await askConfirm(`남은 일정 ${stops.length}개를 건너뛰고 호텔로 돌아갈까요?`, { body: `${stops.slice(0, 3).map(shortName).join(', ')}${stops.length > 3 ? ' 등' : ''} · 건너뛴 일정은 일정 탭에서 다시 살릴 수 있어요.`, ok: '호텔로' }))) return;
+  const undo = {};
+  for (const x of left) { undo[x.id] = store.get('edit:' + x.id, null); store.set('edit:' + x.id, { ...(undo[x.id] || {}), skip: true }); }
+  const here = (GEO.pos?.lat && GEO.pos) || legPoint(cur || all.filter((x) => isDone(x.id) && !isLegRow(x)).pop());
+  const stay = state.trip.stay;
+  const ride = here?.lat && stay?.lat ? (tableRoute(here, stay)?.min ?? Math.ceil(kmBetween(here, stay) * 3 + 10)) : 30;
+  const at = clock(Math.min(1435, Math.ceil((Math.max(now.min, cur ? cur.endMin : now.min) + ride) / 5) * 5));
+  const undoHotel = putHotelStop(date, at);
+  render();
+  toast(`호텔 ${at}쯤 도착 · 남은 일정 ${stops.length}개 건너뜀`, () => { for (const [k, v] of Object.entries(undo)) store.set('edit:' + k, v); undoHotel?.(); render(); }, '되돌리기');
 }
 // The stops that follow straight on from a skipped one (until a fixed stop, one under way, or free time),
 // laid back to back from where the skipped one began, never before now.
@@ -6150,7 +6198,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 283;
+const APP_VERSION = 284;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
