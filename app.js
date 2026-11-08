@@ -1548,26 +1548,17 @@ const secIcon = (name) => (name === 'spark' ? aiBadge('set') : `<span class="ii 
 // The same badge as AI 도우미 in 예약 탭 (sparkle in a soft purple square) marks every AI button.
 // The AI badge alone (titles of AI sheets) and the small one inside result tags.
 const aiBadge = (cls = '') => `<span class="ai-mark ${cls}">${icon('aimark')}</span>`;
-// AI 버튼의 마크: 화면에 처음 보일 때 한 번, 누를 때 한 번 '별 → 휘릭 캐릭터' (DESIGN.md › AI).
-// 다시 그려져도 이미 본 버튼은 다시 움직이지 않아요(버튼 문구·data 값으로 기억).
+// AI 마크: 평소엔 별만. 버튼을 누를 때·AI 창이 열릴 때 한 번 '별 → 캐릭터 → 별' (DESIGN.md › AI).
 const AI_BTN = '.btn.ai, .finder-go.ai, .day-sum-row.ai';
-const aiSeen = new Set();
-const aiKeyOf = (b) => [...b.attributes].filter((a) => a.name.startsWith('data-')).map((a) => a.name + '=' + a.value).join('&') + '|' + b.textContent.trim();
-const aiPlay = (b) => { const m = b.querySelector('.ai-mark'); if (!m) return; m.classList.remove('play'); void m.offsetWidth; m.classList.add('play'); };
-const aiIO = 'IntersectionObserver' in window ? new IntersectionObserver((list) => list.forEach((en) => {
-  if (!en.isIntersecting) return;
-  aiIO.unobserve(en.target);
-  const k = aiKeyOf(en.target);
-  if (aiSeen.has(k)) return;
-  aiSeen.add(k);
-  aiPlay(en.target);
-}), { threshold: 0.6 }) : null;
-let aiScan = 0;
+const aiPlay = (m) => { if (!m) return; m.classList.remove('play'); void m.offsetWidth; m.classList.add('play'); };
+document.addEventListener('pointerdown', (e) => { const b = e.target.closest?.(AI_BTN); if (b) aiPlay(b.querySelector('.ai-mark')); }, { passive: true });
+let aiTitle = '';
 new MutationObserver(() => {
-  if (aiScan || !aiIO) return;
-  aiScan = requestAnimationFrame(() => { aiScan = 0; document.querySelectorAll(AI_BTN).forEach((b) => { if (!b.dataset.aiWatch) { b.dataset.aiWatch = '1'; aiIO.observe(b); } }); });
-}).observe(document.body, { childList: true, subtree: true });
-document.addEventListener('pointerdown', (e) => { const b = e.target.closest?.(AI_BTN); if (b) aiPlay(b); }, { passive: true });
+  const h = $('#sheet-body .ai-h');
+  const t = h && !$('#sheet').hidden ? h.textContent : '';
+  if (t && t !== aiTitle) aiPlay(h.querySelector('.ai-mark'));
+  aiTitle = t;
+}).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
 // AI 도우미 캐릭터 (DESIGN.md › AI): 말풍선 몸 + 반짝이, 표정만 바뀌어요. main 인사 · thinking 일하는 중 · done 다 됐어요 · sorry 잘 안 됐어요.
 const AI_FACE = {
   main: '<g fill="#6A4FC4"><rect x="416" y="498" width="42" height="83" rx="21"/><rect x="622" y="498" width="42" height="83" rx="21"/><path d="M503 637Q540 676 577 637" fill="none" stroke="#6A4FC4" stroke-width="20" stroke-linecap="round"/></g>',
@@ -1577,6 +1568,8 @@ const AI_FACE = {
 };
 const aiChar = (mood = 'main', cls = '') => `<svg class="ai-char ${cls}" viewBox="0 0 1024 1024" aria-hidden="true"><path fill="#6A4FC4" d="M900 536C900 337.18 738.82 176 540 176S180 337.18 180 536s161.18 360 360 360c75 0 145-23 203-62l155 39c27 7 40-8 23-30l-94-119c46-60 73-119 73-188Z"/><rect x="274" y="383" width="532" height="381" rx="174" fill="#EFEAFB"/>${AI_FACE[mood] || AI_FACE.main}<g transform="translate(24 20)"><path d="M196 153C211 153 224 204 246 225s72 34 72 49-50 28-72 49-35 72-50 72-28-51-50-72-72-34-72-49 50-28 72-49 35-72 50-72Z" fill="#6A4FC4" stroke="white" stroke-width="15" stroke-linejoin="round"/><path d="M196 216c12 34 24 46 58 58-34 12-46 24-58 58-12-34-24-46-58-58 34-12 46-24 58-58Z" fill="white"/></g></svg>`;
 // AI가 실패했을 때: 미안해하는 캐릭터 + 호박색 안내 (이유와 할 일).
+// AI 결과가 막 나왔을 때: '완료' 캐릭터 + 다 됐어요 + 무엇을 확인할지.
+const aiDone = (what) => `<div class="ai-done">${aiChar('done')}<span><b>다 됐어요, 확인해 주세요</b><small>${what}</small></span></div>`;
 const aiFail = (msg) => `<div class="ai-note ai-fail">${aiChar('sorry')}<span>${esc(msg)}</span></div>`;
 const aiTag = (text) => `<span class="ai-tag">${aiBadge('xs')}${text}</span>`;
 // Every AI button gets the same sparkle badge; a photo feature says so in its words, not by swapping the badge.
@@ -4029,7 +4022,7 @@ async function rcptFromPhoto() {
     const lbl = (t, html, cls = '') => `<label class="rf ${cls}"><span>${t}</span>${html}</label>`;
     $('#ai-res').innerHTML = `
       <form class="rcpt-ai" data-rcpt-save>
-        ${aiTag('AI가 읽은 내용 · 맞는지 확인 후 등록')}
+        ${aiDone('AI가 읽은 내용이에요 · 맞는지 확인 후 등록')}
         <div class="rcpt-sum">
           <input class="rcpt-shop" name="shop" value="${esc(row.shop)}" maxlength="60" aria-label="장소명" placeholder="장소명">
           <div class="rcpt-amt"><input class="amount" name="amount" inputmode="numeric" value="${row.value.toLocaleString('ko-KR')}" aria-label="금액"><select name="cur" aria-label="통화"><option value="JPY" ${row.cur === 'JPY' ? 'selected' : ''}>엔</option><option value="KRW" ${row.cur === 'KRW' ? 'selected' : ''}>원</option></select></div>
@@ -4113,7 +4106,7 @@ ask: one useful Japanese sentence the traveler may want to say here (ja), its Ko
     const rate = fxRate();
     $('#ai-res').innerHTML = `
       <div class="menu-ai">
-        ${aiTag('AI가 옮긴 내용 · 가게에서 다시 확인')}
+        ${aiDone('AI가 옮긴 내용이에요 · 가게에서 다시 확인')}
         <b class="menu-t">${esc(r.title)}</b>
         ${r.summary ? `<div class="menu-s">${esc(r.summary)}</div>` : ''}
         ${(r.items || []).length ? `<div class="menu-list">${r.items.map((x) => `
@@ -4183,7 +4176,7 @@ async function aiPlanGo() {
     $('[data-ai-plan-go]')?.removeAttribute('disabled'); $('[data-ai-plan-go]')?.classList.remove('busy');
     $('#ai-res').innerHTML = `
       ${r.reply ? `<div class="ai-reply">${esc(r.reply)}</div>` : ''}
-      ${state.aiPlan.options.length ? aiTag('AI가 만든 안 · 적용 전에 확인하세요') : ''}
+      ${state.aiPlan.options.length ? aiDone('AI가 만든 안이에요 · 적용 전에 확인하세요') : ''}
       ${state.aiPlan.options.map((o, i) => `
         <div class="ai-opt">
           <b>${esc(o.title)}</b>${o.summary ? `<small>${esc(o.summary)}</small>` : ''}
@@ -5174,7 +5167,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 227;
+const APP_VERSION = 228;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
