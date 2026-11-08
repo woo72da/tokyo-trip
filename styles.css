@@ -2246,3 +2246,34 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .lg-n { font-size: 12px; color: var(--muted); margin-left: 2px; }
 .lg-time { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 12.5px; color: var(--muted); }
 .lg-time b { font-family: var(--mono); font-size: 13.5px; color: var(--ink); }
+
+/* v244 일정 엔진 S3: 지금 카드 빠른 버튼 · 고정 일정까지 여유 · 변경 미리보기 · 대안 */
+.qk-bar { display: flex; gap: 6px; margin-top: 12px; overflow-x: auto; scrollbar-width: none; }
+.qk-bar::-webkit-scrollbar { display: none; }
+.qk-bar button { flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 11px; border: 0; border-radius: 999px; background: rgba(255,255,255,.12); color: var(--on-night); font: inherit; font-size: 13px; font-weight: 700; }
+.qk-bar button .ico { width: 14px; height: 14px; }
+.slack { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding: 7px 10px; border-radius: 10px; background: rgba(255,255,255,.08); color: var(--on-night); font-size: 13px; }
+.slack .ico { width: 15px; height: 15px; flex: none; }
+.slack b { font-family: var(--mono); }
+.slack em { font-style: normal; font-size: 11.5px; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: #f0b45a; color: #2a1c05; }
+.slack.ok .ico { color: #7fd1b5; }
+.slack.low { background: rgba(240,120,90,.18); }
+.slack.low em { background: #ef8c6b; }
+.qk-chips { display: flex; gap: 8px; margin: 4px 0 12px; }
+.qk-chips button { flex: 1; min-height: 44px; border: 0; border-radius: 12px; background: var(--soft); color: var(--ink); font: inherit; font-weight: 700; }
+.qk-chips button.on { background: var(--sel-bg); color: var(--sel-ink); box-shadow: 0 0 0 2px var(--accent); }
+.qk-sub { margin: 14px 2px 6px; font-size: 13px; font-weight: 800; color: var(--muted); }
+.qk-list { list-style: none; margin: 0; padding: 0; border-radius: 14px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); }
+.qk-list li { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); font-size: 14px; }
+.qk-list li:first-child { border-top: 0; font-weight: 700; }
+.qk-list s { color: var(--muted); font: 12.5px var(--mono); }
+.qk-list i { font-style: normal; color: var(--muted); }
+.qk-list b { font: 700 13.5px var(--mono); color: var(--accent); }
+.qk-calm { margin: 8px 2px 0; }
+.qk-wall { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--warn-soft); color: var(--warn); font-size: 13px; line-height: 1.45; }
+.qk-wall .ico { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+.qk-alts { display: grid; gap: 8px; margin-top: 8px; }
+.qk-alt { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 12px; border: 0; border-radius: 14px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); font: inherit; text-align: left; }
+.qk-alt b { display: block; font-size: 15px; }
+.qk-alt small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.qk-alt em { flex: none; font-style: normal; font-size: 13px; font-weight: 800; color: var(--accent); }

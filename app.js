@@ -470,6 +470,9 @@ function travelMin(a, b) {
   const pb = placeOfItem(b.id);
   if (pa && pa === pb) return 0;
   if (!pa?.lat || !pb?.lat) return 10;
+  // 일정 엔진 S3: a Google route already looked up for this pair wins, with the leg buffer (+15%, at least 3 min).
+  const g = gKey() && store.get(routeKey(pa, pb, a.date || b.date, a.endMin ?? toMin(a.end || a.start)), null);
+  if (g && !g.none) return g.min + Math.max(3, Math.ceil(g.min * 0.15));
   const km = kmBetween(pa, pb);
   if (km < 0.15) return 0; // same building or next door
   return km <= 1.2 ? Math.max(1, Math.ceil((km * 1000 * 1.3) / 75)) : Math.ceil(km * 3 + 10);
@@ -2618,6 +2621,143 @@ function applySqueeze(i) {
   render();
   toast(`${wy.title} · 적용했어요`, () => { for (const [k, v] of Object.entries(undo)) store.set('edit:' + k, v); render(); }, '되돌리기');
 }
+// ---------- 일정 엔진 S3: 빠른 버튼 · 변경 미리보기 · 여유 (travel-app-native/docs/09-schedule-engine.md 3·4.3~4.5장) ----------
+// Every on-the-spot change goes through one preview: what moves, what a fixed stop loses, then 적용 → 되돌리기.
+// '점심 · 마이센 …' reads as 마이센: the meal word alone says too little in a list of changes.
+const qkName = (it) => stripEmoji(it.title).replace(/^(점심|저녁|아침|조식|간식) · /, '').split(' · ')[0];
+const GUARD = 20; // 고정 일정 앞 완충 (분)
+// How much room is left before the next fixed stop today, laying what's still to do back to back from now.
+function slackTo(date, now) {
+  if (!now || now.date !== date) return null;
+  const items = dayItems(dayOf(date)).filter((x) => !x.skip);
+  const W = items.find((x) => isFixed(x) && !isDone(x.id) && x.startMin > now.min && glyph(x.icon)[0] !== 'plane');
+  if (!W) return null;
+  const from = items.filter((x) => isDone(x.id) && x.startMin <= now.min).pop() || null;
+  const pend = items.filter((x) => x !== W && !isFixed(x) && !isDone(x.id) && x.startMin < W.startMin && (x.endMin > now.min || isBegun(x)));
+  const end = pend.length ? packEnd(pend, {}, [], W, now.min, from) : now.min + travelMin(from, W);
+  return { W, slack: lastIn(W) - end };
+}
+function slackLine(it, now) {
+  const sl = slackTo(it.date, now);
+  if (!sl || sl.slack < 0 || sl.W.id === it.id) return '';
+  const lvl = sl.slack >= GUARD ? 'ok' : sl.slack >= 10 ? 'tight' : 'low';
+  return `<div class="slack ${lvl}">${icon(lvl === 'ok' ? 'clock' : 'warn')}<span class="grow">${esc(shortName(sl.W))} ${esc(sl.W.enterBy ? sl.W.enterBy + ' 입장' : sl.W.start)}까지 여유 <b>${formatLeft(sl.slack)}</b></span>${lvl === 'ok' ? '' : '<em>빠듯해요</em>'}</div>`;
+}
+const placeCat = (it) => placeOfItem(it.id)?.cat || (isMeal(it) ? 'eat' : glyph(it.icon)[0] === 'coffee' ? 'drink' : null);
+function quickBar(it, kind) {
+  if (isMove(it) || isDone(it.id) || it.skip) return '';
+  const fixed = isFixed(it);
+  const food = ['eat', 'drink'].includes(placeCat(it));
+  const b = (k, ic, t) => `<button type="button" data-qk="${k}|${esc(it.id)}">${icon(ic)}${t}</button>`;
+  const btns = [
+    fixed ? '' : b('late', 'clock', '늦어요'),
+    kind === 'now' && !fixed ? b('stay', 'plus', '더 있을래요') : '',
+    food ? b('wait', 'clock', '웨이팅') : '',
+    fixed ? '' : b('alt', 'swap', '다른 곳'),
+    fixed ? '' : `<button type="button" data-item-skip="${esc(it.id)}">${icon('skip')}건너뛰기</button>`,
+  ].filter(Boolean);
+  return btns.length ? `<div class="qk-bar">${btns.join('')}</div>` : '';
+}
+// late: this stop starts (and ends) `min` later · stay: it ends `min` later. The rest follows by ripple().
+function qkPlan(kind, id, min) {
+  const it = findItem(id);
+  const items = dayItems(dayOf(it.date)).filter((x) => !x.skip);
+  const idx = items.findIndex((x) => x.id === id);
+  const t = items[idx];
+  const s = kind === 'stay' ? t.startMin : Math.min(1439, t.startMin + min);
+  const e = Math.min(1439, t.endMin + min);
+  return { t, s, e, plan: ripple(items, idx, s, e) };
+}
+const QK = {
+  late: { title: '늦어요', opts: [10, 20, 30], chip: (m) => `${m}분 늦게` },
+  stay: { title: '더 있을래요', opts: [15, 30, 45], chip: (m) => `${m}분 더` },
+  wait: { title: '웨이팅', opts: [15, 30, 60], chip: (m) => `대기 ${m}분` },
+};
+function qkPreview(kind, id, min) {
+  const { t, s, e, plan } = qkPlan(kind === 'stay' ? 'stay' : 'late', id, min);
+  const row = (name, a, b) => `<li><span class="grow">${esc(name)}</span><s>${a}</s><i>→</i><b>${b}</b></li>`;
+  const wall0 = plan.walls[0];
+  // A booked slot often lets you in a while after it starts (13:40 slot, in by 13:59): only what's past that counts.
+  const over = wall0 ? wall0.over - (lastIn(wall0.it) - wall0.it.startMin) : 0;
+  const wall = wall0 && over > 0 ? { ...wall0, over } : null;
+  const inWindow = wall0 && over <= 0;
+  return `
+    <ul class="qk-list">
+      ${row(qkName(t), `${clock(t.startMin)}–${clock(t.endMin)}`, `${clock(s)}–${clock(e)}`)}
+      ${plan.changes.map((c) => row(qkName(c.it), clock(c.it.startMin), clock(c.start))).join('')}
+    </ul>
+    ${plan.changes.length ? '' : '<div class="small muted qk-calm">뒤 일정은 그대로예요 · 빈 시간이 흡수해요</div>'}
+    ${inWindow ? `<div class="small muted qk-calm">${esc(qkName(wall0.it))} 입장 마감(${esc(wall0.it.enterBy)}) 안이라 괜찮아요</div>` : ''}
+    ${wall ? `<div class="qk-wall">${icon('warn')}<span><b>${esc(shortName(wall.it))}</b>(고정)까지 ${formatLeft(wall.over)} 모자라요 · 적용하면 맞추는 방법을 바로 보여 드려요</span></div>` : ''}`;
+}
+function openQuick(kind, id, min) {
+  const it = findItem(id);
+  if (!it) return;
+  if (kind === 'alt') return openAlts(id);
+  const q = QK[kind];
+  min = min || q.opts[1];
+  state.qk = { kind, id, min };
+  $('#sheet-body').innerHTML = `
+    <div class="sheet-head"><h3>${esc(qkName(it))} · ${q.title}</h3></div>
+    <div class="qk-chips">${q.opts.map((m) => `<button type="button" class="${m === min ? 'on' : ''}" data-qk-min="${m}">${q.chip(m)}</button>`).join('')}</div>
+    ${kind === 'wait' ? '<div class="qk-sub">기다리면</div>' : ''}
+    ${qkPreview(kind, id, min)}
+    <div class="btns"><button class="btn" data-close>취소</button><button class="btn primary" data-qk-apply>${icon('check')}${kind === 'wait' ? '기다릴게요' : '적용'}</button></div>
+    ${kind === 'wait' ? `<div class="qk-sub">다른 곳으로 가면</div>${altList(it)}` : ''}`;
+  $('#sheet').hidden = false;
+}
+function applyQuick() {
+  const { kind, id, min } = state.qk;
+  const { t, s, e, plan } = qkPlan(kind === 'stay' ? 'stay' : 'late', id, min);
+  const undo = {};
+  const put = (k, patch) => { if (!(k in undo)) undo[k] = store.get('edit:' + k, null); store.set('edit:' + k, { ...(store.get('edit:' + k, null) || {}), ...patch }); };
+  put(id, { start: clock(s), end: clock(e), auto: true });
+  for (const c of plan.changes) put(c.it.id, { start: clock(c.start), ...(c.it.end || store.get('edit:' + c.it.id, null)?.end ? { end: clock(c.end) } : {}), auto: true });
+  closeSheet();
+  render();
+  toast(`${QK[kind].chip(min)} · ${plan.changes.length ? `뒤 일정 ${plan.changes.length}개 조정` : '뒤 일정은 그대로'}`, () => { for (const [k, v] of Object.entries(undo)) store.set('edit:' + k, v); render(); }, '되돌리기');
+  if (squeezeOf(t.date, tokyoNow())) openSqueeze(t.date);
+}
+// Places of the same kind near this stop: walk time, open now, rating; picking one swaps the stop (S1/S2 redo the legs).
+function altPlaces(it) {
+  const here = placeOfItem(it.id);
+  const pt = here?.lat ? here : legPoint(it);
+  if (!pt?.lat) return null;
+  const cat = placeCat(it);
+  const now = tokyoNow();
+  return allPlaces()
+    .filter((p) => p.lat && p.id !== here?.id && (!cat || p.cat === cat) && visitOf(p.id)?.again !== 'no')
+    .map((p) => ({ p, km: kmBetween(pt, p), open: openNow(p, now.date === it.date ? now : { date: it.date, min: it.startMin }) }))
+    .filter((x) => x.km <= 2 && x.open !== false)
+    .sort((a, b) => (b.open === true) - (a.open === true) || a.km - b.km)
+    .slice(0, 5);
+}
+function altList(it) {
+  const list = altPlaces(it);
+  if (!list) return '<div class="small muted">이 일정은 위치 정보가 없어 근처 대안을 찾지 못했어요. 탐색 탭에서 골라 주세요.</div>';
+  if (!list.length) return '<div class="small muted">2km 안에 같은 종류의 저장된 장소가 없어요. 탐색 탭의 ＋로 찾아 주세요.</div>';
+  return `<div class="qk-alts">${list.map(({ p, km, open }) => `
+    <button type="button" class="qk-alt" data-qk-swap="${esc(it.id)}|${esc(p.id)}">
+      <span class="grow"><b>${esc(p.name)}</b><small>${[`${km <= 1.2 ? '도보' : '이동'} 약 ${km <= 1.2 ? Math.max(1, Math.ceil((km * 1300) / 75)) : Math.ceil(km * 3 + 10)}분`, distLabel(km), open === true ? '영업 중' : '', p.area].filter(Boolean).map(esc).join(' · ')}</small></span>
+      <em>여기로</em>
+    </button>`).join('')}</div>`;
+}
+function openAlts(id) {
+  const it = findItem(id);
+  $('#sheet-body').innerHTML = `
+    <div class="sheet-head"><h3>${esc(qkName(it))} 대신</h3></div>
+    <div class="small muted">같은 종류 · 2km 안 · 가까운 순 (영업 중 먼저). 고르면 이 시간에 그곳으로 바꾸고, 앞뒤 이동을 다시 계산해요.</div>
+    ${altList(it)}`;
+  $('#sheet').hidden = false;
+}
+function quickSwap(id, placeId) {
+  const old = store.get('edit:' + id, null);
+  store.set('edit:' + id, { ...(old || {}), swap: placeId });
+  closeSheet();
+  render();
+  toast(`${placeById(placeId)?.name || '다른 곳'}(으)로 바꿨어요 · 이동을 다시 계산했어요`, () => { store.set('edit:' + id, old); render(); }, '되돌리기');
+}
+
 // Shown above the fixed stop in the day's list and on the today tab.
 const squeezeBar = (q) => `<button class="sq-bar" data-squeeze-open="${esc(q.W.date)}">${icon('warn')}<span class="grow"><b>${esc(shortName(q.W))} ${esc(q.W.enterBy ? q.W.enterBy + ' 입장' : q.W.start)}${q.over ? `까지 ${formatLeft(q.over)} 모자라요` : ' 앞 일정 순서가 꼬였어요'}</b><small>맞추는 방법 보기</small></span><i class="chev"></i></button>`;
 
@@ -2655,7 +2795,8 @@ function heroCard(it, kind, now, started = true) {
       ${waiting ? `<div class="start-ask"><span class="grow">${isTransit(it) ? '출발했나요?' : '도착했나요?'}</span><button class="start-yes" data-arrive="${esc(it.id)}">${icon('check')}${arriveLabel(it)}</button><button data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button></div>` : ''}
       ${over > 0 ? `<div class="start-ask"><span class="grow">끝났나요?</span><button class="start-yes" data-done="${esc(it.id)}">${icon('check')}${doneLabel(it)}</button><button data-item-edit="${esc(it.id)}">${icon('clock')}시간 변경</button></div>` : ''}
       ${kind === 'now' && started && over <= 0 && !isDone(it.id) ? `<div class="start-ask in"><span class="grow">${icon('check')}${isBegun(it) ? `${arriveLabel(it)}${isTransit(it) ? '' : ' · 나갈 때 눌러요'}` : '진행 중 · 끝나면 눌러요'}</span><button class="start-yes done-yes" data-done="${esc(it.id)}">${icon('check')}${doneLabel(it)}</button></div>` : ''}
-      ${kind === 'now' ? catchBtn(it, items, now) : ''}
+      ${kind === 'now' || kind === 'next' ? quickBar(it, kind) : ''}
+      ${kind === 'now' || kind === 'next' ? slackLine(it, now) : ''}
       ${kind === 'now' && !waiting && over <= 0 ? `<div class="meter"><i style="width:${progress}%"></i></div>` : ''}
       ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
       ${it.place ? `<div class="btns">
@@ -5411,7 +5552,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 243;
+const APP_VERSION = 244;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5495,7 +5636,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-qk-apply],[data-qk-swap],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -5683,6 +5824,10 @@ document.addEventListener('click', async (e) => {
   }
   else if ('settings' in d) openSettings(d.settings);
   else if ('reportPreview' in d) { state.reportPreview = true; window.scrollTo(0, 0); render(); }
+  else if (d.qk) { const [k, id] = d.qk.split('|'); openQuick(k, id); }
+  else if (d.qkMin) openQuick(state.qk.kind, state.qk.id, Number(d.qkMin));
+  else if ('qkApply' in d) applyQuick();
+  else if (d.qkSwap) { const [id, pid] = d.qkSwap.split('|'); quickSwap(id, pid); }
   else if (d.sumFold) {
     try { const o = JSON.parse(localStorage.getItem('daySumOpen') || '[]'); localStorage.setItem('daySumOpen', JSON.stringify(o.includes(d.sumFold) ? o.filter((x) => x !== d.sumFold) : [...o, d.sumFold])); } catch { /* private mode */ }
     render();
