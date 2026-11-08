@@ -453,6 +453,8 @@ function autoLegs(list) {
       // A train ride still works when the new stop is near the old one (same station area, about 1 km); a walk less so.
       const near = m.line ? 1 : 0.5;
       if (!re && samePlace(a, r.prevPt, key(prev), r.prevKey, near) && samePlace(b, r.nextPt, key(next), r.nextKey, near)) return;
+      // Nowhere to go (hotel → hotel once the hotel became a stop): the row is spent, so it goes.
+      if (a?.lat && b?.lat && kmBetween(a, b) < 0.2) { out.set(m, { ...m, del: true, legMerged: true }); return; }
       const start = toMin(m.start);
       const g = googleLeg(a, b, m.date, start) || tableRoute(a, b);
       const rides = g?.steps.filter((x) => x.mode === 'ride') || [];
@@ -3061,7 +3063,7 @@ function timeline(items, now, edit = false) {
 function hotelEnd(items) {
   const live = items.filter((x) => !x.skip);
   const last = live[live.length - 1];
-  if (!last || !isLegRow(last) || isFixed(last)) return '';
+  if (!last || !isLegRow(last) || isFixed(last) || live.some((x) => x.autoHotel)) return '';
   const to = last.leg?.to || (/→\s*(.+)$/.exec(stripEmoji(last.title))?.[1] || '');
   if (!last.leg?.to?.includes('호텔') && !/호텔|숙소/.test(to)) return '';
   const arrive = Math.min(1439, last.startMin + (last.leg?.min || last.endMin - last.startMin || 0));
@@ -5794,7 +5796,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 256;
+const APP_VERSION = 257;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
