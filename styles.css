@@ -2105,3 +2105,25 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 /* 장소 찾기: 한 줄 입력 + AI 찾기 버튼이 입력칸 높이 가운데 */
 .finder-go.ai { margin-top: 5px; height: 36px; padding: 0 12px 0 9px; gap: 6px; }
 .finder .finder-in textarea.input { background: transparent; border-radius: 0; box-shadow: none; }
+
+/* v231: 하루씩 돌아보기 = 줄 메모장. 머리(일차·날짜·완료) 아래 두 줄 선, 본문은 32px 줄 위에 한 줄씩 */
+.rp-days { padding: 2px 2px 8px; margin: -2px 0 -8px; }
+.rp-day.memo { gap: 0; padding: 14px 14px 10px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--line), 0 1px 0 var(--line); }
+.rp-day.memo .rp-day-h { padding-bottom: 8px; border-bottom: 3px double color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.rp-memo { position: relative; display: grid; grid-auto-rows: 32px; padding-left: 12px;
+  background-image: repeating-linear-gradient(to bottom, transparent 0 31px, var(--line) 31px 32px); }
+.rp-memo::before { content: ""; position: absolute; left: 4px; top: 0; bottom: 0; width: 1.5px; background: color-mix(in srgb, var(--gold) 55%, transparent); }
+.rp-l { display: flex; align-items: center; gap: 5px; min-width: 0; height: 32px; line-height: 32px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rp-memo .rp-day-t { grid-row: span 2; height: 64px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; line-height: 32px; font-size: 14px; }
+.rp-memo .rp-day-n { justify-content: space-between; }
+.rp-memo .rp-day-best > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* v231: 경비 분류 아이콘 — 고르는 칸 왼쪽 아이콘 + 목록 줄은 글자 대신 아이콘 칸 */
+.cat-pick { position: relative; display: block; min-width: 0; }
+.cat-pick .cat-ic { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); display: grid; pointer-events: none; color: var(--accent); }
+.cat-pick .cat-ic .ico { width: 18px; height: 18px; }
+.cat-pick select { width: 100%; padding-left: 38px; }
+.exp-cat { flex: none; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 10px; background: var(--soft); color: var(--accent); }
+.exp-cat .ico { width: 19px; height: 19px; }
+.rp-days { scrollbar-width: none; }
+.rp-days::-webkit-scrollbar { display: none; }

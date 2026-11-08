@@ -682,6 +682,10 @@ function wxTrip() {
 
 // ---------- expenses (yen, shown with won) ----------
 const EXP_CATS = ['식당', '카페', '편의점', '교통', '쇼핑', '관광', '기타'];
+// 분류마다 아이콘 하나: 고르는 칸 왼쪽과 지출 목록 줄에 같은 그림 (DESIGN.md › 경비).
+const EXP_ICON = { 식당: 'meal', 카페: 'coffee', 편의점: 'local', 교통: 'train', 쇼핑: 'shop', 관광: 'torii', 기타: 'money' };
+const expIcon = (cat) => icon(EXP_ICON[cat] || 'money');
+const catPick = (on, attrs = 'name="cat"', selCls = '') => `<span class="cat-pick"><span class="cat-ic">${expIcon(on)}</span><select class="input ${selCls}" ${attrs} aria-label="분류">${EXP_CATS.map((c) => `<option ${c === on ? 'selected' : ''}>${c}</option>`).join('')}</select></span>`;
 const SCENE_CAT = { 식당: '식당', 카페: '카페', 교통: '교통', 공항: '교통', 쇼핑: '쇼핑', 관광: '관광', 호텔: '기타' };
 const expenses = () => store.get('exp', []);
 const yen = (n) => `${Math.round(n).toLocaleString('ko-KR')}엔`;
@@ -851,7 +855,7 @@ function openExpEdit(id) {
     <form class="exp-edit exp-form" data-id="${esc(id)}">
       <input class="input amount" name="amount" inputmode="numeric" value="${commas(e.orig?.value || e.amount)}" autocomplete="off" required aria-label="금액">
       ${expPick(e.orig?.cur || 'JPY', e.pay || 'card')}
-      <select class="input" name="cat" aria-label="분류">${EXP_CATS.map((c) => `<option ${c === e.cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
+      ${catPick(e.cat)}
       ${expDatePick(e.date)}
       <input class="input" type="time" name="time" value="${esc(expTime(e))}" aria-label="결제 시간">
       <input class="input exp-wide" name="memo" placeholder="메모" value="${esc(expTitle(e) === e.cat && !e.memo ? '' : expTitle(e))}" autocomplete="off">
@@ -870,7 +874,7 @@ const expTitle = (e) => (e.time ? e.memo : String(e.memo || '').replace(/\s·\s\
 function expRow(e, inDay = false) {
   return `
     <div class="exp-row">
-      <span class="exp-cat">${esc(e.cat)}</span>
+      <span class="exp-cat" role="img" aria-label="${esc(e.cat)}" title="${esc(e.cat)}">${expIcon(e.cat)}</span>
       <button type="button" class="exp-open" data-exp-edit="${esc(e.id)}">
         <span class="grow"><b>${esc(expTitle(e))}</b><small>${esc([inDay ? expTime(e) : `${expDateLabel(e.date)}${expTime(e) ? ' ' + expTime(e) : ''}`, person(e.by), e.pay ? { cash: '현금', card: '카드' }[e.pay] : ''].filter(Boolean).join(' · '))}</small></span>
         <span class="exp-amt">${e.orig?.cur === 'KRW' ? `<b>${e.orig.value.toLocaleString('ko-KR')}원</b><small>${yen(e.amount)}</small>` : `<b>${yen(e.amount)}</b><small>${won(e.amount)}</small>`}</span>
@@ -882,7 +886,7 @@ const expForm = (item = null, memo = '', cat = '식당') => `
   <form class="exp-form" data-exp-item="${esc(item || '')}">
     <input class="input amount" name="amount" inputmode="numeric" placeholder="금액" autocomplete="off" required>
     ${expPick()}
-    <select class="input" name="cat" aria-label="분류">${EXP_CATS.map((c) => `<option ${c === cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
+    ${catPick(cat)}
     ${item ? '' : expDatePick()}
     <input class="input" name="memo" placeholder="메모" value="${esc(memo)}" autocomplete="off">
     ${item ? '' : `<button class="btn" type="button" data-exp-rcpt>${icon('camera')}영수증 등록</button>`}
@@ -960,7 +964,7 @@ function showSms(rows = parseSms($('#sms-text').value)) {
           <span class="grow"><b>${esc(r.shop)}</b><small>${esc(expDateLabel(r.date))} ${esc(r.time)}${r.itemTitle ? ` · ${esc(r.itemTitle)} 일정` : ''}</small>
             ${r.dup ? '<em>같은 날 같은 금액이 이미 있어요</em>' : r.cancel ? '<em>취소 문자예요</em>' : r.ok ? '' : `<em>${esc(r.cur)}는 엔·원으로 바꿔 직접 입력해 주세요</em>`}</span>
           <span class="sms-amt">${r.cur === 'KRW' ? `${r.value.toLocaleString('ko-KR')}원` : r.cur === 'JPY' ? yen(r.value) : `${esc(r.cur)} ${r.value}`}</span></label>
-        <select class="input sms-cat" data-sms-cat="${i}" aria-label="분류">${EXP_CATS.map((c) => `<option ${c === r.cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
+        ${catPick(r.cat, `data-sms-cat="${i}"`, 'sms-cat')}
       </div>`).join('')}</div>
     <button class="btn primary wide sms-add" data-sms-add>${icon('plus')}고른 결제 등록</button>`;
 }
@@ -1861,12 +1865,14 @@ function reportDays(perDay, today) {
   return `
     <div class="section-title"><span>하루씩 돌아보기</span></div>
     <div class="rp-days">${perDay.map((x) => `
-      <button class="rp-day" data-tomorrow="${x.i}">
+      <button class="rp-day memo" data-tomorrow="${x.i}">
         <span class="rp-day-h"><b>${x.i + 1}일차</b><small>${esc(dayLabel(x.d.date))}${x.d.date === today ? ' · 오늘' : ''}</small>${x.sealed ? '<i class="rp-seal">완료</i>' : ''}</span>
-        <span class="rp-day-t">${esc(stripEmoji(x.d.title))}</span>
-        ${x.wx ? `<span class="rp-day-w">${wxIcon(x.wx.icon)}${x.wx.min}~${x.wx.max}°${x.wx.rain >= 1 ? ` · 비 ${Math.round(x.wx.rain)}mm` : ''}</span>` : ''}
-        <span class="rp-day-n"><span><b>${x.places.length}</b>곳</span><span><b>${yen(x.spent)}</b></span></span>
-        ${x.best ? `<span class="rp-day-best">${icon('thumbs2')}${esc(x.best.name)}</span>` : ''}
+        <span class="rp-memo">
+          <span class="rp-l rp-day-t">${esc(stripEmoji(x.d.title))}</span>
+          <span class="rp-l rp-day-w">${x.wx ? `${wxIcon(x.wx.icon)}${x.wx.min}~${x.wx.max}°${x.wx.rain >= 1 ? ` · 비 ${Math.round(x.wx.rain)}mm` : ''}` : ''}</span>
+          <span class="rp-l rp-day-n"><span><b>${x.places.length}</b>곳</span><span><b>${yen(x.spent)}</b></span></span>
+          <span class="rp-l rp-day-best">${x.best ? `${icon('thumbs2')}<span>${esc(x.best.name)}</span>` : ''}</span>
+        </span>
       </button>`).join('')}</div>`;
 }
 function reportSpend(exp, total, shopping, budget, days) {
@@ -4033,7 +4039,7 @@ async function rcptFromPhoto() {
           ${lbl('날짜', expDatePick(row.date))}
           ${lbl('시간', `<input class="input" type="time" name="time" value="${esc(row.time || '')}">`)}
           ${lbl('결제', `<select class="input" name="pay"><option value="card" ${state.rcptAi.pay === 'card' ? 'selected' : ''}>카드</option><option value="cash" ${state.rcptAi.pay === 'cash' ? 'selected' : ''}>현금</option></select>`)}
-          ${lbl('분류', `<select class="input" name="cat">${EXP_CATS.map((c) => `<option ${c === (r.cat || row.cat) ? 'selected' : ''}>${c}</option>`).join('')}</select>`)}
+          ${lbl('분류', catPick(r.cat || row.cat))}
         </div>
         ${items.length ? `<details class="rcpt-more"><summary>영수증 품목 ${items.length}개</summary><ul class="rcpt-items">${items.map((x) => `<li><span>${esc(x.name)}</span>${x.price ? `<b>${Math.round(x.price).toLocaleString('ko-KR')}</b>` : ''}</li>`).join('')}</ul></details>` : ''}
         <button class="btn primary wide" type="submit">${icon('check')}지출 등록</button>
@@ -5167,7 +5173,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 230;
+const APP_VERSION = 231;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5605,6 +5611,10 @@ document.addEventListener('click', async (e) => {
 
 document.addEventListener('compositionend', (e) => {
   if (e.target.classList?.contains('amount')) e.target.dispatchEvent(new Event('input', { bubbles: true }));
+});
+document.addEventListener('change', (e) => {
+  const sel = e.target.closest?.('.cat-pick select');
+  if (sel) sel.previousElementSibling.innerHTML = expIcon(sel.value);
 });
 document.addEventListener('input', (e) => {
   const t = e.target;
