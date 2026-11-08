@@ -2157,3 +2157,4 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .dp-ok { position: absolute; top: -5px; right: -4px; box-shadow: 0 0 0 2px var(--bg); display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--now); color: var(--on-now, #fff); }
 .dp-ok .ico { width: 11px; height: 11px; }
 .dp[aria-pressed="true"] .dp-ok { box-shadow: 0 0 0 2px var(--sel-bg); }
+.g-set .ai-sub.first .ico { width: 17px; height: 17px; color: var(--now); }

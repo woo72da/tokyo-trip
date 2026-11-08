@@ -4472,7 +4472,9 @@ function aiSettings() {
       <label class="field"><span>모델</span><select class="input" id="ai-model">${Object.entries(AI_MODELS).map(([k, m]) => `<option value="${k}" ${k === pick ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>
       ${key ? '' : '<div class="btns"><button class="btn primary wide" data-ai-save>저장</button></div>'}
       <div class="small muted ai-cost">요청 한 번에 보통 수십 원 정도 들어요. Claude 콘솔에서 월 사용 한도를 걸어 두면 안심이에요.</div>
-      <div class="ai-sub">구글 장소 키 (Places API)</div>
+    </div>
+    <div class="card ai-set g-set">
+      <div class="ai-sub first">${icon('pin')}구글 장소 키 <small>Places API</small></div>
       <div class="small muted">넣으면 이름만 입력해도 구글 지도와 같은 위치·영업시간·평점·사진을 가져와요. 웹사이트 제한(woo72da.github.io)과 API 제한(Places API (New))을 걸어 두세요.</div>
       ${gKey() ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>구글 키 저장됨</b><small>키 끝자리 ••••${esc(gKey().slice(-4))}</small></span>
@@ -5173,7 +5175,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 233;
+const APP_VERSION = 234;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5187,7 +5189,7 @@ const versionLine = () => {
     ? `<button class="app-ver new" data-update>새 버전 v${state.latest} 있음 · 지금 업데이트</button>`
     : `<div class="app-ver">앱 버전 v${APP_VERSION}${state.latest === APP_VERSION ? ' · 최신' : ''}</div>`;
   if (state.tab !== 'today' || !deskKey()) return ver;
-  return `<div class="ver-row">${ver}<button class="btn ai req-btn" data-req-open aria-label="개선 요청">${aiLabel('앱 개선 요청')}</button></div>`;
+  return `<div class="ver-row"><button class="btn ai req-btn" data-req-open aria-label="개선 요청">${aiLabel('앱 개선 요청')}</button>${ver}</div>`;
 };
 
 // Clear the saved app files and load everything fresh; photos and records live elsewhere and stay.
