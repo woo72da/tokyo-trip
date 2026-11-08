@@ -334,6 +334,7 @@ const routeWhy = () => {
   if (!gKey()) return '설정 › AI 도우미에 구글 장소 키가 없어요';
   const e = store.get('routeErr', null);
   if (routeOff()) return `구글 키로 경로를 쓸 수 없어요${e ? ` (${e.status} · ${e.msg})` : ''} · Routes API를 켜고 키 제한에 추가해 주세요`;
+  if (e && e.status === 200) return '구글 API는 일본 대중교통 경로를 주지 않아요';
   if (e) return `구글 경로 오류 (${e.status || '연결'} · ${e.msg})`;
   if (!navigator.onLine) return '인터넷이 연결되어 있지 않아요';
   return '구글 경로를 받는 중이에요 · 몇 초 뒤 이 화면이 저절로 바뀌어요';
@@ -346,6 +347,45 @@ function routeRetry(id) {
   render();
   if ($('#sheet') && !$('#sheet').hidden) openItem(id);
   toast('구글 경로를 다시 받아요');
+}
+// ---------- 앱 노선표 경로: 도보 → 가까운 역 → (갈아타기 1번까지) → 내릴 역 → 도보 ----------
+// Rides about 2 min a station, 4 min to wait, 5 min to change lines; stations within 1.5 km on foot. An estimate,
+// marked as such — but it names the line, stations and direction the way the planned moves do.
+const walkMin = (km) => Math.max(1, Math.ceil((km * 1300) / 75));
+const tableMemo = new Map();
+function rideOf(L, ia, ib) {
+  const n = L.st.length;
+  const fwd = L.loop ? (ib - ia + n) % n <= n / 2 : ib > ia;
+  const stops = L.loop ? Math.min((ib - ia + n) % n, (ia - ib + n) % n) : Math.abs(ib - ia);
+  return { mode: 'ride', min: Math.max(2, stops * 2), line: { name: L.name, short: L.code, color: L.color, text: lnInk(L.color) }, from: L.st[ia].ja, to: L.st[ib].ja, dep: '', arr: '', head: fwd ? L.up : L.down, stops, every: 0 };
+}
+function tableRoute(a, b) {
+  if (!a?.lat || !b?.lat) return null;
+  const key = `${a.lat.toFixed(4)},${a.lng.toFixed(4)}>${b.lat.toFixed(4)},${b.lng.toFixed(4)}`;
+  if (tableMemo.has(key)) return tableMemo.get(key);
+  const near = (p) => LINES.flatMap((L) => L.st.map((st, i) => ({ L, i, km: kmBetween(p, st) }))).filter((x) => x.km <= 1.5);
+  const from = near(a);
+  const to = near(b);
+  let best = null;
+  const consider = (steps) => { const min = steps.reduce((t, x) => t + x.min, 0) + steps.filter((x) => x.mode === 'ride').length * 4 + (steps.filter((x) => x.mode === 'ride').length > 1 ? 5 : 0); if (!best || min < best.min) best = { min, steps }; };
+  for (const o of from) for (const d of to) {
+    if (o.L === d.L && o.i !== d.i) consider([{ mode: 'walk', min: walkMin(o.km), m: o.km * 1300 }, rideOf(o.L, o.i, d.i), { mode: 'walk', min: walkMin(d.km), m: d.km * 1300 }]);
+    if (o.L === d.L) continue;
+    // One change where the two lines share a station (same Japanese name).
+    o.L.st.forEach((x, xi) => {
+      const yi = d.L.st.findIndex((y) => y.ja === x.ja);
+      if (yi < 0 || xi === o.i || yi === d.i) return;
+      consider([{ mode: 'walk', min: walkMin(o.km), m: o.km * 1300 }, rideOf(o.L, o.i, xi), rideOf(d.L, yi, d.i), { mode: 'walk', min: walkMin(d.km), m: d.km * 1300 }]);
+    });
+  }
+  const direct = kmBetween(a, b);
+  // Walking is fine when it's quick or no faster than the train.
+  if (direct <= 2 && (!best || walkMin(direct) <= Math.max(15, best.min))) best = { min: walkMin(direct), steps: [{ mode: 'walk', min: walkMin(direct), m: direct * 1300 }] };
+  // No line of ours near both ends and too far to walk: not ours to plan (the plain estimate stays).
+  if (!best) { tableMemo.set(key, null); return null; }
+  const out = { min: best.min, m: Math.round(direct * 1000), steps: best.steps, table: true };
+  tableMemo.set(key, out);
+  return out;
 }
 // Tokyo names Google gives in Japanese → the trip's own line table (Korean names, station numbers) when it knows them.
 const LINE_ST = () => LINES.flatMap((l) => l.st.map((st) => ({ l, st })));
@@ -382,7 +422,7 @@ function autoLegs(list) {
       const near = m.line ? 1 : 0.5;
       if (!re && samePlace(a, r.prevPt, key(prev), r.prevKey, near) && samePlace(b, r.nextPt, key(next), r.nextKey, near)) return;
       const start = toMin(m.start);
-      const g = googleLeg(a, b, m.date, start);
+      const g = googleLeg(a, b, m.date, start) || tableRoute(a, b);
       const rides = g?.steps.filter((x) => x.mode === 'ride') || [];
       const leg = g ? { mode: rides.length ? 'transit' : 'walk', min: g.min, km: g.m / 1000 } : estimateLeg(a, b);
       const lineKo = rides.length ? (lineOf(rides[0].line)?.name || rides[0].line.name || rides[0].line.short) : '';
@@ -406,7 +446,7 @@ function autoLegs(list) {
         note: leg.min ? `약 ${leg.min}분` : '시간 확인 필요',
         place: { nameJa: b.query, query: b.query }, placeId: undefined,
         ...(m.end && leg.min ? { end: clock(Math.min(1439, start + leg.min)) } : {}),
-        leg: { auto: true, mode: leg.mode, min: leg.min, km: leg.km, from: a.name, to: b.name, source: g ? 'google' : 'estimate', at: g?.at, steps: g?.steps, short: leg.min && room != null && leg.min > room ? leg.min - room : 0 },
+        leg: { auto: true, mode: leg.mode, min: leg.min, km: leg.km, from: a.name, to: b.name, source: g ? (g.table ? 'table' : 'google') : 'estimate', at: g?.at, steps: g?.steps, short: leg.min && room != null && leg.min > room ? leg.min - room : 0 },
       });
     });
   }
@@ -439,6 +479,10 @@ const LINES = [
   { code: 'TY', name: '도큐 도요코선', alias: ['도요코'], color: '#DA0442', up: '요코하마 방면', down: '시부야 방면',
     st: '시부야 渋谷|다이칸야마 代官山|나카메구로 中目黒|유텐지 祐天寺|가쿠게이다이가쿠 学芸大学|도리쓰다이가쿠 都立大学|지유가오카 自由が丘' },
 ].map((l) => ({ ...l, st: l.st.split('|').map((x, i) => { const [ko, ja] = x.split(' '); return { no: `${l.code}${String(i + 1).padStart(2, '0')}`, name: ko, ja }; }) }));
+// Station positions (OpenStreetMap, 2026-11-08) for the lines above, same order: lets the app plan
+// walk → nearest station → ride → station → walk when Google won't (its API returns no transit routes in Japan).
+const LINE_PTS = {"H": "35.64414,139.69883|35.64697,139.70865|35.65206,139.7222|35.66284,139.73133|35.66296,139.74505|35.66747,139.74776|35.6725,139.75162|35.67374,139.75837|35.67284,139.7631|35.66968,139.76695|35.66808,139.77259|35.675,139.77707|35.68023,139.77942|35.68618,139.78242|35.69075,139.77845|35.69846,139.7755|35.70649,139.7762|35.71171,139.77615|35.72071,139.78458|35.72955,139.7913|35.73235,139.7988|35.74966,139.80451", "G": "35.659,139.70244|35.66523,139.71239|35.67046,139.71788|35.67278,139.72402|35.67632,139.73753|35.67299,139.74142|35.67019,139.75006|35.66719,139.75886|35.67284,139.7631|35.6767,139.77004|35.68208,139.7734|35.68495,139.77307|35.69371,139.77089|35.70294,139.77168|35.70783,139.77299|35.71171,139.77615|35.71139,139.78269|35.70984,139.79075|35.71084,139.79782", "JY": "35.68125,139.76671|35.69179,139.77091|35.69837,139.77303|35.70695,139.77463|35.71341,139.77654|35.7217,139.77792|35.72815,139.77066|35.7322,139.76667|35.73737,139.76171|35.73658,139.74724|35.73341,139.73943|35.73169,139.72859|35.73018,139.71115|35.72119,139.70646|35.71268,139.70364|35.7013,139.70024|35.69026,139.70051|35.68395,139.70208|35.67021,139.70243|35.65808,139.70176|35.64644,139.71021|35.63407,139.71573|35.62626,139.72363|35.61939,139.72849|35.62867,139.73917|35.6354,139.74066|35.64574,139.74769|35.65511,139.75706|35.66617,139.75822|35.67496,139.76304", "TY": "35.65845,139.70284|35.64816,139.70329|35.64414,139.69883|35.63757,139.69101|35.62895,139.68535|35.61754,139.67618|35.60754,139.66883"};
+for (const l of LINES) (LINE_PTS[l.code] || '').split('|').forEach((p, i) => { const [lat, lng] = p.split(',').map(Number); if (l.st[i]) Object.assign(l.st[i], { lat, lng }); });
 function lineFromTitle(title) {
   const t = stripEmoji(title || '').replace(/\s+/g, ' ');
   const m = /^(.*?)\s*(?:→|->)\s*(.+)$/.exec(t);
@@ -545,6 +589,8 @@ function travelMin(a, b) {
   const g = gKey() && store.get(routeKey(pa, pb, a.date || b.date, a.endMin ?? toMin(a.end || a.start)), null);
   if (g && !g.none) return g.min + Math.max(3, Math.ceil(g.min * 0.15));
   const km = kmBetween(pa, pb);
+  const t = km > 1.2 && tableRoute(pa, pb);
+  if (t && t.steps.some((x) => x.mode === 'ride')) return t.min + Math.max(3, Math.ceil(t.min * 0.15));
   if (km < 0.15) return 0; // same building or next door
   return km <= 1.2 ? Math.max(1, Math.ceil((km * 1000 * 1.3) / 75)) : Math.ceil(km * 3 + 10);
 }
@@ -2998,7 +3044,7 @@ function transitRow(it, cls, late, now, edit, tail) {
         <div class="tl-main">
           <div class="mv-title">${current ? '<i class="mv-now">이동 중</i>' : ''}${esc(it.title)}</div>
           ${it.line ? `<div class="mv-line">${lnRoute(it.line)}</div>` : ''}
-          ${sub || late ? `<div class="mv-sub">${late ? `<em class="mv-late">${esc(delayText(late))}</em>` : ''}${esc(sub)}${it.leg ? `${it.leg.km != null ? ` · ${distLabel(it.leg.km)}` : ''}${it.leg.source === 'google' ? `<i class="leg-src g" title="구글 경로로 계산했어요">구글 · ${esc(new Date(it.leg.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Tokyo' }))} 기준</i>` : '<i class="leg-src" title="직선거리로 계산한 값이에요">추정</i>'}` : ''}</div>` : ''}
+          ${sub || late ? `<div class="mv-sub">${late ? `<em class="mv-late">${esc(delayText(late))}</em>` : ''}${esc(sub)}${it.leg ? `${it.leg.km != null ? ` · ${distLabel(it.leg.km)}` : ''}${it.leg.source === 'table' ? '<i class="leg-src" title="앱의 역 위치와 노선표로 계산했어요 · 시간은 추정">노선표 · 추정</i>' : it.leg.source === 'google' ? `<i class="leg-src g" title="구글 경로로 계산했어요">구글 · ${esc(new Date(it.leg.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Tokyo' }))} 기준</i>` : '<i class="leg-src" title="직선거리로 계산한 값이에요">추정</i>'}` : ''}</div>` : ''}
           ${it.leg?.steps ? legGuide(it.leg.steps, !!it.line) : ''}
           ${it.leg?.short ? `<div class="leg-short">${icon('warn')}다음 일정까지 ${formatLeft(it.leg.short)} 모자라요</div>` : ''}
           ${it.leg ? `<div class="leg-why">${store.get('edit:' + it.id, null)?.releg ? '지금 앞뒤 일정 기준으로 다시 계산했어요' : '앞뒤 장소가 바뀌어 이동을 다시 계산했어요'}${it.leg.source === 'estimate' ? ` · 직선거리 추정 · ${esc(routeWhy())}` : ''}</div>` : ''}
@@ -5643,7 +5689,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 249;
+const APP_VERSION = 250;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
