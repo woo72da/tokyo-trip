@@ -47,6 +47,8 @@
   --ai-soft: #efeafb;
   --ai-edge: #d6cbf4;
   --ai-on-night: #c9b8ff;
+  --ai-fill: #6a4fc4;
+  --ai-fill-ink: #ffffff;
   --radius: 20px;
   --plane: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath transform='rotate%2890 128 128%29' d='M240%2C136v32a8%2C8%2C0%2C0%2C1-8%2C8%2C7.61%2C7.61%2C0%2C0%2C1-1.57-.16L156%2C161v23.73l17.66%2C17.65A8%2C8%2C0%2C0%2C1%2C176%2C208v24a8%2C8%2C0%2C0%2C1-11%2C7.43l-37-14.81L91%2C239.43A8%2C8%2C0%2C0%2C1%2C80%2C232V208a8%2C8%2C0%2C0%2C1%2C2.34-5.66L100%2C184.69V161L25.57%2C175.84A7.61%2C7.61%2C0%2C0%2C1%2C24%2C176a8%2C8%2C0%2C0%2C1-8-8V136a8%2C8%2C0%2C0%2C1%2C4.42-7.16L100%2C89.06V44a28%2C28%2C0%2C0%2C1%2C56%2C0V89.06l79.58%2C39.78A8%2C8%2C0%2C0%2C1%2C240%2C136Z'/%3E%3C/svg%3E");
   --sans: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Hiragino Sans", system-ui, sans-serif;
@@ -1516,8 +1518,8 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .req-refresh { display: block; margin: 10px auto 0; }
 
 /* ---------- AI (DESIGN.md › AI): one look for everything Claude does ---------- */
-.btn.ai { background: var(--ai-soft); color: var(--ai); box-shadow: inset 0 0 0 1.5px var(--ai-edge); }
-.btn.ai.primary { background: var(--ai); color: var(--ai-ink); box-shadow: none; }
+.btn.ai { background: var(--ai-soft); color: var(--ai); box-shadow: none; }
+.btn.ai.primary { background: linear-gradient(100deg, var(--ai-fill), color-mix(in srgb, var(--ai-fill) 90%, #fff)); color: var(--ai-fill-ink); box-shadow: 0 6px 16px -10px var(--ai-fill); }
 .btn.ai .ico { color: inherit; }
 .ai-tag .ico { width: 12px; height: 12px; }
 .ai-tag.g { background: var(--now-soft); color: var(--now); }
@@ -1533,7 +1535,6 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .ai-opt .btn.primary { background: var(--ai); color: var(--ai-ink); }
 .diary { display: grid; gap: 4px; }
 .diary .ai-tag { justify-self: start; margin-bottom: 0; }
-.day-sum-row.ai > .ico { width: 22px; height: 22px; padding: 3px; border-radius: 8px; background: var(--ai-soft); color: var(--ai); box-sizing: content-box; }
 .ii.sec.ai { background: var(--ai-soft); color: var(--ai); }
 .ai-reply { background: var(--ai-soft); }
 
@@ -1634,11 +1635,6 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .start-ask .done-yes { background: var(--now); color: #0d2a24; }
 
 /* AI mark on buttons: the AI 도우미 badge */
-.btn .ai-mark, .day-sum-row .ai-mark { width: 26px; height: 26px; border-radius: 8px; }
-.btn.ai .ai-mark, .day-sum-row .ai-mark { background: color-mix(in srgb, var(--ai) 24%, transparent); color: var(--ai); }
-.btn .ai-mark .ico, .day-sum-row .ai-mark .ico { width: 16px; height: 16px; }
-.btn.ai.primary .ai-mark { background: color-mix(in srgb, var(--ai-ink) 22%, transparent); color: var(--ai-ink); }
-.btn.ai.ai-late .ai-mark { background: color-mix(in srgb, var(--ai-on-night) 18%, transparent); color: var(--ai-on-night); }
 
 .tl-item.slim { min-width: 0; }
 .tl-skip .grow { min-width: 0; }
@@ -1776,10 +1772,6 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 
 /* AI badge everywhere: sheet titles and result tags carry the same purple square */
 .ai-h { display: flex; align-items: center; gap: 8px; }
-.ai-h .ai-mark { width: 28px; height: 28px; border-radius: 9px; background: color-mix(in srgb, var(--ai) 24%, transparent); color: var(--ai); }
-.ai-h .ai-mark .ico { width: 17px; height: 17px; }
-.ai-mark.xs { width: 16px; height: 16px; border-radius: 5px; background: color-mix(in srgb, var(--ai) 28%, transparent); color: var(--ai); }
-.ai-mark.xs .ico { width: 11px; height: 11px; }
 .ai-tag { gap: 5px; padding: 3px 9px 3px 4px; }
 .rcpt-ai > .ai-tag, .menu-ai > .ai-tag { justify-self: start; margin-bottom: -4px; }
 
@@ -2018,3 +2010,42 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 /* 시간대별 날씨 title sits close to its tiles */
 .wx-label { min-height: 34px; margin-top: 8px; }
 .wx-label + .wx-strip { margin-top: 0; padding-top: 4px; }
+
+/* ---------- AI 도우미 마크·캐릭터 (v223, DESIGN.md › AI) ---------- */
+/* 마크: 말풍선 얼굴 + 반짝이 한 색. 네모 배경 없이 글자색을 따라가요. */
+.ai-mark { display: inline-grid; place-items: center; flex: none; width: 26px; height: 26px; color: inherit; background: none; }
+.ai-mark .ico { width: 23px; height: 23px; }
+.ai-h .ai-mark, .set-h .ai-mark, .day-sum-row .ai-mark { color: var(--ai); }
+.ai-h .ai-mark { width: 28px; height: 28px; }
+.ai-h .ai-mark .ico { width: 25px; height: 25px; }
+.ai-mark.xs { width: 17px; height: 17px; }
+.ai-mark.xs .ico { width: 15px; height: 15px; }
+.ai-tag { gap: 4px; padding: 3px 9px 3px 6px; min-height: 24px; }
+.ai-mark.set { width: 28px; height: 28px; }
+.ai-mark.set .ico { width: 25px; height: 25px; }
+.day-sum-row .ai-mark { width: 30px; height: 30px; }
+.day-sum-row .ai-mark .ico { width: 27px; height: 27px; }
+.btn.ai.ai-late { color: #e7dffe; box-shadow: inset 0 0 0 1.5px var(--ai-on-night); }
+/* 찾기: AI가 도울 때는 옅은 보라 + 마크 */
+.finder-go.ai { display: inline-flex; align-items: center; gap: 4px; padding: 0 10px 0 8px; background: var(--ai-soft); color: var(--ai); }
+.finder-go.ai .ai-mark { width: 20px; height: 20px; }
+.finder-go.ai .ai-mark .ico { width: 19px; height: 19px; }
+/* 캐릭터 */
+.ai-char { display: block; flex: none; }
+.ai-load:not(.plain) { grid-template-columns: 56px minmax(0, 1fr); align-items: center; column-gap: 12px; padding: 12px 14px 12px 10px; background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ai-edge); }
+.ai-load .ai-load-main { display: grid; gap: 8px; min-width: 0; }
+.ai-load.plain { grid-template-columns: 30px minmax(0, 1fr); align-items: center; column-gap: 10px; }
+.ai-think { width: 56px; height: 56px; animation: ai-bob 1.6s ease-in-out infinite; transform-origin: 50% 80%; }
+.ai-load:not(.plain) .ai-sec { color: var(--ai); }
+.ai-load:not(.plain) .ai-step { color: var(--muted); opacity: 1; }
+.ai-load:not(.plain) .ai-bar { background: var(--ai-soft); }
+.ai-load:not(.plain) .ai-bar i { background: var(--ai-fill); }
+@keyframes ai-bob { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-3px) rotate(-3deg); } }
+.ai-fail { display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 8px; font-size: 13px; }
+.ai-fail .ai-char { width: 40px; height: 40px; }
+.ai-hello { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.ai-hello .ai-char { width: 52px; height: 52px; }
+.ai-hello > span { min-width: 0; }
+.ai-hello b { display: block; font-size: 15px; line-height: 1.35; }
+.ai-hello small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .ai-think { animation: none; } }

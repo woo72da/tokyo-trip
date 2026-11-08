@@ -1454,6 +1454,7 @@ function toast(msg, href, label) {
 const ICONS = {
   'trash': '<path d="M200,56V208a8,8,0,0,1-8,8H64a8,8,0,0,1-8-8V56Z" class="d"/><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/>',
   'gear': '<rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(0 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(45 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(90 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(135 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(180 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(225 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(270 128 128)"/><rect x="113" y="20" width="30" height="42" rx="9" transform="rotate(315 128 128)"/><circle cx="128" cy="128" r="66" fill="none" stroke="currentColor" stroke-width="22"/><circle cx="128" cy="128" r="24" fill="none" stroke="currentColor" stroke-width="18"/>',
+  'aimark': '<path fill-rule="evenodd" d="M122 52C176 32 224 76 224 134c0 24-8 45-22 62l27 29c5 6 2 10-6 8l-44-13c-15 9-32 14-51 14-56 0-100-44-100-99C28 124 30 115 33 106Q48 123 60 121C76 121 81 97 91 90C107 83 114 76 122 52ZM87 113c-15 0-27 12-27 27v17c0 23 18 41 41 41h62c23 0 41-18 41-41v-17c0-15-12-27-27-27Z"/><path d="M92 128a6 6 0 0 1 6 6v12a6 6 0 0 1-12 0v-12a6 6 0 0 1 6-6Zm72 0a6 6 0 0 1 6 6v12a6 6 0 0 1-12 0v-12a6 6 0 0 1 6-6Zm-51 35c9 8 21 8 30 0 6-5 13 3 7 8-13 13-31 13-44 0-6-5 1-13 7-8Z"/><path transform="translate(6 5)" fill-rule="evenodd" d="M56 13c5 0 10 19 18 27s27 13 27 18-19 10-27 18-13 27-18 27-10-19-18-27S11 63 11 58s19-10 27-18 13-27 18-27Zm0 29-16 16 16 16 16-16Z"/>',
   'spark': '<path class="d" d="M108 40c6 50 24 68 74 74-50 6-68 24-74 74-6-50-24-68-74-74 50-6 68-24 74-74Z"/><path d="M108 40c6 50 24 68 74 74-50 6-68 24-74 74-6-50-24-68-74-74 50-6 68-24 74-74Zm0 30.5c-6.3 26.6-19 39.2-45.6 45.5C89 122.3 101.7 135 108 161.6c6.3-26.6 19-39.3 45.6-45.6C127 109.7 114.3 97 108 70.5ZM196 24c3 22 11 30 33 33-22 3-30 11-33 33-3-22-11-30-33-33 22-3 30-11 33-33Z"/>',
   'heart': '<path d="M178,32c-20.65,0-38.73,8.88-50,23.89C116.73,40.88,98.65,32,78,32A62.07,62.07,0,0,0,16,94c0,70,103.79,126.66,108.21,129a8,8,0,0,0,7.58,0C136.21,220.66,240,164,240,94A62.07,62.07,0,0,0,178,32ZM128,206.8C109.74,196.16,32,147.69,32,94A46.06,46.06,0,0,1,78,48c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46C224,147.61,146.24,196.15,128,206.8Z"/>',
   'image': '<path d="M224,56V178.06l-39.72-39.72a8,8,0,0,0-11.31,0L147.31,164,97.66,114.34a8,8,0,0,0-11.32,0L32,168.69V56a8,8,0,0,1,8-8H216A8,8,0,0,1,224,56Z" class="d"/><path d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z"/>',
@@ -1542,14 +1543,24 @@ const GLYPHS = {
 const glyph = (emoji) => (GLYPHS[String(emoji || '').replace(/\uFE0F/g, '')] || 'pin see').split(' ');
 const itemIcon = (emoji, cls = '') => { const [name, kind] = glyph(emoji); return `<span class="ii ${kind} ${cls}">${icon(name)}</span>`; };
 // Reservation tab headings share their icon with the shortcut that jumps to them.
-const secIcon = (name) => `<span class="ii sm sec ${name === 'spark' ? 'ai' : ''}">${icon(name)}</span>`;
+const secIcon = (name) => (name === 'spark' ? aiBadge('set') : `<span class="ii sm sec">${icon(name)}</span>`);
 // Anything Claude does gets the same mark: the sparkle, the AI color and an "AI" pill (see DESIGN.md › AI).
 // The same badge as AI 도우미 in 예약 탭 (sparkle in a soft purple square) marks every AI button.
 // The AI badge alone (titles of AI sheets) and the small one inside result tags.
-const aiBadge = (cls = '') => `<span class="ii sm sec ai ai-mark ${cls}">${icon('spark')}</span>`;
+const aiBadge = (cls = '') => `<span class="ai-mark ${cls}">${icon('aimark')}</span>`;
+// AI 도우미 캐릭터 (DESIGN.md › AI): 말풍선 몸 + 반짝이, 표정만 바뀌어요. main 인사 · thinking 일하는 중 · done 다 됐어요 · sorry 잘 안 됐어요.
+const AI_FACE = {
+  main: '<g fill="#6A4FC4"><rect x="416" y="498" width="42" height="83" rx="21"/><rect x="622" y="498" width="42" height="83" rx="21"/><path d="M503 637Q540 676 577 637" fill="none" stroke="#6A4FC4" stroke-width="20" stroke-linecap="round"/></g>',
+  thinking: '<g fill="#6A4FC4"><rect x="426" y="487" width="42" height="76" rx="21"/><rect x="632" y="487" width="42" height="76" rx="21"/><path d="M522 650Q544 642 563 650" fill="none" stroke="#6A4FC4" stroke-width="18" stroke-linecap="round"/></g>',
+  done: '<g fill="#6A4FC4"><path d="M408 543Q437 510 466 543M614 543Q643 510 672 543" fill="none" stroke="#6A4FC4" stroke-width="20" stroke-linecap="round"/><path d="M495 630Q540 651 585 630Q579 688 540 688Q501 688 495 630Z"/></g>',
+  sorry: '<g fill="#6A4FC4"><path d="M410 492l44-14M626 478l44 14" fill="none" stroke="#6A4FC4" stroke-width="14" stroke-linecap="round"/><rect x="419" y="525" width="36" height="61" rx="18"/><rect x="625" y="525" width="36" height="61" rx="18"/><path d="M515 659Q540 639 565 659" fill="none" stroke="#6A4FC4" stroke-width="17" stroke-linecap="round"/></g>',
+};
+const aiChar = (mood = 'main', cls = '') => `<svg class="ai-char ${cls}" viewBox="0 0 1024 1024" aria-hidden="true"><path fill="#6A4FC4" d="M900 536C900 337.18 738.82 176 540 176S180 337.18 180 536s161.18 360 360 360c75 0 145-23 203-62l155 39c27 7 40-8 23-30l-94-119c46-60 73-119 73-188Z"/><rect x="274" y="383" width="532" height="381" rx="174" fill="#EFEAFB"/>${AI_FACE[mood] || AI_FACE.main}<g transform="translate(24 20)"><path d="M196 153C211 153 224 204 246 225s72 34 72 49-50 28-72 49-35 72-50 72-28-51-50-72-72-34-72-49 50-28 72-49 35-72 50-72Z" fill="#6A4FC4" stroke="white" stroke-width="15" stroke-linejoin="round"/><path d="M196 216c12 34 24 46 58 58-34 12-46 24-58 58-12-34-24-46-58-58 34-12 46-24 58-58Z" fill="white"/></g></svg>`;
+// AI가 실패했을 때: 미안해하는 캐릭터 + 호박색 안내 (이유와 할 일).
+const aiFail = (msg) => `<div class="ai-note ai-fail">${aiChar('sorry')}<span>${esc(msg)}</span></div>`;
 const aiTag = (text) => `<span class="ai-tag">${aiBadge('xs')}${text}</span>`;
 // Every AI button gets the same sparkle badge; a photo feature says so in its words, not by swapping the badge.
-const aiLabel = (text) => `<span class="ii sm sec ai ai-mark">${icon('spark')}</span><span>${text}</span>`;
+const aiLabel = (text) => `${aiBadge()}<span>${text}</span>`;
 const stripEmoji = (s) => String(s || '').replace(/^\p{Extended_Pictographic}\uFE0F?\s*/u, '');
 const wxIcon = (name) => icon(name, 'wxi ' + name);
 // 쌍따봉: two thumbs-up side by side, for 강력 추천.
@@ -3701,7 +3712,7 @@ function saveAiPlace(pl, url) {
 const finderHtml = (w) => `
   <div class="finder" data-finder="${w}">
     <div class="finder-in">${icon('pin')}<textarea class="input" id="${w}-q" rows="1" autocomplete="off" placeholder="${gKey() ? '장소 이름 또는 구글지도 링크' : '장소 이름 또는 구글지도 공유 내용'}"></textarea>
-      <button type="button" class="finder-go" data-find="${w}" aria-label="찾기">찾기</button></div>
+      <button type="button" class="finder-go ${aiKey() ? 'ai' : ''}" data-find="${w}" aria-label="찾기">${aiKey() ? aiBadge() : ''}찾기</button></div>
     <input class="input finder-name" id="${w}-nm" hidden maxlength="60" autocomplete="off" placeholder="가게 이름 2~3글자 (짧은 링크는 이름이 필요해요)">
     <div class="sugg" id="${w}-sugg"></div>
     <div id="${w}-out"></div>
@@ -3783,7 +3794,7 @@ async function runFind(w) {
   if (local) return pickLocal(local.id, w, '앱에 이미 있는 장소라 그 정보를 썼어요');
   if (aiKey()) {
     out.innerHTML = aiLoading('AI가 장소를 찾고 있어요', ['링크를 열어 보는 중', '웹에서 장소를 찾는 중', '영업시간·팁을 정리하는 중', '거의 다 됐어요']);
-    try { return useFound(w, await aiPlace(given && !raw.includes(given) ? `${given}\n${raw}` : raw), url); } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; return; }
+    try { return useFound(w, await aiPlace(given && !raw.includes(given) ? `${given}\n${raw}` : raw), url); } catch (e) { out.innerHTML = aiFail(e.message); return; }
   }
   if (!name) return toast('공유 내용에서 이름을 찾지 못했어요');
   const hit = url.match(/!3d(-?[\d.]+)!4d(-?[\d.]+)/) || url.match(/@(-?[\d.]+),(-?[\d.]+)/);
@@ -3800,7 +3811,7 @@ async function gPick(id, w) {
     const dup = sameAs(g);
     if (dup) return pickLocal(dup.id, w, '앱에 이미 있는 장소라 그 정보를 썼어요');
     useFound(w, await enrichPlace(g), g.url);
-  } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+  } catch (e) { out.innerHTML = aiFail(e.message); }
 }
 // A place the app already has: fill the stop from it, or (탐색) point to it.
 function pickLocal(id, w, why = '') {
@@ -3939,9 +3950,12 @@ async function imgBlock(file) {
 // `plain` is the same thing in grey for waits that aren't AI (uploads, Google only).
 const aiLoading = (msg, steps = [], plain = false) => `
   <div class="ai-wait ai-load ${plain ? 'plain' : ''}" role="status" aria-live="polite" data-start="${Date.now()}" data-steps="${esc(JSON.stringify(steps))}">
-    <div class="ai-load-top"><span class="ai-orb">${icon(plain ? 'refresh' : 'spark')}</span><b>${esc(msg)}</b><span class="ai-sec">0초</span></div>
-    <div class="ai-bar"><i></i></div>
-    ${steps.length ? `<small class="ai-step">${esc(steps[0])}</small>` : ''}
+    ${plain ? `<span class="ai-orb">${icon('refresh')}</span>` : aiChar('thinking', 'ai-think')}
+    <div class="ai-load-main">
+      <div class="ai-load-top"><b>${esc(msg)}</b><span class="ai-sec">0초</span></div>
+      <div class="ai-bar"><i></i></div>
+      ${steps.length ? `<small class="ai-step">${esc(steps[0])}</small>` : ''}
+    </div>
   </div>`;
 setInterval(() => {
   document.querySelectorAll('.ai-load').forEach((el) => {
@@ -3959,7 +3973,7 @@ const sheetWait = (title, msg, file, steps = []) => {
   $('#sheet').hidden = false;
 };
 const doneWait = () => { $('.ai-wait')?.remove(); $('.ai-shot-wrap')?.classList.remove('scanning'); };
-const sheetFail = (msg) => { const box = $('#ai-res') || $('#sheet-body'); doneWait(); box.insertAdjacentHTML('beforeend', `<div class="ai-note">${esc(msg)}</div>`); };
+const sheetFail = (msg) => { const box = $('#ai-res') || $('#sheet-body'); doneWait(); box.insertAdjacentHTML('beforeend', aiFail(msg)); };
 
 // ① Receipt photo → one expense, with the photo kept as its receipt.
 const RCPT_SCHEMA = {
@@ -4048,9 +4062,9 @@ async function smsFromPhoto() {
     });
     const rows = (r.payments || []).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.amount > 0)
       .map((x) => payRow({ date: x.date, time: /^\d{1,2}:\d{2}$/.test(x.time) ? x.time.padStart(5, '0') : '', shop: x.shop || '카드 결제', cur: x.currency, value: Math.round(x.amount), cancel: !!x.cancel }));
-    if (!rows.length) { $('#sms-out').innerHTML = `<div class="ai-note">${esc(r.note || '결제를 찾지 못했어요.')}</div>`; return; }
+    if (!rows.length) { $('#sms-out').innerHTML = aiFail(r.note || '결제를 찾지 못했어요.'); return; }
     showSms(rows);
-  } catch (e) { $('#sms-out').innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+  } catch (e) { $('#sms-out').innerHTML = aiFail(e.message); }
 }
 
 // ② Menu, sign or ticket machine photo → Korean, with prices in won and one phrase to say.
@@ -4154,7 +4168,7 @@ async function aiPlanGo() {
           <ul class="ai-diff">${o.ops.map((op) => `<li class="${op.warn ? 'warn' : ''}">${esc(op.text)}</li>`).join('')}</ul>
           <button class="btn primary wide" data-ai-plan-apply="${i}">${icon('check')}이대로 적용</button>
         </div>`).join('') || (r.reply ? '' : '<div class="ai-note">바꿀 내용을 찾지 못했어요. 조금 더 구체적으로 적어 주세요.</div>')}`;
-  } catch (e) { $('#ai-res').innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; $('[data-ai-plan-go]')?.removeAttribute('disabled'); $('[data-ai-plan-go]')?.classList.remove('busy'); }
+  } catch (e) { $('#ai-res').innerHTML = aiFail(e.message); $('[data-ai-plan-go]')?.removeAttribute('disabled'); $('[data-ai-plan-go]')?.classList.remove('busy'); }
 }
 // Keep only ops on real stops with valid times, and describe each in words for the preview.
 function cleanOps(ops = [], items) {
@@ -4291,7 +4305,7 @@ function reportStory() {
 }
 const diaryCard = (date) => {
   const d = store.get('diary:' + date, null);
-  if (!d) return aiKey() ? `<button class="day-sum-row ai" data-ai-diary="${esc(date)}"><span class="ii sm sec ai ai-mark">${icon('spark')}</span><span class="grow"><b>오늘 기록 정리하기</b><small>방문·평가·지출·날씨로 짧은 여행 일기를 만들어요 (AI)</small></span></button>` : '';
+  if (!d) return aiKey() ? `<button class="day-sum-row ai" data-ai-diary="${esc(date)}">${aiBadge()}<span class="grow"><b>오늘 기록 정리하기</b><small>방문·평가·지출·날씨로 짧은 여행 일기를 만들어요 (AI)</small></span></button>` : '';
   return `<div class="diary">${aiTag('AI가 쓴 하루 기록')}<b>${esc(d.title)}</b><p>${esc(d.text)}</p>
     <div class="btns"><button class="btn" data-diary-share="${esc(date)}">${icon('ext')}공유·복사</button><button class="btn ai" data-ai-diary="${esc(date)}">${aiLabel('다시 쓰기')}</button></div></div>`;
 };
@@ -4384,7 +4398,7 @@ async function sendReq(btn) {
     state.reqFiles = [];
     toast('요청을 보냈어요. 처리 상태는 내 요청에서 볼 수 있어요');
     openReq('list');
-  } catch (e) { out.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; btn.disabled = false; }
+  } catch (e) { out.innerHTML = aiFail(e.message); btn.disabled = false; }
 }
 async function loadReqs() {
   const box = $('#req-list');
@@ -4394,7 +4408,7 @@ async function loadReqs() {
       <button class="req-row" data-req-open-one="${x.number}"><span class="req-st ${k}">${t}</span><span class="grow"><b>${esc(x.title)}</b><small>#${x.number} · ${esc(new Date(x.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }))}${x.comments ? ` · 답글 ${x.comments}` : ''}</small></span></button>`; }).join('')
       : '<div class="small muted">아직 보낸 요청이 없어요.</div>';
     box.insertAdjacentHTML('beforeend', '<button class="link req-refresh" data-req-view="list">새로 고침</button>');
-  } catch (e) { box.innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+  } catch (e) { box.innerHTML = aiFail(e.message); }
 }
 async function openReqOne(n) {
   $('#sheet-body').innerHTML = `<button class="sheet-back" data-req-view="list">‹ 내 요청</button><div id="req-one"><div class="ai-wait">불러오는 중…</div></div>`;
@@ -4411,7 +4425,7 @@ async function openReqOne(n) {
       <textarea class="input ai-ask" id="req-reply" rows="2" placeholder="${k === 'ask' ? '질문에 답하면 이어서 처리해요' : '추가로 고칠 점이나 의견을 적어 주세요'}"></textarea>
       <div class="btns"><button class="btn" data-req-open-one="${n}">${icon('refresh')}새로 고침</button><button class="btn primary" data-req-reply="${n}">${icon('check')}답하기</button></div>
       ${k === 'done' ? `<button class="btn wide" data-req-undo="${n}">이 변경 되돌려 달라고 요청</button>` : ''}`;
-  } catch (e) { $('#req-one').innerHTML = `<div class="ai-note">${esc(e.message)}</div>`; }
+  } catch (e) { $('#req-one').innerHTML = aiFail(e.message); }
 }
 async function replyReq(n, text) {
   if (!text) return toast('내용을 적어 주세요');
@@ -4427,6 +4441,7 @@ function aiSettings() {
   const pick = store.get('aiModel', 'opus');
   return `
     <div class="card ai-set">
+      <div class="ai-hello">${aiChar(key ? 'main' : 'thinking')}<span><b>${key ? '여행 준비부터 오늘 기록까지 함께해요' : 'Claude 키를 넣으면 도와드릴게요'}</b><small>말로 일정 바꾸기 · 사진 읽기 · 장소 찾기 · 기록 쓰기</small></span></div>
       <div class="small muted">구글지도 링크를 붙여 넣으면 장소 정보를 찾아 일정에 바로 넣어요. 본인 Claude API 키가 필요하고, 키는 이 폰에만 저장돼요 (동기화·GitHub에 안 올라가요).</div>
       ${key ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>키 저장됨</b><small>키 끝자리 ••••${esc(key.slice(-4))}</small></span>
@@ -5137,7 +5152,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 222;
+const APP_VERSION = 224;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
