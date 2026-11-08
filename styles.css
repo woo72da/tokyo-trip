@@ -2052,13 +2052,12 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 
 /* v226: 마크는 여백 없이 잘라 그리고(viewBox), 칸 크기 = 그림 크기로 최대한 크게 */
 .ai-mark .ico, .ai-mark.xs .ico, .ai-mark.set .ico, .ai-h .ai-mark .ico, .day-sum-row .ai-mark .ico, .finder-go.ai .ai-mark .ico { width: 100%; height: 100%; }
-.btn .ai-mark { width: 32px; height: 32px; margin: -4px 0; }
-.btn.ai { gap: 8px; }
+.btn .ai-mark { width: 21px; height: 21px; margin: 0; --mk-grow: 1.45; }
 .ai-h .ai-mark, .ai-mark.set { width: 30px; height: 30px; }
 .ai-mark.xs { width: 19px; height: 19px; }
 .ai-tag { padding-left: 5px; }
 .day-sum-row .ai-mark { width: 34px; height: 34px; }
-.finder-go.ai .ai-mark { width: 26px; height: 26px; margin: -3px 0; }
+.finder-go.ai .ai-mark { width: 20px; height: 20px; margin: 0; --mk-grow: 1.4; }
 
 /* v228: AI 마크 — 평소엔 별만(칸 가운데 크게). 누를 때·창 열릴 때 별 → 캐릭터 → 별 (약 1.7초) */
 .ai-mark .mk-star, .ai-mark .mk-body { transform-box: fill-box; transform-origin: center; }
@@ -2079,10 +2078,10 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
   0%, 20% { transform: scaleX(0) scale(.7); opacity: 0; }
   21% { opacity: 1; }
   30% { transform: scaleX(-1) scale(.9); }
-  40% { transform: scaleX(1.1); }
-  46% { transform: translateY(-5px); }
-  54%, 66% { transform: none; opacity: 1; }
-  76% { transform: scaleX(0) scale(.8); opacity: 1; }
+  40% { transform: scale(var(--mk-grow, 1)) scaleX(1.1); }
+  46% { transform: scale(var(--mk-grow, 1)) translateY(-5px); }
+  54%, 66% { transform: scale(var(--mk-grow, 1)); opacity: 1; }
+  76% { transform: scale(var(--mk-grow, 1)) scaleX(0); opacity: 1; }
   77%, 100% { transform: scaleX(0); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .ai-mark.play .mk-star, .ai-mark.play .mk-body { animation: none; } }
