@@ -670,9 +670,12 @@ ul.plain li + li { margin-top: 4px; }
 .exp .meter { margin-top: 12px; }
 .exp-budget { margin-top: 6px; }
 .link { color: var(--accent); font-weight: 700; font-size: 13px; margin-left: 4px; }
-.exp-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
-.exp-form .input { min-height: 44px; font-size: 16px; }
+.exp-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 14px; }
+.exp-form .input { min-width: 0; height: 44px; min-height: 44px; font-size: 16px; }
 .exp-form select.input { padding-right: 10px; }
+.exp-form input[type="time"] { padding-top: 0; padding-bottom: 0; line-height: 44px; }
+.exp-form input[type="time"]::-webkit-date-and-time-value { line-height: 41px; min-height: 41px; }
+.exp-form input[type="time"]::-webkit-datetime-edit { line-height: 41px; }
 .exp-list { margin-top: 12px; }
 .exp-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
 .exp-row .grow b { display: block; font-size: 15px; font-weight: 700; }
@@ -1067,7 +1070,10 @@ ol.alarm-note { padding-left: 18px; }
 .gone-row .btn { min-height: 40px; font-size: 13px; }
 
 /* The add / change form. */
-/* iPhone draws time inputs taller with the value at the top; pin the height and center the value like the text fields. */
+/* iPhone draws time inputs wider and taller than the other fields (value centered, box past the edge); keep them in their cell like the text fields. */
+input.input[type="time"] { -webkit-appearance: none; appearance: none; display: flex; align-items: center; min-width: 0; max-width: 100%; text-align: left; }
+input.input[type="time"]::-webkit-date-and-time-value { margin: 0; padding: 0; text-align: left; }
+input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .item-form input[type="time"] { -webkit-appearance: none; appearance: none; display: flex; align-items: center; min-width: 0; height: 46px; min-height: 46px; padding-top: 0; padding-bottom: 0; line-height: 46px; text-align: left; }
 .item-form input[type="time"]::-webkit-date-and-time-value { margin: 0; padding: 0; text-align: left; line-height: 43px; min-height: 43px; }
 .item-form input[type="time"]::-webkit-datetime-edit { padding: 0; line-height: 43px; }
