@@ -609,6 +609,10 @@ function wxAge() {
 
 // The weather card folds to one line (the schedule matters more day to day); the choice is kept on this phone only.
 const wxCardOpen = () => { try { return localStorage.getItem('wxCard') === '1'; } catch { return false; } };
+// A finished day's weather starts folded whatever the usual choice; opening it is remembered for that day only.
+const lsList = (k) => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
+const lsToggle = (k, v) => { const o = lsList(k); try { localStorage.setItem(k, JSON.stringify(o.includes(v) ? o.filter((x) => x !== v) : [...o, v])); } catch { /* private mode */ } };
+const wxIsOpen = (date) => (isDayDone(date) ? lsList('wxOpenDone').includes(date) : wxCardOpen());
 // Weather card for one day: now (if `now` is that day) or the day overall, advice, hourly strip.
 function wxCard(date, now) {
   const day = wxDay(date);
@@ -618,7 +622,7 @@ function wxCard(date, now) {
   const cur = now ? wxHour(date, now.min) : null;
   const strip = wxHours(date, Math.min(cur?.hour ?? 8, 8), Math.max(cur?.hour ?? 22, 22));
   const tips = date < tokyoNow().date ? [] : wxTips(date);
-  if (!wxCardOpen()) {
+  if (!wxIsOpen(date)) {
     // One line: icon, temperature, sky and rain chance, and the one thing to act on — rain coming up beats a clothing tip.
     const from = cur ? cur.hour : 8;
     const ahead = strip.filter((h) => h.hour >= from);
@@ -627,14 +631,14 @@ function wxCard(date, now) {
     const pill = wet ? `<span class="wx-mini-pill rain">${cur && wet.hour === cur.hour ? '지금' : `${wet.hour}시부터`} 비 ${peak}% · 우산</span>`
       : tips.length ? `<span class="wx-mini-pill">${esc(String(tips[0][1]).split(' · ').pop())}</span>` : '';
     return `
-    <button class="wx wx-mini" data-wx-fold aria-expanded="false" aria-label="날씨 자세히 보기">
+    <button class="wx wx-mini" data-wx-fold="${esc(date)}" aria-expanded="false" aria-label="날씨 자세히 보기">
       <span class="wx-mini-ic">${wxIcon((cur || day).icon)}</span><b>${cur ? cur.temp : day.max}°</b>
       <span class="wx-mini-t">${esc((cur || day).label)} · 비 ${cur ? cur.pop : day.pop}%</span>${pill}<i class="chev"></i>
     </button>`;
   }
   return `
     <div class="wx">
-      <div class="wx-head" data-wx-fold role="button" tabindex="0" aria-expanded="true" aria-label="날씨 접기">
+      <div class="wx-head" data-wx-fold="${esc(date)}" role="button" tabindex="0" aria-expanded="true" aria-label="날씨 접기">
         <div class="wx-big">${wxIcon((cur || day).icon)}</div>
         <div class="grow">
           <div class="wx-temp">${cur ? cur.temp : day.max}°<span>${esc((cur || day).label)}${cur ? '' : ' · 낮 최고'}</span></div>
@@ -1867,7 +1871,7 @@ function reportDays(perDay, today) {
   return `
     <div class="section-title"><span>하루씩 돌아보기</span></div>
     <div class="rp-days">${perDay.map((x) => `
-      <button class="rp-day idx" data-tomorrow="${x.i}">
+      <button class="rp-day idx" data-tomorrow="${x.i}" data-sum-open="${esc(x.d.date)}">
         <span class="rp-day-h"><span class="rp-day-no">${x.i + 1}<small>일차</small></span><small>${esc(dayLabel(x.d.date))}${x.d.date === today ? ' · 오늘' : ''}</small>${x.sealed ? `<i class="rp-done">${STAR5}완주</i>` : ''}</span>
         <span class="rp-day-t">${esc(stripEmoji(x.d.title))}</span>
         <span class="rp-day-rows">
@@ -5183,7 +5187,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 240;
+const APP_VERSION = 241;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5459,7 +5463,11 @@ document.addEventListener('click', async (e) => {
     try { const o = JSON.parse(localStorage.getItem('daySumOpen') || '[]'); localStorage.setItem('daySumOpen', JSON.stringify(o.includes(d.sumFold) ? o.filter((x) => x !== d.sumFold) : [...o, d.sumFold])); } catch { /* private mode */ }
     render();
   }
-  else if ('wxFold' in d) { try { localStorage.setItem('wxCard', wxCardOpen() ? '0' : '1'); } catch { /* private mode */ } render(); }
+  else if ('wxFold' in d) {
+    if (d.wxFold && isDayDone(d.wxFold)) lsToggle('wxOpenDone', d.wxFold);
+    else { try { localStorage.setItem('wxCard', wxCardOpen() ? '0' : '1'); } catch { /* private mode */ } }
+    render();
+  }
   else if (d.rpRate) { state.rpRate = d.rpRate; render(); }
   else if ('reportImage' in d) reportImage();
   else if ('reportText' in d) reportText();
@@ -5589,7 +5597,7 @@ document.addEventListener('click', async (e) => {
     const v = prompt('어떻게 불러 드릴까요? (비우면 이름으로 불러요)', nickOf(d.nick) || `${d.nick}님`);
     if (v !== null) { const t = v.trim().slice(0, 12); store.set('nick:' + d.nick, t && t !== `${d.nick}님` ? t : ''); render(); toast(`앞으로 ${callOf(d.nick)}${hasBatchim(callOf(d.nick)) ? '이라고' : '라고'} 부를게요`); }
   }
-  else if (d.tomorrow) { state.dayIndex = Number(d.tomorrow); store.set('day', state.dayIndex); go('days'); }
+  else if (d.tomorrow) { if (d.sumOpen && !lsList('daySumOpen').includes(d.sumOpen)) lsToggle('daySumOpen', d.sumOpen); state.dayIndex = Number(d.tomorrow); store.set('day', state.dayIndex); go('days'); }
   else if (d.daySum) {
     state.dayIndex = Number(d.daySum); store.set('day', state.dayIndex); go('days');
     $('.day-sum .gear-fb')?.scrollIntoView({ block: 'center' });
