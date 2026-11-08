@@ -3905,10 +3905,10 @@ function kmBetween(a, b) {
 const distLabel = (km) => (km < 1 ? `${Math.round(km * 100) * 10}m` : `${km.toFixed(1)}km`);
 
 // Google Maps photo by link, with the category icon underneath when it can't load (offline, expired link).
-const PHOTO_FALLBACK = "if(this.dataset.alt){this.src=this.dataset.alt;this.dataset.alt=''}else{this.remove()}";
+const PHOTO_FALLBACK = "if(this.dataset.alt){this.src=this.dataset.alt;this.dataset.alt=''}else{photoGone(this.dataset.pid);this.remove()}";
 const photoSrc = (p, size) => (p.photo ? `${p.photo}=${size}-k-no` : p.photoUrl || '');
 const placeThumb = (p, size) => { if (!p.photo && !p.photoUrl) refreshPhoto(p); return `
-  <span class="thumb">${itemIcon(CAT_ICON[p.cat], 'lg')}${p.photo || p.photoUrl ? `<img src="${esc(photoSrc(p, size))}" data-alt="${esc(p.photo && p.photoUrl ? p.photoUrl : '')}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="${PHOTO_FALLBACK}">` : ''}</span>`; };
+  <span class="thumb">${itemIcon(CAT_ICON[p.cat], 'lg')}${p.photo || p.photoUrl ? `<img src="${esc(photoSrc(p, size))}" data-pid="${esc(p.id || '')}" data-alt="${esc(p.photo && p.photoUrl ? p.photoUrl : '')}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="${PHOTO_FALLBACK}">` : ''}</span>`; };
 
 // Would we go back: strongly, yes, or no. Older "한 번이면 충분" marks read as 비추천.
 const AGAIN = { best: '강력 추천', yes: '추천', no: '비추천' };
@@ -3916,7 +3916,7 @@ const againIcon = (k) => (k === 'best' ? `<span class="thumbs two">${icon('thumb
 const recommended = (v) => v?.again === 'best' || v?.again === 'yes';
 const placeHero = (p) => {
   if (p && !p.photo && !p.photoUrl) refreshPhoto(p);
-  return p?.photo || p?.photoUrl ? `<div class="place-hero"><img src="${esc(photoSrc(p, 'w800-h400'))}" data-alt="${esc(p.photo && p.photoUrl ? p.photoUrl : '')}" alt="" referrerpolicy="no-referrer" onerror="if(this.dataset.alt){this.src=this.dataset.alt;this.dataset.alt=''}else{this.parentElement.remove()}"></div>` : '';
+  return p?.photo || p?.photoUrl ? `<div class="place-hero"><img src="${esc(photoSrc(p, 'w800-h400'))}" data-pid="${esc(p.id || '')}" data-alt="${esc(p.photo && p.photoUrl ? p.photoUrl : '')}" alt="" referrerpolicy="no-referrer" onerror="if(this.dataset.alt){this.src=this.dataset.alt;this.dataset.alt=''}else{photoGone(this.dataset.pid);this.parentElement.remove()}"></div>` : '';
 };
 
 function placeCard(p, now) {
@@ -4332,14 +4332,36 @@ async function gPhoto(photos) {
 }
 // A place saved without a photo (or before photos worked) gets one the next time it's opened, if a Google key is set.
 const photoTried = new Set();
-async function refreshPhoto(p) {
-  if (!p?.gid || p.photo || p.photoUrl || !gKey() || photoTried.has(p.gid)) return;
-  photoTried.add(p.gid);
+// Where a fetched photo is kept: on the traveler's own place, or (for the trip file's places) in this phone's 'gfix'.
+function keepPhoto(p, photo, photoUrl) {
+  if (p.mine) store.set('myplaces', store.get('myplaces', []).map((x) => (x.id === p.id || (p.gid && x.gid === p.gid) ? { ...x, photo, photoUrl } : x)));
+  else { store.set('gfix', { ...gFix(), [p.id]: { ...(gFix()[p.id] || {}), photo, photoUrl } }); GFIX = null; }
+}
+// A saved photo link that no longer loads (Google links can expire): fetch a fresh one once, then redraw.
+function photoGone(id) {
+  const p = id && placeById(id);
+  if (!p || !gKey() || photoTried.has('gone:' + id)) return;
+  photoTried.add('gone:' + id);
+  refreshPhoto({ ...p, photo: '', photoUrl: '' }, true);
+}
+async function refreshPhoto(p, force = false) {
+  if (!p || (!force && (p.photo || p.photoUrl)) || !gKey()) return;
+  // Places with no photo are looked up again at most once a week, so opening the app doesn't keep calling Google.
+  const key = p.gid || p.id;
+  const tried = store.get('photoTried', {});
+  if (!force && (photoTried.has(key) || Date.now() - (tried[key] || 0) < 7 * 864e5)) return;
+  photoTried.add(key);
+  store.set('photoTried', { ...tried, [key]: Date.now() });
   try {
-    const d = await gFetch(`places/${encodeURIComponent(p.gid)}`, { mask: 'photos' });
+    let gid = p.gid;
+    if (!gid && !p.mine) gid = (await gSuggest(p.nameJa || p.name, crypto.randomUUID()))[0]?.id;
+    if (!gid) return;
+    const d = await gFetch(`places/${encodeURIComponent(gid)}`, { mask: 'photos,location' });
+    if (p.lat && d.location && kmBetween(p, { lat: d.location.latitude, lng: d.location.longitude }) > 1) return;
     const { photo, photoUrl } = await gPhoto(d.photos);
     if (!photo && !photoUrl) return;
-    store.set('myplaces', store.get('myplaces', []).map((x) => (x.gid === p.gid ? { ...x, photo, photoUrl } : x)));
+    keepPhoto(p, photo, photoUrl);
+    if (!p.mine && !gFix()[p.id]?.gid) { store.set('gfix', { ...gFix(), [p.id]: { ...gFix()[p.id], gid } }); GFIX = null; }
     if (!$('#sheet').hidden && !$('#sheet-body .place-hero')) $('#sheet-body').insertAdjacentHTML('afterbegin', placeHero({ ...p, photo, photoUrl }));
     if ($('#sheet').hidden) render();
   } catch { /* no photo this time */ }
@@ -4660,14 +4682,14 @@ async function refreshTripPlace(id) {
   const g = await gPlace(gid);
   if (p.lat && g.lat && kmBetween(p, g) > 1) throw new Error(`구글에서 찾은 곳이 1km 넘게 떨어져 있어요 (${g.name})`);
   const fix = { gid, gAt: tokyoNow().date, ...(g.r ? { r: g.r, n: g.n } : {}), ...(g.o ? { o: g.o, off: g.off } : {}), ...(g.addr ? { addr: g.addr } : {}),
-    ...(g.lat ? { lat: g.lat, lng: g.lng } : {}), ...(g.url ? { url: g.url } : {}) };
-  store.set('gfix', { ...gFix(), [id]: fix });
+    ...(g.lat ? { lat: g.lat, lng: g.lng } : {}), ...(g.url ? { url: g.url } : {}), ...(g.photo || g.photoUrl ? { photo: g.photo, photoUrl: g.photoUrl } : {}) };
+  store.set('gfix', { ...gFix(), [id]: { ...(gFix()[id] || {}), ...fix } });
   GFIX = null;
 }
 async function refreshAnyPlace(id) {
   if (placeById(id)?.mine) return refreshFromGoogle(id);
   toast('구글에서 다시 찾는 중…');
-  try { await refreshTripPlace(id); render(); openPlace(id); toast('구글 정보로 다시 채웠어요 · 평점·영업시간·주소'); } catch (e) { toast(e.message); }
+  try { await refreshTripPlace(id); render(); openPlace(id); toast(`구글 정보로 다시 채웠어요 · 평점·영업시간·주소${placeById(id)?.photo || placeById(id)?.photoUrl ? '·사진' : ''}`); } catch (e) { toast(e.message); }
 }
 // Every place in 탐색 in one go, one at a time; failures are listed at the end, nothing else changes.
 async function refreshAllPlaces() {
@@ -6059,7 +6081,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 279;
+const APP_VERSION = 280;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
