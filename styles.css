@@ -2563,3 +2563,14 @@ button.talk-card-head { width: 100%; border: 0; background: none; padding: 0; fo
 .ph-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.55); box-shadow: 0 0 3px rgba(0,0,0,.4); transition: width .2s, background .2s; }
 .ph-dots i.on { width: 16px; border-radius: 3px; background: #fff; }
 .ph-count { position: absolute; left: 10px; top: 10px; padding: 2px 8px; border-radius: 999px; background: rgba(0,0,0,.45); color: #fff; font-size: 11.5px; font-weight: 700; pointer-events: none; }
+
+/* v282: delete buttons follow the button system instead of a pastel fill —
+   next to another action (지출 수정 · 일정 수정 · 키 지우기) it is an outlined button like the AI one: page-colour face,
+   1.5px red edge, red label and icon. In a confirm popup, where deleting is the one thing asked, it is the solid button. */
+.btn.danger { background: var(--paper); color: var(--alert); box-shadow: inset 0 0 0 1.5px var(--alert); }
+.btn.danger.primary { background: var(--alert-fill, #c0392b); color: #fff; box-shadow: none; }
+:root { --alert-fill: #c4473a; }
+@media (prefers-color-scheme: dark) {
+  :root { --alert-fill: #d65a4c; }
+  .btn.danger { background: transparent; }
+}

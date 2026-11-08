@@ -5434,7 +5434,7 @@ function askBox({ title, body = '', ok = '확인', cancel = '취소', danger = f
       <div class="ask-card" role="alertdialog" aria-modal="true">
         <b class="ask-t">${esc(title)}</b>${body ? `<p class="ask-s">${esc(body)}</p>` : ''}
         ${input ? `<input class="input ask-in" ${input.numeric ? 'inputmode="numeric"' : ''} value="${esc(input.value ?? '')}" placeholder="${esc(input.placeholder || '')}" autocomplete="off">` : ''}
-        <div class="ask-bs"><button type="button" class="btn" data-ask="0">${esc(cancel)}</button><button type="button" class="btn ${danger ? 'danger' : 'primary'}" data-ask="1">${danger ? icon('trash') : ''}${esc(ok)}</button></div>
+        <div class="ask-bs"><button type="button" class="btn" data-ask="0">${esc(cancel)}</button><button type="button" class="btn ${danger ? 'danger primary' : 'primary'}" data-ask="1">${danger ? icon('trash') : ''}${esc(ok)}</button></div>
       </div>`;
     el.hidden = false;
     const inp = el.querySelector('.ask-in');
@@ -6120,7 +6120,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 281;
+const APP_VERSION = 282;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
