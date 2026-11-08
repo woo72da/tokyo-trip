@@ -2170,3 +2170,28 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 @keyframes ver-ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--alert) 60%, transparent); } 100% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--alert) 0%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .app-ver.new::before { animation: none; } }
 .daypick { padding: 16px 6px 14px 2px; margin: -12px -6px 0 -2px; }
+
+/* v238: 시간대별 날씨 = 날짜 칸과 같은 규칙. 기본 옅은 칸, 지금만 선택 색(밝은 화면 검정·어두운 화면 흰색) + 남색 테두리 + 떠오름,
+   지난 시간은 흐리게, 비 30%+ 는 칸 아래 파란 막대. (5일 예보·리포트 날씨는 숫자 칸 그대로) */
+.wx-strip > div, .wx-strip > div.wet, .wx-strip > div.now, .wx-strip > div.wet.now {
+  background: var(--soft); color: var(--ink); border: 0; box-shadow: none; outline: none;
+  --wx-sun: #b98420; --wx-rain: #4a7cb0; --wx-cloud: #7b8594;
+}
+.wx-strip > div.wet { box-shadow: inset 0 -3px 0 var(--stat-rain); }
+.wx-strip > div.past { opacity: .45; }
+.wx-strip > div.now { background: var(--sel-bg); color: var(--sel-ink); box-shadow: 0 0 0 2px var(--accent); transform: translateY(-2px); --wx-sun: #e3c07a; --wx-rain: #8fb0dc; --wx-cloud: #b3bcc8; }
+.wx-strip > div.now.wet { box-shadow: 0 0 0 2px var(--accent), inset 0 -3px 0 var(--stat-rain); }
+.wx-strip small { color: var(--muted); }
+.wx-strip > div.now small { color: var(--sel-accent); font-weight: 800; }
+.wx-strip b { color: inherit; font-family: var(--mono); }
+.wx-strip i { color: #2f6db0; }
+.wx-strip > div.now i { color: #85b7eb; }
+.wx-strip em { color: var(--muted); }
+.wx-strip > div.now em { color: var(--sel-muted); }
+@media (prefers-color-scheme: dark) {
+  .wx-strip > div, .wx-strip > div.wet { --wx-sun: #e3c07a; --wx-rain: #8fb0dc; --wx-cloud: #b3bcc8; }
+  .wx-strip i { color: #85b7eb; }
+  .wx-strip > div.now, .dp[aria-pressed="true"] { --wx-sun: #b98420; --wx-rain: #4a7cb0; --wx-cloud: #6b7584; }
+  .wx-strip > div.now i { color: #2f6db0; }
+}
+.wx-strip { padding-top: 6px; }

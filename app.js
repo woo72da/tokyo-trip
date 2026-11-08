@@ -645,7 +645,7 @@ function wxCard(date, now) {
       ${chipsHtml(tips)}
       ${strip.length ? `<div class="wx-fold wx-label">${icon('clock')}<span class="grow">시간대별 날씨</span></div>` : ''}
       ${strip.length ? `<div class="wx-strip">${strip.map((h) => `
-        <div class="${[h.pop >= 30 ? 'wet' : '', cur && h.hour === cur.hour ? 'now' : ''].join(' ')}"><small>${cur && h.hour === cur.hour ? '지금' : h.hour + '시'}</small><span>${wxIcon(h.icon)}</span><b>${h.temp}°</b><i>${h.pop >= 10 ? h.pop + '%' : ''}</i>${h.rain >= 0.1 ? `<em>${mm(h.rain)}</em>` : ''}</div>`).join('')}
+        <div class="${[h.pop >= 30 ? 'wet' : '', cur && h.hour === cur.hour ? 'now' : '', cur && h.hour < cur.hour ? 'past' : ''].join(' ')}"><small>${cur && h.hour === cur.hour ? '지금' : h.hour + '시'}</small><span>${wxIcon(h.icon)}</span><b>${h.temp}°</b><i>${h.pop >= 10 ? h.pop + '%' : ''}</i>${h.rain >= 0.1 ? `<em>${mm(h.rain)}</em>` : ''}</div>`).join('')}
       </div>` : ''}
     </div>`;
 }
@@ -5177,7 +5177,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 237;
+const APP_VERSION = 238;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
