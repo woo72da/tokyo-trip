@@ -2327,3 +2327,9 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .section-title.set-h .ai-mark { width: 22px; height: 22px; }
 .section-title.set-h .ai-mark::before { content: none; }
 .section-title.set-h .ai-mark { display: inline-flex; flex: none; line-height: 0; }
+
+/* v263: dark mode popups stand off the page — darker backdrop, a shadow cast upward and a brighter top edge */
+@media (prefers-color-scheme: dark) {
+  .sheet-backdrop { background: rgba(0,0,0,.6); }
+  .sheet-panel { box-shadow: 0 -16px 40px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.22); }
+}
