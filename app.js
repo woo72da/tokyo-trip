@@ -3135,7 +3135,10 @@ function legSteps(it) {
     }
     const L = lineOf(x.line);
     if (steps[k - 1]?.mode === 'ride') rows.push(`<li class="ls-walk"><i>${icon('walk')}</i><span class="ls-t"></span><span class="grow">갈아타기 · 약 5분</span></li>`);
-    const dep = x.dep || clock(t + (it.leg.source === 'table' ? 4 : 0));
+    // Into the station and onto the platform: the wait shows as its own line so the times add up.
+    const wait = x.dep ? Math.max(0, toMin(x.dep) - t) : it.leg.source === 'table' ? 4 : 0;
+    if (wait > 0) rows.push(`<li class="ls-walk ls-wait"><i>${icon('clock')}</i><span class="ls-t">${clock(t)}</span><span class="grow">역 도착 · 승강장 대기 약 ${wait}분</span></li>`);
+    const dep = x.dep || clock(t + wait);
     const arr = x.arr || clock(toMin(dep) + x.min);
     rows.push(`<li class="ls-st"><i></i><span class="ls-t">${esc(dep)}</span><span class="grow">${stn(x.from, L)}<small>타는 역</small></span></li>`);
     rows.push(`<li class="ls-ride" style="--ln:${esc(L?.color || x.line.color || '#6b7080')}"><i></i><span class="ls-t"></span><span class="grow">${L ? lnPill(L) : `<span class="ln-pill" style="--ln:${esc(x.line.color || '#6b7080')};--ln-ink:${esc(x.line.text || '#fff')}">${esc(x.line.name)}</span>`}<small>${esc(x.head ? koHead(x.head) : '')}${x.stops ? ` · ${x.stops}정거장` : ''} · ${x.min}분${x.every ? ` · 약 ${x.every}분마다` : ''}</small></span></li>`);
@@ -5756,7 +5759,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 253;
+const APP_VERSION = 254;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

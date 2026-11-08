@@ -2301,3 +2301,5 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .ls-ride .grow { padding: 8px 0; }
 /* 하루 끝 '호텔 도착' 자동 줄 */
 .tl-end .tl-card { background: transparent; box-shadow: none; border: 1.5px dashed var(--line); }
+.ls-wait .ls-t { color: var(--muted); font-weight: 600; }
+.ls-wait > i .ico { width: 13px; height: 13px; }
