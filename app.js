@@ -358,10 +358,22 @@ function autoLegs(list) {
       const leg = g ? { mode: rides.length ? 'transit' : 'walk', min: g.min, km: g.m / 1000 } : estimateLeg(a, b);
       const lineKo = rides.length ? (lineOf(rides[0].line)?.name || rides[0].line.name || rides[0].line.short) : '';
       const label = leg.mode === 'walk' ? '도보' : lineKo || (leg.mode === 'transit' ? '대중교통' : '이동');
+      // Rides on lines the trip's table knows become the same line legs as planned moves (station boxes, line card).
+      const lineLegs = rides.map((x) => {
+        const L = lineOf(x.line);
+        const s0 = L && stationOf(x.from, L);
+        const s1 = L && stationOf(x.to, L);
+        if (!s0 || !s1 || s0.l !== L || s1.l !== L) return null;
+        const ia = L.st.indexOf(s0.st); const ib = L.st.indexOf(s1.st);
+        const fwd = L.loop ? (ib - ia + L.st.length) % L.st.length <= L.st.length / 2 : ib > ia;
+        return { code: L.code, name: L.name, color: L.color, from: { no: s0.st.no, name: s0.st.name }, to: { no: s1.st.no, name: s1.st.name }, dir: x.head ? koHead(x.head) : fwd ? L.up : L.down };
+      });
+      const known = rides.length && lineLegs.every(Boolean) ? lineLegs : null;
       const room = next ? toMin(next.start) - start : null;
       out.set(m, {
         ...m,
-        title: `${label} → ${b.name}`, icon: LEG_ICON[leg.mode], line: undefined, docs: undefined, info: undefined,
+        title: known ? `${known[0].name} ${known[0].from.name} → ${known[known.length - 1].to.name}` : `${label} → ${b.name}`,
+        icon: known ? (glyph(m.icon)[0] === 'train' || glyph(m.icon)[0] === 'local' ? m.icon : '🚇') : LEG_ICON[leg.mode], line: known || undefined, docs: undefined, info: undefined,
         note: leg.min ? `약 ${leg.min}분` : '시간 확인 필요',
         place: { nameJa: b.query, query: b.query }, placeId: undefined,
         ...(m.end && leg.min ? { end: clock(Math.min(1439, start + leg.min)) } : {}),
@@ -2958,9 +2970,9 @@ function transitRow(it, cls, late, now, edit, tail) {
           <div class="mv-title">${current ? '<i class="mv-now">이동 중</i>' : ''}${esc(it.title)}</div>
           ${it.line ? `<div class="mv-line">${lnRoute(it.line)}</div>` : ''}
           ${sub || late ? `<div class="mv-sub">${late ? `<em class="mv-late">${esc(delayText(late))}</em>` : ''}${esc(sub)}${it.leg ? `${it.leg.km != null ? ` · ${distLabel(it.leg.km)}` : ''}${it.leg.source === 'google' ? `<i class="leg-src g" title="구글 경로로 계산했어요">구글 · ${esc(new Date(it.leg.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Tokyo' }))} 기준</i>` : '<i class="leg-src" title="직선거리로 계산한 값이에요">추정</i>'}` : ''}</div>` : ''}
-          ${it.leg?.steps ? legGuide(it.leg.steps) : ''}
+          ${it.leg?.steps ? legGuide(it.leg.steps, !!it.line) : ''}
           ${it.leg?.short ? `<div class="leg-short">${icon('warn')}다음 일정까지 ${formatLeft(it.leg.short)} 모자라요</div>` : ''}
-          ${it.leg ? `<div class="leg-why">${store.get('edit:' + it.id, null)?.releg ? '지금 앞뒤 일정 기준으로 다시 계산했어요' : '앞뒤 장소가 바뀌어 이동을 다시 계산했어요'}</div>` : ''}
+          ${it.leg ? `<div class="leg-why">${store.get('edit:' + it.id, null)?.releg ? '지금 앞뒤 일정 기준으로 다시 계산했어요' : '앞뒤 장소가 바뀌어 이동을 다시 계산했어요'}${it.leg.source === 'estimate' && it.leg.mode === 'transit' ? ` · ${!gKey() ? '구글 장소 키를 넣으면' : routeOff() ? '구글 키에 Routes API를 켜면' : '구글 경로를 받으면'} 노선·역 번호가 나와요` : ''}</div>` : ''}
           ${it.docs ? `<div class="doc-row">${docBtns(it, 'doc-chip')}</div>` : ''}
         </div>
         ${edit ? `<span class="mv-nav">${icon('pen')}</span>` : it.place ? `<button class="mv-nav" data-nav="${esc(it.id)}" aria-label="구글맵 길찾기">${icon('nav')}</button>` : ''}
@@ -2971,7 +2983,7 @@ function transitRow(it, cls, late, now, edit, tail) {
 
 // 지하철 안내 (일정 엔진 4.6-1): walk › line › walk strip, then per ride: line chip + name + direction,
 // station numbers (or names) and stop count, times and how often it runs. Platform and car come with S2's city pack later.
-function legGuide(steps) {
+function legGuide(steps, compact = false) {
   const strip = steps.map((x) => (x.mode === 'walk' ? `<span class="lg-w">${icon('walk')}${x.min}</span>` : `<span class="lg-l" style="--ln:${esc(x.line.color || '#6b7080')};--ln-ink:${esc(x.line.text || '#fff')}">${esc(lineOf(x.line)?.code || x.line.short || x.line.name)}</span>`)).join('<i class="lg-gt">›</i>');
   const rides = steps.filter((x) => x.mode === 'ride').map((x) => {
     const L = lineOf(x.line);
@@ -2985,6 +2997,10 @@ function legGuide(steps) {
         <div class="lg-time">${x.dep && x.arr ? `<b>${esc(x.dep)} → ${esc(x.arr)}</b>` : ''}<span>${x.min}분${x.every ? ` · 약 ${x.every}분마다` : ''}</span></div>
       </div>`;
   }).join('');
+  if (compact) {
+    const times = steps.filter((x) => x.mode === 'ride').map((x) => `<div class="lg-time">${x.dep && x.arr ? `<b>${esc(x.dep)} → ${esc(x.arr)}</b>` : ''}<span>${x.stops ? `${x.stops}정거장 · ` : ''}${x.min}분${x.every ? ` · 약 ${x.every}분마다` : ''}</span></div>`).join('');
+    return `<div class="lg-guide"><div class="lg-strip">${strip}</div>${times}</div>`;
+  }
   return `<div class="lg-guide"><div class="lg-strip">${strip}</div>${rides}</div>`;
 }
 
@@ -5495,6 +5511,7 @@ function openItem(id) {
       </div>
     </div>
     ${it.line ? lineCard(it) : ''}
+    ${it.leg?.steps ? `<div class="card">${legGuide(it.leg.steps, !!it.line)}</div>` : it.leg?.source === 'estimate' && it.leg.mode === 'transit' ? `<div class="ai-note">직선거리로 계산한 이동이에요. ${!gKey() ? '설정 › AI 도우미에 구글 장소 키를 넣고 Routes API를 켜면' : routeOff() ? '구글 키에 Routes API를 켜고 설정에서 연결 확인을 누르면' : '인터넷이 연결되면'} 노선·역 번호·출발 시각이 나와요.</div>` : ''}
     ${isLegRow(it) && !isFixed(it) && !it.skip ? `<div class="btns"><button class="btn wide" data-releg="${esc(it.id)}">${icon('refresh')}이동 다시 계산 · 지금 앞뒤 일정 기준</button></div>` : ''}
     ${it.docs ? `<div class="section-title"><span>여기서 쓸 바우처</span></div><div class="btns">${docBtns(it, 'btn wide')}</div>` : ''}
     ${it.link ? `<div class="section-title"><span>${esc(it.link.title || '위치 안내')}</span></div><div class="btns"><a class="btn wide" href="${esc(/Android/i.test(navigator.userAgent) && it.link.android || it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
@@ -5590,7 +5607,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 246;
+const APP_VERSION = 247;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
