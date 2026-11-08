@@ -2277,3 +2277,27 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .qk-alt b { display: block; font-size: 15px; }
 .qk-alt small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
 .qk-alt em { flex: none; font-style: normal; font-size: 13px; font-weight: 800; color: var(--accent); }
+
+/* v253 단계별 동선 (이동 상세) — 세로 줄 위에 출발 · 도보 · 타는 역 · 노선 · 내리는 역 · 도착 */
+.ls-card { padding: 14px 14px 10px; }
+.ls-h { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 13px; font-weight: 800; color: var(--muted); }
+.ls-h .ico { width: 15px; height: 15px; }
+.ls { list-style: none; margin: 0; padding: 0; }
+.ls li { position: relative; display: grid; grid-template-columns: 22px 46px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 34px; }
+.ls li > i { position: relative; justify-self: center; align-self: stretch; width: 22px; display: grid; place-items: center; }
+.ls li > i::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: var(--line); }
+.ls li:first-child > i::before { top: 50%; }
+.ls li:last-child > i::before { bottom: 50%; }
+.ls-pt > i::after, .ls-st > i::after { content: ""; position: relative; width: 12px; height: 12px; border-radius: 50%; background: var(--paper); box-shadow: inset 0 0 0 2.5px var(--ink); }
+.ls-st > i::after { width: 10px; height: 10px; box-shadow: inset 0 0 0 2.5px var(--accent); }
+.ls-pt.end > i::after { background: var(--ink); }
+.ls-walk > i::before { background: repeating-linear-gradient(var(--muted) 0 3px, transparent 3px 7px); }
+.ls-walk > i .ico { position: relative; width: 14px; height: 14px; color: var(--muted); background: var(--paper); border-radius: 50%; }
+.ls-ride > i::before { width: 5px; margin-left: -2.5px; background: var(--ln); border-radius: 3px; }
+.ls-t { font: 700 13px var(--mono); color: var(--ink); }
+.ls li .grow { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; font-size: 14px; padding: 4px 0; }
+.ls li small { width: 100%; font-size: 12px; color: var(--muted); }
+.ls-walk .grow { font-size: 13px; color: var(--muted); }
+.ls-ride .grow { padding: 8px 0; }
+/* 하루 끝 '호텔 도착' 자동 줄 */
+.tl-end .tl-card { background: transparent; box-shadow: none; border: 1.5px dashed var(--line); }

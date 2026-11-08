@@ -2978,6 +2978,8 @@ function timeline(items, now, edit = false) {
     const at = (it) => (it.skip ? toMin(rawItem(it.id)?.start || it.start) : it.startMin);
     items = items.map((it, i) => [it, i]).sort((a, b) => at(a[0]) - at(b[0]) || a[1] - b[1]).map(([it]) => it);
   }
+  const live = items.filter((x) => !x.skip);
+  const endId = live[live.length - 1]?.id;
   return `<div class="tl ${edit ? 'editing' : ''}">${items.map((it, i) => {
     const isToday = now && now.date === it.date;
     // A stop still unfinished stays in full view, marked as running behind, however late it gets.
@@ -3003,7 +3005,7 @@ function timeline(items, now, edit = false) {
         <div class="tl-skip" data-item="${esc(it.id)}" role="button" tabindex="0">${icon(glyph(it.icon)[0])}<span class="grow">${esc(stripEmoji(it.title))}</span><small>건너뜀</small></div>
       </div>`;
     }
-    if (isTransit(it)) return bar + transitRow(it, cls, late, now, edit, tail);
+    if (isTransit(it)) return bar + transitRow(it, cls, late, now, edit, tail) + (!edit && it.id === endId ? hotelEnd(items) : '');
     return `${bar}
       <div class="tl-item ${cls}">
         <div class="tl-time">${esc(it.start)}${it.auto ? '<i class="tl-moved">조정</i>' : ''}${tlWx(it)}</div>
@@ -3021,6 +3023,28 @@ function timeline(items, now, edit = false) {
         ${tail}
       </div>`;
   }).join('')}</div>`;
+}
+// A day that ends on the way back (the last thing left is a ride or walk to the hotel) shows where it ends:
+// 호텔 도착 at the time that leg gets there. Drawn only, nothing stored; a planned '호텔 복귀' stop needs none.
+function hotelEnd(items) {
+  const live = items.filter((x) => !x.skip);
+  const last = live[live.length - 1];
+  if (!last || !isLegRow(last) || isFixed(last)) return '';
+  const to = last.leg?.to || (/→\s*(.+)$/.exec(stripEmoji(last.title))?.[1] || '');
+  if (!last.leg?.to?.includes('호텔') && !/호텔|숙소/.test(to)) return '';
+  const arrive = Math.min(1439, last.startMin + (last.leg?.min || last.endMin - last.startMin || 0));
+  return `
+    <div class="tl-item tl-end">
+      <div class="tl-time">${clock(arrive)}<i class="tl-moved">자동</i></div>
+      <div class="tl-card" data-nav="__stay" role="button" tabindex="0">
+        ${itemIcon('🏨')}
+        <div class="tl-main">
+          <div class="tl-title">호텔 도착 · 휴식</div>
+          <div class="tl-sub">${esc(state.trip.stay.name)} · 앞 이동이 끝나는 시각으로 계산했어요</div>
+        </div>
+        <span class="tl-nav">${icon('nav')}</span>
+      </div>
+    </div>`;
 }
 
 // A trip between places: a slim row on a dashed stretch of the line, or a boarding pass for a flight.
@@ -3091,6 +3115,35 @@ function legGuide(steps, compact = false) {
     return `<div class="lg-guide"><div class="lg-strip">${strip}</div>${times}</div>`;
   }
   return `<div class="lg-guide"><div class="lg-strip">${strip}</div>${rides}</div>`;
+}
+
+// 단계별 동선 (상세 화면): 출발 → 도보 n분 → 타는 역 → 노선·방면 → 내리는 역 → (갈아타기) → 도보 n분 → 도착,
+// with the clock running from the leg's start (Google's own times when it gave them).
+function legSteps(it) {
+  const steps = it.leg?.steps;
+  if (!steps?.length) return '';
+  let t = Number.isFinite(it.startMin) ? it.startMin : toMin(it.start);
+  const stn = (ja, L) => { const x = stationOf(ja, L); return x ? `${lnBadge(x.l, x.st.no)}<b>${esc(x.st.name)}</b>` : `<b>${esc(ja)}</b>`; };
+  const rows = [`<li class="ls-pt"><i></i><span class="ls-t">${clock(t)}</span><span class="grow"><b>${esc(it.leg.from)}</b><small>출발</small></span></li>`];
+  steps.forEach((x, k) => {
+    if (x.mode === 'walk') {
+      const next = steps[k + 1];
+      const to = next?.mode === 'ride' ? `${(stationOf(next.from, lineOf(next.line))?.st.name) || next.from}역까지` : k === steps.length - 1 ? `${it.leg.to}까지` : '';
+      rows.push(`<li class="ls-walk"><i>${icon('walk')}</i><span class="ls-t"></span><span class="grow">도보 ${x.min}분${to ? ` · ${esc(to)}` : ''}${x.m ? ` · ${distLabel(x.m / 1000)}` : ''}</span></li>`);
+      t += x.min;
+      return;
+    }
+    const L = lineOf(x.line);
+    if (steps[k - 1]?.mode === 'ride') rows.push(`<li class="ls-walk"><i>${icon('walk')}</i><span class="ls-t"></span><span class="grow">갈아타기 · 약 5분</span></li>`);
+    const dep = x.dep || clock(t + (it.leg.source === 'table' ? 4 : 0));
+    const arr = x.arr || clock(toMin(dep) + x.min);
+    rows.push(`<li class="ls-st"><i></i><span class="ls-t">${esc(dep)}</span><span class="grow">${stn(x.from, L)}<small>타는 역</small></span></li>`);
+    rows.push(`<li class="ls-ride" style="--ln:${esc(L?.color || x.line.color || '#6b7080')}"><i></i><span class="ls-t"></span><span class="grow">${L ? lnPill(L) : `<span class="ln-pill" style="--ln:${esc(x.line.color || '#6b7080')};--ln-ink:${esc(x.line.text || '#fff')}">${esc(x.line.name)}</span>`}<small>${esc(x.head ? koHead(x.head) : '')}${x.stops ? ` · ${x.stops}정거장` : ''} · ${x.min}분${x.every ? ` · 약 ${x.every}분마다` : ''}</small></span></li>`);
+    rows.push(`<li class="ls-st"><i></i><span class="ls-t">${esc(arr)}</span><span class="grow">${stn(x.to, L)}<small>내리는 역</small></span></li>`);
+    t = toMin(arr);
+  });
+  rows.push(`<li class="ls-pt end"><i></i><span class="ls-t">${clock(Math.min(1439, t))}</span><span class="grow"><b>${esc(it.leg.to)}</b><small>도착${it.leg.source === 'table' ? ' · 시각은 추정' : ''}</small></span></li>`);
+  return `<div class="card ls-card"><div class="ls-h">${icon('route')}단계별 동선</div><ol class="ls">${rows.join('')}</ol></div>`;
 }
 
 // ---------- rail lines: the station-number square and line colour as signed in Tokyo ----------
@@ -5607,7 +5660,7 @@ function openItem(id) {
       </div>
     </div>
     ${it.line ? lineCard(it) : ''}
-    ${it.leg?.steps ? `<div class="card">${legGuide(it.leg.steps, !!it.line)}</div>` : it.leg?.source === 'estimate' ? `<div class="ai-note">직선거리로 계산한 이동이에요. 노선·역 번호는 구글 경로에서 받아요.<br><b>이유:</b> ${esc(routeWhy())}</div>${gKey() ? `<div class="btns"><button class="btn wide" data-route-retry="${esc(it.id)}">${icon('refresh')}구글 경로 다시 받기</button></div>` : ''}` : ''}
+    ${it.leg?.steps ? legSteps(it) : it.leg?.source === 'estimate' ? `<div class="ai-note">직선거리로 계산한 이동이에요. 노선·역 번호는 구글 경로에서 받아요.<br><b>이유:</b> ${esc(routeWhy())}</div>${gKey() ? `<div class="btns"><button class="btn wide" data-route-retry="${esc(it.id)}">${icon('refresh')}구글 경로 다시 받기</button></div>` : ''}` : ''}
     ${isLegRow(it) && !isFixed(it) && !it.skip ? `<div class="btns"><button class="btn wide" data-releg="${esc(it.id)}">${icon('refresh')}이동 다시 계산 · 지금 앞뒤 일정 기준</button></div>` : ''}
     ${it.docs ? `<div class="section-title"><span>여기서 쓸 바우처</span></div><div class="btns">${docBtns(it, 'btn wide')}</div>` : ''}
     ${it.link ? `<div class="section-title"><span>${esc(it.link.title || '위치 안내')}</span></div><div class="btns"><a class="btn wide" href="${esc(/Android/i.test(navigator.userAgent) && it.link.android || it.link.url)}" target="_blank" rel="noopener">${icon('ext')}${esc(it.link.label)}</a></div>` : ''}
@@ -5703,7 +5756,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 252;
+const APP_VERSION = 253;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
