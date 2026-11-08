@@ -1914,14 +1914,21 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .rp-place .memo { color: var(--ink); opacity: .8; }
 .rp-place.no b { color: var(--muted); font-weight: 600; }
 
-/* 평가 칸 = 탭: the picked one fills with its colour, the list below follows */
-.rp-rate-tally button { display: grid; justify-items: center; gap: 2px; padding: 12px 6px; border: 2px solid transparent; border-radius: 14px; background: var(--rk-soft); color: var(--rk); font: inherit; cursor: pointer; }
-.rp-rate-tally button.on { border-color: var(--rk); box-shadow: 0 4px 14px -6px var(--rk); }
-.rp-rate-tally button:not(.on):not(.none) { opacity: .72; }
+/* 평가 칸 = 탭: 한 줄 묶음 막대. 아이콘 + 숫자만, 이름은 아래 카드 제목이 말해요.
+   고른 칸은 탭 색(--sel-bg)으로 채우고 뜻은 칸 아래 3px 색 막대로 */
+.rp-rate-tally { gap: 4px; padding: 4px; border-radius: 14px; background: var(--card); box-shadow: inset 0 0 0 1.5px var(--line); }
+.rp-rate-tally button { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; padding: 0 8px; border: 0; border-radius: 10px; background: transparent; color: var(--ink); font: inherit; cursor: pointer; transition: background-color .2s ease, color .2s ease; }
+.rp-rate-tally button .ico { width: 20px; height: 20px; color: var(--rk); }
+.rp-rate-tally button b { font: 700 18px/1 var(--mono); }
+.rp-rate-tally button::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--rk); opacity: 0; }
+.rp-rate-tally button.on { background: var(--sel-bg); color: var(--sel-ink); }
+.rp-rate-tally button.on .ico { color: inherit; }
+.rp-rate-tally button.on::after { opacity: 1; }
 .rp-rate-tally button.none { opacity: .35; cursor: default; }
+.rp-rate-tally button:active:not(.none) { transform: scale(.97); }
 .rp-rate-tally button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .rp-day-best .ico { width: 18px; height: 15px; }
-.rp-rate-tally .rk-best .ico { width: 28px; height: 28px; margin-block: -4px; } .rp-rate.rk-best .rp-rate-ic .ico { width: 25px; height: 25px; }
+.rp-rate-tally .rk-best .ico { width: 24px; height: 24px; margin-block: -2px; } .rp-rate.rk-best .rp-rate-ic .ico { width: 25px; height: 25px; }
 
 .rp-nopay summary { min-height: 40px; display: flex; align-items: center; font-size: 13.5px; font-weight: 700; color: var(--warn); cursor: pointer; list-style: none; }
 .rp-nopay summary::-webkit-details-marker { display: none; }

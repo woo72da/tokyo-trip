@@ -1933,7 +1933,7 @@ function reportPlaces(visited) {
   const row = (p, k) => { const v = visitOf(p.id); return `<button class="rp-place ${k || ''}" data-place="${esc(p.id)}"><span class="grow"><b>${esc(p.name)}</b>${v?.memo ? `<small class="memo">“${esc(v.memo)}”</small>` : p.area ? `<small>${esc(p.area)}</small>` : ''}</span><i class="chev"></i></button>`; };
   return `
     <div class="section-title"><span>좋았던 곳 · 다음에 갈 곳</span></div>
-    ${rated.length ? `<div class="rp-rate-tally" role="tablist">${groups.map((g) => `<button type="button" role="tab" class="rk-${g.k} ${g.list.length ? '' : 'none'} ${g.k === pick.k ? 'on' : ''}" data-rp-rate="${g.k}" aria-selected="${g.k === pick.k}" ${g.list.length ? '' : 'disabled'}>${icon(g.ic)}<b>${g.list.length}</b><span>${g.l}</span></button>`).join('')}</div>` : ''}
+    ${rated.length ? `<div class="rp-rate-tally" role="tablist">${groups.map((g) => `<button type="button" role="tab" class="rk-${g.k} ${g.list.length ? '' : 'none'} ${g.k === pick.k ? 'on' : ''}" data-rp-rate="${g.k}" aria-label="${g.l} ${g.list.length}곳" aria-selected="${g.k === pick.k}" ${g.list.length ? '' : 'disabled'}>${icon(g.ic)}<b>${g.list.length}</b></button>`).join('')}</div>` : ''}
     ${rated.length ? `
       <div class="card rp-card rp-rate rk-${pick.k}" role="tabpanel">
         <div class="rp-rate-h"><span class="rp-rate-ic">${icon(pick.ic)}</span><span class="grow"><b>${pick.l}</b><small>${pick.hint}</small></span><em>${pick.list.length}곳</em></div>
@@ -5137,7 +5137,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 221;
+const APP_VERSION = 222;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
