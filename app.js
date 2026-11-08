@@ -285,9 +285,14 @@ function routeOf(r) {
   return { at: Date.now(), min: Math.max(1, Math.round(secs(r.duration) / 60)), m: r.distanceMeters || 0, steps };
 }
 const routeBusy = new Map();
+// When Google answers (or fails), an open detail sheet for a leg is drawn again so it shows the result.
+const refreshLegSheet = () => { const id = state.sheetItem; if (id && !$('#sheet').hidden && $('#sheet-body [data-route-retry], #sheet-body .lg-guide, #sheet-body [data-releg]')) openItem(id); };
 async function fetchRoute(a, b, date, min, key) {
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), 15000);
   try {
     const res = await fetch(R_URL, {
+      signal: stop.signal,
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': gKey(), 'X-Goog-FieldMask': R_MASK },
       body: JSON.stringify({
@@ -301,7 +306,7 @@ async function fetchRoute(a, b, date, min, key) {
       const why = data.error?.message || '';
       store.set('routeErr', { at: Date.now(), status: res.status, msg: why.slice(0, 200) });
       if (res.status === 403 || (res.status === 400 && /API key/i.test(why))) store.set('routeOff', /not been used|disabled|SERVICE_DISABLED|blocked|not authorized/i.test(why) ? 'api' : 'key');
-      render();
+      render(); refreshLegSheet();
       return;
     }
     const route = routeOf(data.routes?.[0]);
@@ -309,8 +314,11 @@ async function fetchRoute(a, b, date, min, key) {
     else store.set('routeErr', null);
     store.set(key, route || { at: Date.now(), none: true });
     routeBusy.delete(key);
-    render();
-  } catch (e) { store.set('routeErr', { at: Date.now(), status: 0, msg: `연결 실패 · ${String(e.message || e).slice(0, 120)}` }); }
+    render(); refreshLegSheet();
+  } catch (e) {
+    store.set('routeErr', { at: Date.now(), status: 0, msg: e.name === 'AbortError' ? '15초 동안 응답이 없어요' : `연결 실패 · ${String(e.message || e).slice(0, 120)}` });
+    render(); refreshLegSheet();
+  } finally { clearTimeout(timer); }
 }
 // The cached Google route for a leg, or null (and a lookup is started when possible).
 function googleLeg(a, b, date, min) {
@@ -328,7 +336,7 @@ const routeWhy = () => {
   if (routeOff()) return `구글 키로 경로를 쓸 수 없어요${e ? ` (${e.status} · ${e.msg})` : ''} · Routes API를 켜고 키 제한에 추가해 주세요`;
   if (e) return `구글 경로 오류 (${e.status || '연결'} · ${e.msg})`;
   if (!navigator.onLine) return '인터넷이 연결되어 있지 않아요';
-  return '구글 경로를 받는 중이에요';
+  return '구글 경로를 받는 중이에요 · 몇 초 뒤 이 화면이 저절로 바뀌어요';
 };
 // Retry: forget this leg's cached answer and the off switch, then look it up again.
 function routeRetry(id) {
@@ -5516,6 +5524,7 @@ function nextStop(it) {
 function openItem(id) {
   const it = findItem(id);
   if (!it) return;
+  state.sheetItem = id;
   state.swapFor = null;
   state.talkBack = null;
   const now = tokyoNow();
@@ -5634,7 +5643,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 248;
+const APP_VERSION = 249;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
