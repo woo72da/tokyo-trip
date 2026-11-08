@@ -2195,3 +2195,13 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
   .wx-strip > div.now i { color: #2f6db0; }
 }
 .wx-strip { padding-top: 6px; }
+
+/* v239: 날짜 칸은 11/2 형식 — 칸 폭에 맞게 숫자를 조금 작게 */
+.dp b, .dp.done b { font-size: 19px; letter-spacing: -.04em; font-family: var(--mono); font-weight: 700; margin-top: 4px; }
+/* v239: 하루 요약 = 날씨 위, 제목 줄을 누르면 접고 펼침 (기본 접힘) */
+.day-sum { margin: 2px 0 12px; }
+.day-sum-head { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.day-sum.folded { padding-bottom: 14px; }
+.day-sum.folded .day-sum-head { padding-bottom: 0; }
+.day-sum-head .chev { margin-left: 4px; transform: rotate(45deg); transition: transform .2s ease; }
+.day-sum-head .chev.up { transform: rotate(-135deg); }

@@ -2636,10 +2636,11 @@ function renderDays() {
     <div class="daypick" role="group" aria-label="날짜 선택">
       ${days.map((d, i) => `
         <button class="dp ${d.date === now.date ? 'today' : ''} ${isDayDone(d.date, now.date) ? 'done' : ''}" data-day="${i}" aria-pressed="${i === state.dayIndex}" ${isDayDone(d.date, now.date) ? 'aria-label="완료한 날"' : ''}>
-          ${isDayDone(d.date, now.date) ? `<em class="dp-ok" aria-hidden="true">${STAR5}</em>` : ''}<small>${i + 1}일차</small><b>${Number(d.date.slice(8))}</b><span>${WEEKDAYS[dowOf(d.date)]}</span>
+          ${isDayDone(d.date, now.date) ? `<em class="dp-ok" aria-hidden="true">${STAR5}</em>` : ''}<small>${i + 1}일차</small><b>${Number(d.date.slice(5, 7))}/${Number(d.date.slice(8))}</b><span>${WEEKDAYS[dowOf(d.date)]}</span>
           ${wxDay(d.date) ? `<span class="dp-wx">${wxIcon(wxDay(d.date).icon)}${wxDay(d.date).max}°</span>` : ''}
         </button>`).join('')}
     </div>
+    ${edit ? '' : daySummary(day, items, now)}
     ${wxCard(day.date, now.date === day.date ? now : null)}
     <div class="btns day-actions three">
       <button class="btn" data-day-route>${icon('nav')}동선 지도</button>
@@ -2649,7 +2650,7 @@ function renderDays() {
     ${!edit && aiKey() ? `<button class="btn ai wide ai-plan-btn" data-ai-plan>${aiLabel('말로 일정을 변경해 보세요')}</button>` : ''}
     ${edit ? '<div class="small muted edit-hint">일정을 누르면 고치고, ＋를 누르면 그 자리에 넣어요.</div>' : ''}
     ${timeline(items, now, edit)}
-    ${edit ? '' : daySummary(day, items, now) || (expenses().some((e) => e.date === day.date) ? `<div class="day-sum">${dayExpense(day.date, true)}</div>` : '')}
+    ${edit || daySummary(day, items, now) ? '' : expenses().some((e) => e.date === day.date) ? `<div class="day-sum">${dayExpense(day.date, true)}</div>` : ''}
     <button class="btn wide day-add" data-item-new="${esc(day.date)}" data-after="${esc(items[items.length - 1]?.id || '')}">${icon('plus')}일정 추가</button>
     ${edit ? dayEditTools(day) : ''}
   `;
@@ -2693,6 +2694,8 @@ function dayExpense(date, open) {
     </div>`;
 }
 
+// 하루 요약은 날씨 위에서 접고 펼쳐요. 기본은 접힘, 이 폰에서 연 날만 기억해요.
+const daySumOpen = (date) => { try { return JSON.parse(localStorage.getItem('daySumOpen') || '[]').includes(date); } catch { return false; } };
 function daySummary(day, items, now) {
   const live = items.filter((it) => !it.skip);
   const sealed = store.get('seal:' + day.date, false);
@@ -2704,22 +2707,25 @@ function daySummary(day, items, now) {
   const skipped = items.filter((it) => it.skip).length;
   const notes = live.map((it) => [it, placeOfItem(it.id)]).filter(([, p]) => p).map(([it, p]) => ({ it, p, v: visitOf(p.id) }))
     .filter(({ v }) => v && (v.again || v.memo));
+  const open = daySumOpen(day.date);
   return `
-    <div class="day-sum">
-      <div class="day-sum-head">
+    <div class="day-sum ${open ? 'open' : 'folded'}">
+      <div class="day-sum-head" data-sum-fold="${esc(day.date)}" role="button" tabindex="0" aria-expanded="${open}">
         ${sealed ? `<span class="seal mini"><b>${dayIdx + 1}일차</b><b>완료</b></span>` : `<button class="seal-slot mini" data-seal="${esc(day.date)}">도장<br>찍기</button>`}
         <div class="grow">
           <b>${dayIdx + 1}일차 요약</b>
           <span>${[`일정 ${done.length}/${live.length} 완료`, visited ? `방문 ${visited}곳` : '', skipped ? `건너뜀 ${skipped}` : ''].filter(Boolean).join(' · ')}</span>
         </div>
+        <i class="chev ${open ? 'up' : ''}" aria-hidden="true"></i>
       </div>
+      ${open ? `
       ${daySumWeather(day.date)}
       ${diaryCard(day.date)}
       ${dayExpense(day.date, false)}
       ${notes.map(({ it, p, v }) => `
         <button class="day-sum-row" data-item="${esc(it.id)}">
           ${itemIcon(it.icon)}<span class="grow"><b>${esc(p.name)}${v.again ? `<em class="${v.again}">${againIcon(v.again)}${AGAIN[v.again]}</em>` : ''}</b>${v.memo ? `<small>${esc(v.memo)}</small>` : ''}</span>
-        </button>`).join('')}
+        </button>`).join('')}` : ''}
     </div>`;
 }
 
@@ -5177,7 +5183,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 238;
+const APP_VERSION = 239;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -5261,7 +5267,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -5449,6 +5455,10 @@ document.addEventListener('click', async (e) => {
   }
   else if ('settings' in d) openSettings(d.settings);
   else if ('reportPreview' in d) { state.reportPreview = true; window.scrollTo(0, 0); render(); }
+  else if (d.sumFold) {
+    try { const o = JSON.parse(localStorage.getItem('daySumOpen') || '[]'); localStorage.setItem('daySumOpen', JSON.stringify(o.includes(d.sumFold) ? o.filter((x) => x !== d.sumFold) : [...o, d.sumFold])); } catch { /* private mode */ }
+    render();
+  }
   else if ('wxFold' in d) { try { localStorage.setItem('wxCard', wxCardOpen() ? '0' : '1'); } catch { /* private mode */ } render(); }
   else if (d.rpRate) { state.rpRate = d.rpRate; render(); }
   else if ('reportImage' in d) reportImage();
