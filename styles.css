@@ -2480,3 +2480,19 @@ button.talk-card-head { width: 100%; border: 0; background: none; padding: 0; fo
 .sheet-panel.titled > .sheet-grip { box-shadow: inset 0 1px 0 var(--sheet-edge); }
 .ex-refresh { margin-top: 10px; }
 .btn small { font-weight: 600; opacity: .7; }
+
+/* v274: popup edge A — a thin line all round the rounded top and a deeper shadow, so medium and small popups stand
+   clear of the page; in dark mode the popup face is one step lighter and what sits on it one step lighter again */
+.sheet-backdrop { background: rgba(5,8,15,.38); }
+.sheet-panel { box-shadow: 0 -14px 36px rgba(10,14,22,.28), 0 0 0 1px rgba(10,14,22,.14); }
+.gm-dim, .ask-dim, .bigja-dim { background: rgba(5,8,15,.38); }
+.gm-card, .ask-card { box-shadow: 0 20px 50px rgba(10,14,22,.3), 0 0 0 1px rgba(10,14,22,.14); }
+.bigja-panel { box-shadow: 0 -14px 36px rgba(10,14,22,.28), 0 0 0 1px rgba(10,14,22,.14); }
+@media (prefers-color-scheme: dark) {
+  :root { --sheet-bg: #171b23; --sheet-edge: rgba(255,255,255,.3); }
+  .sheet-backdrop, .gm-dim, .ask-dim, .bigja-dim { background: rgba(0,0,0,.65); }
+  .sheet-panel { background: var(--sheet-bg); box-shadow: 0 -16px 40px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.18); }
+  .sheet-panel { --paper: #222733; }
+  .gm-card, .ask-card { background: #1d2230; box-shadow: 0 20px 50px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.18); }
+  .bigja-panel { box-shadow: 0 -16px 40px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.25); }
+}
