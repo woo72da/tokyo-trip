@@ -2711,7 +2711,7 @@ function daySummary(day, items, now) {
   return `
     <div class="day-sum ${open ? 'open' : 'folded'}">
       <div class="day-sum-head" data-sum-fold="${esc(day.date)}" role="button" tabindex="0" aria-expanded="${open}">
-        ${sealed ? `<span class="seal mini"><b>${dayIdx + 1}일차</b><b>완료</b></span>` : `<button class="seal-slot mini" data-seal="${esc(day.date)}">도장<br>찍기</button>`}
+        ${sealed ? `<span class="pstamp" aria-label="${dayIdx + 1}일차 완주"><i class="ps-star">${STAR5}</i><small>TOKYO</small><b>${dayIdx + 1}일차</b><small>${Number(day.date.slice(5, 7))}/${Number(day.date.slice(8))} 완주</small></span>` : `<button class="pslot" data-seal="${esc(day.date)}"><i class="ps-star">${STAR5}</i><span>도장<br>찍기</span></button>`}
         <div class="grow">
           <b>${dayIdx + 1}일차 요약</b>
           <span>${[`일정 ${done.length}/${live.length} 완료`, visited ? `방문 ${visited}곳` : '', skipped ? `건너뜀 ${skipped}` : ''].filter(Boolean).join(' · ')}</span>
@@ -5183,7 +5183,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 239;
+const APP_VERSION = 240;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();

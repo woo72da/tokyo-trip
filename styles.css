@@ -2205,3 +2205,21 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .day-sum.folded .day-sum-head { padding-bottom: 0; }
 .day-sum-head .chev { margin-left: 4px; transform: rotate(45deg); transition: transform .2s ease; }
 .day-sum-head .chev.up { transform: rotate(-135deg); }
+
+/* v240: 하루 요약 완주 도장 = 여권 도장(금색 이중 테두리, 살짝 기울임) + 뒤에 비치는 노란 별 (날짜 칸 ★ 배지와 연결) */
+.pstamp { position: relative; flex: none; display: grid; place-content: center; width: 64px; height: 56px; margin: 0 2px; border-radius: 12px;
+  border: 2px solid var(--gold-ink, #a8823c); box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3.5px var(--gold-ink, #a8823c);
+  color: var(--gold-ink, #a8823c); text-align: center; line-height: 1.1; transform: rotate(-7deg); }
+.pstamp b { position: relative; font-size: 14px; font-weight: 800; }
+.pstamp small { position: relative; font-size: 8.5px; font-weight: 800; letter-spacing: .04em; }
+.pstamp b, .pstamp small { text-shadow: 0 0 2px var(--paper), 0 0 3px var(--paper); }
+.ps-star { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; color: #f2c14e; opacity: .55; }
+.ps-star .star5 { width: 50px; height: 50px; }
+.pslot { position: relative; flex: none; display: grid; place-items: center; width: 60px; height: 52px; margin: 0 2px; border-radius: 12px; border: 1.5px dashed var(--line); background: none; color: var(--muted); font: inherit; font-size: 11.5px; font-weight: 700; line-height: 1.25; text-align: center; }
+.pslot .ps-star { color: var(--line); opacity: .9; }
+.pslot .ps-star .star5 { width: 42px; height: 42px; }
+.pslot span { position: relative; text-shadow: 0 0 3px var(--paper), 0 0 3px var(--paper); }
+@media (prefers-color-scheme: dark) {
+  .pstamp { --gold-ink: #d4b06a; }
+  .ps-star { opacity: .4; }
+}
