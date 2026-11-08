@@ -1865,14 +1865,14 @@ function reportDays(perDay, today) {
   return `
     <div class="section-title"><span>하루씩 돌아보기</span></div>
     <div class="rp-days">${perDay.map((x) => `
-      <button class="rp-day memo" data-tomorrow="${x.i}">
-        <span class="rp-day-h"><b>${x.i + 1}일차</b><small>${esc(dayLabel(x.d.date))}${x.d.date === today ? ' · 오늘' : ''}</small>${x.sealed ? '<i class="rp-seal">완료</i>' : ''}</span>
-        <span class="rp-memo">
-          <span class="rp-l rp-day-t">${esc(stripEmoji(x.d.title))}</span>
-          <span class="rp-l rp-day-w">${x.wx ? `${wxIcon(x.wx.icon)}${x.wx.min}~${x.wx.max}°${x.wx.rain >= 1 ? ` · 비 ${Math.round(x.wx.rain)}mm` : ''}` : ''}</span>
-          <span class="rp-l rp-day-n"><span><b>${x.places.length}</b>곳</span><span><b>${yen(x.spent)}</b></span></span>
-          <span class="rp-l rp-day-best">${x.best ? `${icon('thumbs2')}<span>${esc(x.best.name)}</span>` : ''}</span>
+      <button class="rp-day idx" data-tomorrow="${x.i}">
+        <span class="rp-day-h"><span class="rp-day-no">${x.i + 1}<small>일차</small></span><small>${esc(dayLabel(x.d.date))}${x.d.date === today ? ' · 오늘' : ''}</small>${x.sealed ? '<i class="rp-seal">완료</i>' : ''}</span>
+        <span class="rp-day-t">${esc(stripEmoji(x.d.title))}</span>
+        <span class="rp-day-rows">
+          ${x.wx ? `<span class="rp-day-w">${wxIcon(x.wx.icon)}<span>${x.wx.min}~${x.wx.max}°${x.wx.rain >= 1 ? ` · 비 ${Math.round(x.wx.rain)}mm` : ''}</span></span>` : ''}
+          ${x.best ? `<span class="rp-day-best">${icon('thumbs2')}<span>${esc(x.best.name)}</span></span>` : ''}
         </span>
+        <span class="rp-day-n"><span><b>${x.places.length}</b>곳</span><span><b>${yen(x.spent)}</b></span></span>
       </button>`).join('')}</div>`;
 }
 function reportSpend(exp, total, shopping, budget, days) {
@@ -2634,7 +2634,7 @@ function renderDays() {
     <div class="daypick" role="group" aria-label="날짜 선택">
       ${days.map((d, i) => `
         <button class="dp ${d.date === now.date ? 'today' : ''} ${isDayDone(d.date, now.date) ? 'done' : ''}" data-day="${i}" aria-pressed="${i === state.dayIndex}" ${isDayDone(d.date, now.date) ? 'aria-label="완료한 날"' : ''}>
-          <small>${i + 1}일차</small><b>${Number(d.date.slice(8))}</b><span>${WEEKDAYS[dowOf(d.date)]}</span>
+          ${isDayDone(d.date, now.date) ? `<em class="dp-ok">${icon('check')}</em>` : ''}<small>${i + 1}일차</small><b>${Number(d.date.slice(8))}</b><span>${WEEKDAYS[dowOf(d.date)]}</span>
           ${wxDay(d.date) ? `<span class="dp-wx">${wxIcon(wxDay(d.date).icon)}${wxDay(d.date).max}°</span>` : ''}
         </button>`).join('')}
     </div>
@@ -5173,7 +5173,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 232;
+const APP_VERSION = 233;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
