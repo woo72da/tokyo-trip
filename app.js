@@ -1103,6 +1103,8 @@ const won = (n) => `${(Math.round((n * (state.fx?.rate || 8.5)) / 10) * 10).toLo
 // 여행메이트: 기록의 '누가'는 로그인한 계정 id예요 (로그인 전엔 'me', 로그인하면 계정으로 옮겨요).
 // 예전 기록의 '안드레아'·'나'는 여행 마스터로 봐요. 닉네임은 계정에 하나라, 바꾸면 지난 기록도 새 이름으로 보여요.
 const LEGACY_ME = ['나', '안드레아'];
+// 인원: 서버 여행이면 여행메이트 수, 아니면 일정 파일의 인원
+const travelers = () => (CLOUD.trip && CLOUD.members.length ? CLOUD.members.length : state.trip.trip.travelers || 1);
 const meId = () => AUTH.user?.id || 'me';
 const myNick = () => (AUTH.user ? AUTH.nick || AUTH.user.user_metadata?.name || '여행자' : store.get('myNick', '') || '나');
 const callMe = () => `${myNick()}님`;
@@ -1538,7 +1540,7 @@ async function buildSyncFile() {
   }
   const body = JSON.stringify({ app: 'tokyo-trip', v: 1, from: myNick(), at: Date.now(), kv, tomb: store.get('tomb', {}), photos });
   const d = new Date();
-  const name = `도쿄여행-${myNick()}-${d.getMonth() + 1}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`;
+  const name = `여행백업-${(state.trip.trip.title || '여행').replace(/[\\/:*?"<>|\s]+/g, '')}-${d.getMonth() + 1}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`;
   state.syncFile = new File([body], name, { type: 'application/json' });
   state.syncPhotos = photos.length;
 }
@@ -1558,7 +1560,7 @@ async function shareSyncFile() {
   const file = state.syncFile;
   if (!file) return;
   try {
-    if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: '도쿄 여행 동기화' });
+    if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: '여행 백업' });
     else {
       const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(file), download: file.name });
       a.click();
@@ -1572,8 +1574,8 @@ async function shareSyncFile() {
 // Merge the other phone's file: newer value wins per record, lists and photos are combined, deletions are kept.
 async function importSync(file) {
   let data;
-  try { data = JSON.parse(await file.text()); } catch { return toast('동기화 파일을 읽지 못했어요.'); }
-  if (data?.app !== 'tokyo-trip') return toast('도쿄 여행 앱의 동기화 파일이 아니에요.');
+  try { data = JSON.parse(await file.text()); } catch { return toast('백업 파일을 읽지 못했어요.'); }
+  if (data?.app !== 'tokyo-trip') return toast('이 앱의 백업 파일이 아니에요.');
   const tomb = { ...store.get('tomb', {}) };
   for (const [id, t] of Object.entries(data.tomb || {})) tomb[id] = Math.max(tomb[id] || 0, t);
   localStorage.setItem('tomb', JSON.stringify(tomb));
@@ -1612,37 +1614,29 @@ async function importSync(file) {
     for (const k of keys.slice(0, -1)) await docs.del(k);
   }
   await refreshDocSlots();
-  store.set('syncGot', { at: Date.now(), from: nameOf(data.from) });
   render();
-  toast(records || photos ? `${nameOf(data.from)} 폰에서 기록 ${records}건 · 사진 ${photos}장을 합쳤어요` : '이미 같은 내용이에요');
+  toast(records || photos ? `백업에서 기록 ${records}건 · 사진 ${photos}장을 되살렸어요` : '지금 기록과 같아서 바꿀 게 없어요');
 }
 
-// 설정 › 동기화: the same send / merge steps, always open; whose phone it is comes from 설정 › 계정.
-function syncPanel() {
-  const got = store.get('syncGot', null);
-  const sent = store.get('syncSent', 0);
+// 설정 › 앱 정보 › 백업: 서버가 평소엔 다 맞춰 주니, 만일을 위한 비상용 파일만 (예전 파일 동기화와 같은 형식)
+function backupPanel() {
   const f = state.syncFile;
-  if (!f && !state.syncBuilding && !state.syncFailed) setTimeout(prepareSync);
+  const sent = store.get('syncSent', 0);
   const when = (t) => new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   return `
-    <div class="card set-card sync-panel">
-      <div class="set-row"><span class="grow"><b>이 폰 기록을 파일로 다른 폰과 합쳐요</b><small>예약번호·링크·바우처·자료·체크·지출, 그리고 일정·장소 변경(시간 바꾸기·건너뛰기·도착·완료·추가한 일정과 장소·방문 기록)까지 함께 보내요</small></span></div>
+    <div class="card set-card backup-card">
+      <div class="set-row"><span class="grow"><b>백업</b><small>이 여행의 일정 변경·경비·예약번호·사진을 파일 하나로 저장해 둬요. 평소엔 필요 없고, 기록이 사라졌을 때 되살리는 비상용이에요</small></span></div>
       <div class="btns">
-        ${state.syncFailed ? `<button class="btn primary" data-sync-build>${icon('refresh')}다시 준비하기</button>`
-            : f ? `<button class="btn primary" data-sync-share>${icon('ext')}보내기</button>`
-            : '<button class="btn primary" disabled>준비 중…</button>'}
-        <button class="btn" data-sync-pick>${icon('clip')}받은 파일 합치기</button>
+        ${state.syncBuilding ? '<button class="btn" disabled>만드는 중…</button>'
+          : f ? `<button class="btn primary" data-sync-share>${icon('ext')}백업 파일 저장</button>`
+          : `<button class="btn" data-sync-build>${icon('lock')}백업 파일 만들기</button>`}
+        <button class="btn" data-sync-pick>${icon('clip')}백업에서 되살리기</button>
       </div>
-      ${f ? `<div class="small muted sync-size">사진 ${state.syncPhotos}장 포함 · ${f.size < 1048576 ? Math.max(1, Math.round(f.size / 1024)) + 'KB' : (f.size / 1048576).toFixed(1) + 'MB'}</div>` : ''}
-      <ol class="small muted sync-note">
-        <li>보내기를 누르고 공유 창에서 카카오톡이나 AirDrop을 고르세요.</li>
-        <li>받은 폰에서 파일을 열어 '파일에 저장'하세요.</li>
-        <li>받은 폰의 앱에서 '받은 파일 합치기'를 누르면 끝이에요.</li>
-      </ol>
-      <div class="small muted sync-note">같은 일정을 두 폰에서 바꿨다면 나중에 바꾼 쪽이 남아요. 예약번호와 사진이 들어 있으니 보낸 뒤 대화방의 파일은 지워 주세요.${sent ? `<br>보낸 시각 ${when(sent)}` : ''}${got ? `<br>${esc(got.from)}폰에서 받은 시각 ${when(got.at)}` : ''}</div>
+      ${f ? `<div class="small muted sync-size">사진 ${state.syncPhotos}장 포함 · ${f.size < 1048576 ? Math.max(1, Math.round(f.size / 1024)) + 'KB' : (f.size / 1048576).toFixed(1) + 'MB'} · 공유 창에서 '파일에 저장'을 골라 주세요</div>` : ''}
+      ${state.syncFailed ? '<div class="small muted set-note">백업 파일을 만들지 못했어요. 다시 눌러 주세요.</div>' : ''}
+      <div class="small muted set-note">예약번호와 사진이 들어 있으니 대화방이 아닌 파일 앱·iCloud에 보관해 주세요. 되살리면 지금 기록과 합쳐지고(나중에 바꾼 쪽이 남아요) 여행메이트에게도 바로 맞춰져요.${sent ? `<br>마지막 백업 ${when(sent)}` : ''}</div>
     </div>`;
 }
-
 
 // ---------- phrases for a schedule item ----------
 // Which phrase group fits an item: by its icon, with title words for airport and hotel stops.
@@ -2150,12 +2144,10 @@ function tripReport(preview = false) {
   const rainy = perDay.filter((x) => (x.wx?.rain || 0) >= 1).length;
   const stamps = perDay.filter((x) => x.sealed).length;
   const cost = tripCost();
-  const got = store.get('syncGot', null);
-  const synced = got && got.at >= Date.parse(`${trip.end}T00:00:00+09:00`);
-  setHeader(preview ? '미리 보기' : `${dayLabel(trip.start)} – ${dayLabel(trip.end)}`, '여행 리포트', `${trip.title} · ${trip.travelers}명`);
+  setHeader(preview ? '미리 보기' : `${dayLabel(trip.start)} – ${dayLabel(trip.end)}`, '여행 리포트', `${trip.title} · ${travelers()}명`);
   return `
     ${preview ? `<button class="btn wide rp-back" data-report-close>${icon('x')}오늘 화면으로 돌아가기</button>` : ''}
-    ${synced ? '' : `<button class="rp-sync" data-settings="sync">${icon('refresh')}<span class="grow"><b>다른 폰 기록을 합치면 더 정확해요</b><small>${got ? `마지막으로 합친 때 ${shortDate(new Date(got.at).toISOString().slice(0, 10))}` : '아직 합친 적이 없어요'} · 설정 › 동기화</small></span><i class="chev"></i></button>`}
+    ${AUTH.user ? '' : `<button class="rp-sync" data-settings="sync">${icon('refresh')}<span class="grow"><b>로그인하면 여행메이트 기록까지 함께 보여요</b><small>설정 › 계정에서 카카오로 로그인</small></span><i class="chev"></i></button>`}
     <div class="rp-hero">
       <div class="rp-hero-top"><b>${esc(trip.title)}</b><span>도장 ${stamps}/${days.length}</span></div>
       <div class="rp-line">${days.length}일 동안 ${visited.size}곳 · 총 여행 경비 약 ${wan(cost.totalWon)}</div>
@@ -2338,7 +2330,7 @@ function reportSpend(exp, total, shopping, budget, days) {
     ${reportCost()}
     <div class="card rp-card">
       <div class="rp-sub" style="margin-top:0">현지 지출 (내 지출 기록)</div>
-      <div class="rp-total"><b>${yen(total)}</b><span>${won(total)} · 1인 약 ${esc(manwon(total / state.trip.trip.travelers))}</span></div>
+      <div class="rp-total"><b>${yen(total)}</b><span>${won(total)} · 1인 약 ${esc(manwon(total / travelers()))}</span></div>
       ${budget ? `<div class="meter rp-meter"><i style="width:${Math.min(100, pct)}%"></i></div><div class="small muted">예산 ${yen(budget)} 중 ${pct}% 사용 (쇼핑 제외)${pct > 100 ? ` · ${yen(used - budget)} 넘음` : ` · ${yen(budget - used)} 남음`}</div>` : ''}
       <div class="rp-sub">분류별</div>
       ${cats.map(([c, v]) => bar(c, v, top)).join('')}
@@ -2362,7 +2354,7 @@ function reportCost() {
   return `
     <div class="card rp-card rp-cost">
       <div class="rp-sub" style="margin-top:0">총 여행 경비 · 2인</div>
-      <div class="rp-total"><b>${(Math.round(c.totalWon / 1000) * 1000).toLocaleString('ko-KR')}원</b><span>약 ${wan(c.totalWon)} · 1인 약 ${wan(c.totalWon / state.trip.trip.travelers)}</span></div>
+      <div class="rp-total"><b>${(Math.round(c.totalWon / 1000) * 1000).toLocaleString('ko-KR')}원</b><span>약 ${wan(c.totalWon)} · 1인 약 ${wan(c.totalWon / travelers())}</span></div>
       <div class="rp-stack" aria-hidden="true"><i style="width:${pct(c.prepaid)}%"></i><i style="width:${pct(localWon)}%"></i></div>
       <div class="rp-stack-l"><span><i></i>출발 전 결제 <b>${wan(c.prepaid)}</b></span><span><i></i>현지 지출 <b>${wan(localWon)}</b> (${yen(c.local)})</span></div>
       <details class="rp-paid"><summary>출발 전 결제 ${c.paid.length}건 보기</summary>
@@ -2445,7 +2437,7 @@ function renderToday() {
     const list = checklist();
     const todo = list.filter((c) => !isChecked(c.id));
     const f = flights[0];
-    setHeader('', trip.title, `${dayLabel(trip.start)} 출발 · ${trip.travelers}명`);
+    setHeader('', trip.title, `${dayLabel(trip.start)} 출발 · ${travelers()}명`);
     return `
       ${updateBand()}
       <div class="hero countdown">
@@ -3734,7 +3726,7 @@ const walletTabs = (on) => {
 function renderWallet() {
   const { flights, stay, guides, trip, links } = state.trip;
   const agoda = store.get('agoda', '');
-  setHeader('', '예약·여행정보', `${dayLabel(trip.start)} ~ ${dayLabel(trip.end)} · ${trip.travelers}명`);
+  setHeader('', '예약·여행정보', `${dayLabel(trip.start)} ~ ${dayLabel(trip.end)} · ${travelers()}명`);
   return `
     ${walletTabs('wallet')}
     <nav class="wallet-nav" aria-label="바로가기">${[['exp', '경비', 'money'], ['w-air', '항공', 'plane'], ['w-road', '공항 가는 길', 'bus'], ['w-stay', '숙소', 'bed'], ['w-secret', '예약번호', 'id'], ['w-docs', '바우처', 'ticket'], ['w-sos', '긴급', 'phone'], ['w-guide', '안내', 'checklist']].map(([k, l, ic]) => `<button data-jump="${k}">${icon(ic)}${l}</button>`).join('')}</nav>
@@ -5245,7 +5237,7 @@ async function aiTripStory(btn) {
   const { trip, days } = state.trip;
   const exp = expenses();
   const facts = {
-    trip: trip.title, dates: `${dayLabel(trip.start)} ~ ${dayLabel(trip.end)}`, travelers: trip.travelers,
+    trip: trip.title, dates: `${dayLabel(trip.start)} ~ ${dayLabel(trip.end)}`, travelers: travelers(),
     days: days.map((d, i) => {
       const items = dayItems(d).filter((it) => !isMove(it));
       const visits = items.filter((it) => isDone(it.id)).map((it) => [it, placeOfItem(it.id)]).filter(([, p]) => p)
@@ -5475,22 +5467,23 @@ function settingsBody() {
     <div class="settings">
       ${sec('id', '계정', accountCard())}
       ${sec('spark', 'AI 도우미', aiSettings() + deskSettings(), 'set-ai')}
-      ${sec('refresh', '동기화', cloudCard() + syncPanel())}
+      ${sec('refresh', '여행', cloudCard())}
       ${sec('clock', '일정 알림', geoCard() + alarmPanel())}
       ${sec('checklist', '앱 정보', `
         <div class="card set-card">
           <div class="set-row"><span class="grow"><b>앱 버전 v${APP_VERSION}</b><small>${state.latest > APP_VERSION ? `새 버전 v${state.latest}이 있어요` : state.latest === APP_VERSION ? '최신 버전이에요' : '확인 중이에요'}</small></span>
             <button class="btn ${state.latest > APP_VERSION ? 'primary' : ''}" data-update>${state.latest > APP_VERSION ? '지금 업데이트' : '다시 받기'}</button></div>
-          <div class="small muted set-note">키·예약번호·사진은 이 폰에만 저장되고 GitHub에 올라가지 않아요. 예산과 환전 현금은 경비 칸에서 바꿔요.</div>
-        </div>`)}
+          <div class="small muted set-note">예약번호·사진은 내 계정의 여행에만 저장되고 GitHub에 올라가지 않아요. 예산과 환전 현금은 경비 칸에서 바꿔요.</div>
+        </div>
+        ${backupPanel()}`)}
     </div>`;
 }
 function openSettings(at = '') {
   $('#sheet-body').innerHTML = settingsBody();
   $('#sheet').hidden = false;
-  // Bring the 동기화 heading to the top of the sheet (beside the close button), not the section above it.
+  // Bring the 여행 heading to the top of the sheet (beside the close button), not the section above it.
   if (at === 'sync' || at === 'ai') setTimeout(() => {
-    const sec = $(at === 'ai' ? '#sheet-body .set-ai' : '#sheet-body .sync-panel')?.closest('.set-sec');
+    const sec = $(at === 'ai' ? '#sheet-body .set-ai' : '#sheet-body .cloud-card')?.closest('.set-sec');
     const box = $('.sheet-panel');
     if (!sec || !box) return;
     box.scrollTo({ top: box.scrollTop + sec.getBoundingClientRect().top - box.getBoundingClientRect().top - 14, behavior: 'smooth' });
@@ -6271,7 +6264,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 294;
+const APP_VERSION = 295;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6752,8 +6745,8 @@ document.addEventListener('click', async (e) => {
     const v = await askText('예산 (엔, 쇼핑 제외)', String(store.get('budget', state.trip.budget?.yen || 0)), { numeric: true });
     if (v !== null && Number(v.replace(/[^0-9]/g, '')) >= 0) { store.set('budget', Number(v.replace(/[^0-9]/g, ''))); render(); }
   }
-  else if ('syncBuild' in d) { state.syncFailed = false; render(); }
-  else if ('syncShare' in d) shareSyncFile();
+  else if ('syncBuild' in d) { state.syncFailed = false; prepareSync().then(() => { const c = $('#sheet-body .backup-card'); if (c) c.outerHTML = backupPanel(); }); const c = $('#sheet-body .backup-card'); if (c) c.outerHTML = backupPanel(); }
+  else if ('syncShare' in d) shareSyncFile().then(() => { const c = $('#sheet-body .backup-card'); if (c) c.outerHTML = backupPanel(); });
   else if ('syncPick' in d) $('#sync-file').click();
 });
 
@@ -7930,13 +7923,13 @@ function cloudRefreshUi() {
   if (el) el.outerHTML = cloudCard();
 }
 function cloudCard() {
-  if (!AUTH.user) return `<div class="card set-card cloud-card"><div class="set-row"><span class="grow"><b>자동 동기화</b><small>위 계정에서 카카오로 로그인하면 여행메이트와 기록이 바로바로 맞춰져요</small></span></div></div>`;
+  if (!AUTH.user) return `<div class="card set-card cloud-card"><div class="set-row"><span class="grow"><b>내 여행</b><small>위 계정에서 카카오로 로그인하면 여행을 만들고 여행메이트를 초대할 수 있어요. 기록은 자동으로 맞춰져요</small></span></div></div>`;
   if (CLOUD.state === 'none') {
     // 도쿄 일정 기록이 이 폰에 있으면 그대로 올리는 버튼, 처음 쓰는 사람은 새 여행 만들기부터
     const hasLocal = !state.planOf && Object.keys(store.get('meta', {})).length > 0;
     if (!hasLocal) CLOUD.form = true;
     return `<div class="card set-card cloud-card">
-      <div class="set-row"><span class="grow"><b>${hasLocal ? '자동 동기화 시작' : '내 여행 만들기'}</b><small>${hasLocal ? '먼저 시작하는 폰이 서버에 여행을 만들고 이 폰 기록(일정 변경·경비·예약번호·사진)을 올려요. 다른 폰은 그다음 초대 링크로 들어와요' : '여행 이름과 날짜만 넣으면 빈 일정이 만들어져요. 함께 갈 사람은 초대 링크로 들어와요'}</small></span></div>
+      <div class="set-row"><span class="grow"><b>${hasLocal ? '이 폰 기록으로 여행 시작' : '내 여행 만들기'}</b><small>${hasLocal ? '먼저 시작하는 폰이 서버에 여행을 만들고 이 폰 기록(일정 변경·경비·예약번호·사진)을 올려요. 다른 폰은 그다음 초대 링크로 들어와요' : '여행 이름과 날짜만 넣으면 빈 일정이 만들어져요. 함께 갈 사람은 초대 링크로 들어와요'}</small></span></div>
       ${hasLocal ? '<div class="btns"><button class="btn primary wide" data-cloud-create>이 폰 도쿄 일정으로 만들기</button></div>' : ''}
       <div class="set-row"><span class="grow"><b>초대받았나요?</b><small>받은 초대 링크를 열거나, 링크를 여기에 붙여 넣어 주세요</small></span><button class="btn" data-join-code>초대 코드 입력</button></div>
       ${tripFormHtml()}
@@ -7947,13 +7940,13 @@ function cloudCard() {
   const line = CLOUD.state === 'syncing' ? '맞추는 중…'
     : CLOUD.state === 'offline' ? (pend ? `인터넷이 연결되면 바뀐 기록 ${pend}건을 보내요` : '인터넷이 연결되면 다시 맞춰요')
     : CLOUD.state === 'error' ? '서버와 맞추지 못했어요. 잠시 뒤 다시 해 볼게요'
-    : CLOUD.trip ? `${when} 서버와 맞췄어요${CLOUD.live ? ' · 실시간 연결' : ''}` : '연결 중…';
+    : CLOUD.trip ? `${when} 여행메이트와 맞췄어요${CLOUD.live ? ' · 실시간' : ''}` : '연결 중…';
+  const bad = CLOUD.state === 'error' || CLOUD.state === 'offline';
   return `<div class="card set-card cloud-card">
-      <div class="set-row"><span class="grow"><b>자동 동기화 ${CLOUD.state === 'error' ? '<small class="cloud-bad">오류</small>' : ''}</b><small>${esc(line)}</small></span>
-        <button class="btn" data-cloud-now ${CLOUD.state === 'syncing' ? 'disabled' : ''}>${icon('refresh')}지금 맞추기</button></div>
+      <div class="cloud-stat ${bad ? 'bad' : ''}">${icon(bad ? 'warn' : CLOUD.state === 'syncing' ? 'refresh' : 'check')}<span class="grow">${esc(line)}</span>
+        <button class="btn mini" data-cloud-now ${CLOUD.state === 'syncing' ? 'disabled' : ''}>지금 맞추기</button></div>
       ${CLOUD.trip ? mateListHtml() : ''}
       ${CLOUD.invite ? `<input class="input" readonly value="${esc(CLOUD.invite)}" onclick="this.select()">` : ''}
-      ${CLOUD.state === 'error' && CLOUD.err ? `<div class="small muted set-note">${esc(CLOUD.err)}</div>` : ''}
       ${CLOUD.trip || CLOUD.trips.length ? `<div class="set-row trip-head"><span class="grow"><b>내 여행</b><small>여행마다 일정·기록·사진이 따로 저장돼요</small></span></div>${tripListHtml()}${tripFormHtml()}` : ''}
     </div>`;
 }
