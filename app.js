@@ -81,7 +81,8 @@ const docs = {
   get: (id) => docs.run('readonly', (s) => s.get(id)),
   put: (id, blob) => docs.run('readwrite', (s) => s.put(blob, id)).then((r) => { cloudSoon(); return r; }),
   del: (id) => { forget('doc:' + id); return docs.run('readwrite', (s) => s.delete(id)); },
-  keys: () => docs.run('readonly', (s) => s.getAllKeys()),
+  // 다른 여행으로 접어 둔 사진(stash|…)은 빼고
+  keys: () => docs.run('readonly', (s) => s.getAllKeys()).then((ks) => ks.filter((k) => !String(k).startsWith('stash|'))),
   // Photo keys for one slot, oldest first.
   async of(slot) {
     const keys = await docs.keys();
@@ -2006,6 +2007,7 @@ const icon = (name, cls = '') => `<svg class="ico ${cls}" viewBox="${ICON_VB[nam
 // The flight that matters today, with the plane parked at the end of the line it's on.
 function flightRoute(now) {
   const [out, back] = state.trip.flights;
+  if (!out || !back) return ''; // 항공편을 아직 안 넣은 여행
   const f = now.date < back.date ? out : back;
   const start = toMin(f.depart);
   const end = toMin(f.arrive);
@@ -2082,7 +2084,7 @@ function dayEndCard(dayIdx, items) {
       ${tally ? `<div class="day-end-sum">${esc(tally)}</div>` : ''}
       <button class="day-end-log" data-day-sum="${dayIdx}">${icon('pen')}날씨·옷차림 기록 남기기</button>
       ${last ? `<button class="day-end-log rp-open" data-report-preview>${icon('checklist')}여행 리포트 미리 보기</button>` : ''}
-      <div class="day-end-next">${tomorrow ? `내일 첫 일정 ${esc(tomorrow.start)} ${esc(stripEmoji(tomorrow.title))}` : '도쿄 여행을 모두 마쳤어요'}</div>
+      <div class="day-end-next">${tomorrow ? `내일 첫 일정 ${esc(tomorrow.start)} ${esc(stripEmoji(tomorrow.title))}` : '여행 일정을 모두 마쳤어요'}</div>
     </div>`;
 }
 
@@ -2413,9 +2415,9 @@ function renderToday() {
         <div class="eyebrow">출발까지</div>
         <div class="big">D-${left}</div>
         ${flightRoute(now)}
-        <div class="hero-meta">${esc(f.airline)} ${esc(f.no)} · ${esc(dayLabel(f.date))} ${esc(f.depart)} · 인천 T${esc(f.fromTerminal)}</div>
+        ${f ? `<div class="hero-meta">${esc(f.airline)} ${esc(f.no)} · ${esc(dayLabel(f.date))} ${esc(f.depart)} · 인천 T${esc(f.fromTerminal)}</div>` : ''}
         ${state.trip.transfers.map((t) => `<div class="hero-meta">${itemIcon(t.icon, 'inline')}${esc(t.label)} ${esc(t.from)} ${esc(t.depart)} → ${esc(t.to)}</div>`).join('')}
-        <div class="meter"><i style="width:${Math.round(((list.length - todo.length) / list.length) * 100)}%"></i></div>
+        <div class="meter"><i style="width:${list.length ? Math.round(((list.length - todo.length) / list.length) * 100) : 0}%"></i></div>
         <div class="hero-meta">준비 ${list.length - todo.length} / ${list.length}</div>
       </div>
       ${todoCard(now.date, '지금 할 일', 5)}
@@ -2443,11 +2445,11 @@ function renderToday() {
   // A stop already marked done (early, or ahead of time) is over: it leaves the next card and the list.
   const upcoming = items.filter((it) => it.startMin > now.min && !isDone(it.id));
   const next = upcoming[0];
-  setHeader(`${dayIdx + 1}일차 · ${dayLabel(day.date)}`, stripEmoji(day.title), `일몰 ${day.sunset} · ${items.length}개 일정`);
+  setHeader(`${dayIdx + 1}일차 · ${dayLabel(day.date)}`, stripEmoji(day.title), `${day.sunset ? `일몰 ${day.sunset} · ` : ''}${items.length}개 일정`);
 
   const back = flights[1];
-  const flightDay = now.date === flights[0].date || now.date === back.date;
-  const f = now.date === back.date ? back : flights[0];
+  const flightDay = !!back && (now.date === flights[0].date || now.date === back.date);
+  const f = flightDay && now.date === back.date ? back : flights[0];
   // Stops piling up, or one waiting to be confirmed, move up with the alerts.
   const top = queue.length > 1 ? backlogCard(queue, items, now) : current && !started ? heroCard(current, 'now', now, false) : '';
   const sq = squeezeOf(day.date, now);
@@ -3362,7 +3364,7 @@ function renderDays() {
   const day = days[state.dayIndex];
   const items = dayItems(day);
   const edit = state.editDay === day.date;
-  setHeader(`${state.dayIndex + 1}일차 / ${days.length}일`, stripEmoji(day.title), `${dayLabel(day.date)} · 일몰 ${day.sunset} · ${stay.name}`);
+  setHeader(`${state.dayIndex + 1}일차 / ${days.length}일`, stripEmoji(day.title), [dayLabel(day.date), day.sunset && `일몰 ${day.sunset}`, stay.name].filter(Boolean).join(' · '));
   return `
     <div class="daypick" role="group" aria-label="날짜 선택">
       ${days.map((d, i) => `
@@ -6240,7 +6242,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 290;
+const APP_VERSION = 291;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6324,7 +6326,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-trip-open],[data-trip-new],[data-trip-cancel],[data-trip-create],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6645,6 +6647,10 @@ document.addEventListener('click', async (e) => {
   else if ('cloudCreate' in d) cloudCreateTrip();
   else if ('cloudNow' in d) { if (CLOUD.trip) cloudSync(true); else cloudStart(true); }
   else if ('cloudInvite' in d) cloudInvite();
+  else if ('tripOpen' in d) tripSwitch(d.tripOpen);
+  else if ('tripNew' in d) { CLOUD.form = true; cloudRefreshUi(); setTimeout(() => $('#nt-title')?.focus(), 50); }
+  else if ('tripCancel' in d) { CLOUD.form = false; cloudRefreshUi(); }
+  else if ('tripCreate' in d) tripCreate();
   else if ('rcptAi' in d) { if (aiKey()) rcptFromPhoto(); else { openSettings('ai'); toast('영수증 사진 읽기는 AI 도우미 키가 있어야 해요. 이 폰에서 키를 넣어 주세요.'); } }
   else if ('menuAi' in d) menuFromPhoto();
   else if ('aiPlan' in d) {
@@ -7089,6 +7095,11 @@ function introLine() {
   if (!line) return;
   const { trip, days } = state.trip;
   const { date } = tokyoNow();
+  // 서버에서 만든 여행은 여행 이름으로 (도쿄 여행은 그대로)
+  const name = state.planOf ? trip.title : '도쿄 여행';
+  const b = $('.intro-text b');
+  if (b) b.textContent = name;
+  document.title = name;
   if (date < trip.start) line.textContent = `D-${daysBetween(date, trip.start)}`;
   else if (date > trip.end) line.textContent = '다녀왔어요';
   else line.textContent = `${days.findIndex((d) => d.date === date) + 1}일차`;
@@ -7096,8 +7107,14 @@ function introLine() {
 
 async function init() {
   try {
-    const res = await fetch('data/trip.json', { cache: 'no-cache' });
-    state.trip = await res.json();
+    // 서버에서 만든 여행이면 폰에 저장해 둔 일정으로, 아니면 앱에 들어 있는 도쿄 일정 파일로 열어요
+    const cached = store.get('cloudTrip', '') ? store.get('plan', null) : null;
+    if (cached?.data?.days) { state.trip = planFill(cached.data); state.planOf = store.get('cloudTrip', ''); }
+    else {
+      const res = await fetch('data/trip.json', { cache: 'no-cache' });
+      state.trip = await res.json();
+      state.planOf = '';
+    }
     introLine();
     introOnUpdate();
   } catch {
@@ -7240,7 +7257,157 @@ async function authOut() {
 // 서버 표: trip_kv(함께 쓰는 기록) · trip_secrets(예약번호·eSIM·자료 목록) · 비공개 사진 저장소 docs/<여행>/<사진>
 const TRIP_SLUG = 'tokyo-2026-11';
 const SECRET_KEYS = ['pnr', 'agoda', 'esim1', 'esim2', 'cdocs'];
-const CLOUD = { trip: null, role: '', members: [], chan: null, busy: false, again: false, state: 'off', err: '', at: 0, cursor: '', invite: '' };
+const CLOUD = { trip: null, trips: [], role: '', members: [], chan: null, busy: false, again: false, state: 'off', err: '', at: 0, cursor: '', invite: '', form: false };
+
+// ---------- 여러 여행 (서버 버전 S-5) ----------
+// 일정 원본: 도쿄 여행은 앱에 들어 있는 data/trip.json (요청함으로 고치는 그대로), 새로 만든 여행은 서버 trips.plan.
+// 이 폰 기록은 여행마다 따로: 여행을 바꾸면 지금 여행 기록·사진을 폰 안에 접어 두고(stash) 고른 여행 것을 펼쳐요.
+// 아래 키는 여행과 상관없는 이 폰 설정·로그인이라 그대로 둬요.
+const GLOBAL_KEYS = new Set(['aiModel', 'aiKey', 'gKey', 'deskKey', 'who', 'srvKeys', 'usageQ', 'cloudJoin', 'cloudTrip', 'reqLast', 'fx', 'talkText', 'geoOn', 'introVer', 'wxCard', 'lastPay', 'tab', 'routeOff', 'routeErr']);
+const isGlobalKey = (k) => GLOBAL_KEYS.has(k) || k.startsWith('sb-') || k.startsWith('stash:');
+const STASH = 'stash|';
+// 빠진 칸을 채워서 빈 여행도 화면이 깨지지 않게
+function planFill(p) {
+  const t = p.trip || {};
+  const stay = { name: '', nameJa: '', query: '', checkIn: '', checkOut: '', nights: 0, breakfast: '', stations: [], address: '', addressKo: '', phone: '', bookedVia: '', ...(p.stay || {}) };
+  // 지갑 탭 경비는 '비용' 안내 하나를 꼭 찾아요
+  const guides = Array.isArray(p.guides) ? p.guides : [];
+  if (!guides.some((g) => g.costs)) guides.push({ title: '여행 비용', icon: '💴', lines: [], costs: [], costNote: '', cash: { yen: 0, label: '현금 환전' }, paid: [] });
+  return {
+    flights: [], checklist: [], links: {}, docs: [], phrases: [], transfers: [], emergency: [], places: [], phraseSteps: {}, sources: {}, unresolved: [],
+    ...p, guides, links: { jejuair: { label: '항공권 예약 확인', url: 'https://www.google.com/travel/flights' }, agoda: { label: '숙소 예약 확인', url: 'https://www.google.com/travel/hotels' }, ...(p.links || {}) }, trip: { travelers: 2, timezone: TZ, ...t }, stay, budget: { yen: 0, note: '', ...(p.budget || {}) }, days: Array.isArray(p.days) ? p.days : [],
+  };
+}
+const dateAdd = (d, n) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+function blankPlan(title, start, end) {
+  const n = daysBetween(start, end) + 1;
+  const base = state.trip || {};
+  return planFill({
+    trip: { id: '', title, start, end, travelers: 2, timezone: TZ, infoAsOf: '' },
+    stay: { nights: n - 1 },
+    days: Array.from({ length: n }, (_, i) => ({ date: dateAdd(start, i), title: `${i + 1}일차`, items: [] })),
+    // 일본 여행 공용: 회화·긴급 연락처는 그대로 가져가요
+    phrases: base.phrases || [], phraseSteps: base.phraseSteps || {}, emergency: base.emergency || [],
+  });
+}
+// 지금 여행의 이 폰 기록·사진을 접어 두고, 고른 여행 것을 펼쳐요
+async function tripStashSwap(from, to) {
+  const out = {};
+  for (const k of Object.keys(localStorage)) if (!isGlobalKey(k)) out[k] = localStorage.getItem(k);
+  localStorage.setItem('stash:' + from, JSON.stringify(out)); // 저장 공간이 모자라면 여기서 멈춰서 아무것도 안 바뀌어요
+  for (const k of Object.keys(out)) localStorage.removeItem(k);
+  const back = JSON.parse(localStorage.getItem('stash:' + to) || '{}');
+  for (const [k, v] of Object.entries(back)) localStorage.setItem(k, v);
+  localStorage.removeItem('stash:' + to);
+  // 사진: 먼저 지금 여행 것을 접고, 그다음 고른 여행 것을 펼쳐요 (같은 이름이 겹치지 않게 두 번에 나눠서)
+  const move = async (pick, rename) => {
+    const all = (await docs.run('readonly', (s) => s.getAllKeys())).map(String).filter(pick);
+    if (!all.length) return;
+    await docs.run('readwrite', (s) => {
+      let r;
+      for (const k of all) { const g = s.get(k); g.onsuccess = () => { s.put(g.result, rename(k)); s.delete(k); }; r = g; }
+      return r;
+    });
+  };
+  const toPre = `${STASH}${to}|`;
+  await move((k) => !k.startsWith(STASH), (k) => `${STASH}${from}|${k}`);
+  await move((k) => k.startsWith(toPre), (k) => k.slice(toPre.length));
+}
+// 일정을 화면에 반영 (오늘 날짜면 그날로)
+function tripPlanShow(plan, of) {
+  state.trip = planFill(plan);
+  state.planOf = of;
+  const todayIdx = state.trip.days.findIndex((d) => d.date === tokyoNow().date);
+  state.dayIndex = todayIdx >= 0 ? todayIdx : 0;
+  introLine();
+  refreshDocSlots().catch(() => {});
+  render();
+}
+const strHash = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return `${s.length}.${h}`; };
+// 여행을 연결할 때 일정 맞추기
+async function tripPlanSync(trip) {
+  if (trip.slug === TRIP_SLUG) {
+    // 도쿄 여행: 앱 파일이 원본. 화면이 다른 여행 일정이면 파일로 돌아오고, 파일이 바뀌었으면 서버에도 올려 둬요 (네이티브·어드민용)
+    if (state.planOf) {
+      const res = await fetch('data/trip.json', { cache: 'no-cache' });
+      tripPlanShow(await res.json(), '');
+    }
+    const h = strHash(JSON.stringify(state.trip));
+    if (CLOUD.role !== 'viewer' && store.get('planPushed', '') !== h) {
+      const { error } = await sb().from('trips').update({ plan: state.trip, plan_rev: (trip.plan_rev || 1) + 1 }).eq('id', trip.id);
+      if (!error) store.set('planPushed', h);
+    }
+    return;
+  }
+  const cached = store.get('plan', null);
+  if (cached?.rev === trip.plan_rev && cached.data?.days) {
+    if (state.planOf !== trip.id) tripPlanShow(cached.data, trip.id);
+    return;
+  }
+  const { data, error } = await sb().from('trips').select('plan, plan_rev').eq('id', trip.id).single();
+  if (error) throw error;
+  store.set('plan', { rev: data.plan_rev, data: data.plan });
+  tripPlanShow(data.plan, trip.id);
+}
+// 다른 여행으로 바꾸기: 보낼 기록은 먼저 보내 보고(안 돼도 접어 둔 채로 남았다가 돌아오면 보내요), 접고 펼친 뒤 다시 연결
+async function tripSwitch(id) {
+  if (!id || id === CLOUD.trip?.id || CLOUD.switching) return;
+  CLOUD.switching = true;
+  try {
+    if (CLOUD.trip && navigator.onLine) { await cloudSync(); while (CLOUD.busy) await new Promise((r) => setTimeout(r, 200)); }
+    const from = store.get('cloudTrip', '') || 'none';
+    const cachedPlan = JSON.parse(localStorage.getItem('stash:' + id) || '{}').plan;
+    const target = CLOUD.trips.find((t) => t.id === id);
+    if (!navigator.onLine && target?.slug !== TRIP_SLUG && !cachedPlan) return toast('처음 여는 여행은 인터넷에 연결된 뒤 바꿀 수 있어요');
+    if (CLOUD.chan) { sb().removeChannel(CLOUD.chan); CLOUD.chan = null; }
+    CLOUD.trip = null;
+    await tripStashSwap(from, id);
+    store.set('cloudTrip', id);
+    const plan = store.get('plan', null);
+    if (target?.slug === TRIP_SLUG) tripPlanShow(await (await fetch('data/trip.json')).json(), '');
+    else if (plan?.data?.days) tripPlanShow(plan.data, id);
+    CLOUD.form = false;
+    await cloudStart(true);
+    toast(`'${target?.title || '여행'}'으로 바꿨어요`);
+  } catch (e) {
+    toast('여행을 바꾸지 못했어요. 저장 공간을 확인해 주세요');
+  } finally { CLOUD.switching = false; cloudRefreshUi(); }
+}
+async function tripCreate() {
+  if (!AUTH.user) return toast('먼저 카카오로 로그인해 주세요');
+  if (!navigator.onLine) return toast('인터넷에 연결된 뒤 다시 눌러 주세요');
+  const title = ($('#nt-title')?.value || '').trim();
+  const start = $('#nt-start')?.value || '', end = $('#nt-end')?.value || '';
+  if (!title) return toast('여행 이름을 적어 주세요');
+  if (!start || !end || end < start) return toast('가는 날과 오는 날을 골라 주세요');
+  if (daysBetween(start, end) > 29) return toast('여행은 30일까지 만들 수 있어요');
+  const plan = blankPlan(title.slice(0, 40), start, end);
+  const { data, error } = await sb().from('trips').insert({ title: title.slice(0, 40), start_date: start, end_date: end, timezone: TZ, plan }).select('id, title, slug, owner_id, start_date, end_date, plan_rev').single();
+  if (error) return toast('여행을 만들지 못했어요. 잠시 뒤 다시 눌러 주세요');
+  CLOUD.trips = [data, ...CLOUD.trips];
+  // 새 여행은 빈 기록으로 시작: 일정은 바로 보이게 미리 넣어 둬요
+  localStorage.setItem('stash:' + data.id, JSON.stringify({ plan: JSON.stringify({ rev: data.plan_rev, data: plan }) }));
+  await tripSwitch(data.id);
+}
+function tripListHtml() {
+  if (!CLOUD.trips.length) return '';
+  const fmt = (d) => (d ? `${+d.slice(5, 7)}/${+d.slice(8, 10)}` : '');
+  const cur = CLOUD.trip?.id || store.get('cloudTrip', '');
+  return `<div class="trip-list">${CLOUD.trips.map((t) => `<div class="set-row trip-row${t.id === cur ? ' on' : ''}">
+      <span class="grow"><b>${esc(t.title)}</b><small>${fmt(t.start_date)}~${fmt(t.end_date)}${t.owner_id === AUTH.user.id ? '' : ' · 초대받은 여행'}</small></span>
+      ${t.id === cur ? '<span class="trip-now">보는 중</span>' : `<button class="btn" data-trip-open="${esc(t.id)}" ${CLOUD.switching ? 'disabled' : ''}>열기</button>`}</div>`).join('')}</div>`;
+}
+function tripFormHtml() {
+  if (!CLOUD.form) return `<div class="btns"><button class="btn wide" data-trip-new>${icon('plus')}새 여행 만들기</button></div>`;
+  const today = tokyoNow().date;
+  return `<div class="trip-form">
+      <label class="small muted">여행 이름<input class="input" id="nt-title" maxlength="40" placeholder="예: 오사카 3박 4일"></label>
+      <div class="trip-dates"><label class="small muted">가는 날<input class="input" type="date" id="nt-start" min="${today}"></label>
+      <label class="small muted">오는 날<input class="input" type="date" id="nt-end" min="${today}"></label></div>
+      <div class="small muted set-note">날짜별 빈 일정이 만들어져요. 일정은 일정 탭에서 추가하거나 AI 도우미로 짜요. 지금 여행 기록은 그대로 남아 있다가 다시 열면 돌아와요.</div>
+      <div class="btns"><button class="btn" data-trip-cancel>취소</button><button class="btn primary" data-trip-create>만들기</button></div>
+    </div>`;
+}
 // 바꾼 기록은 1.5초 모아서 보내요. 서버 연결 전이면 그냥 폰에 남아 있다가 연결되면 보내요.
 function cloudSoon() { clearTimeout(cloudSoon.t); cloudSoon.t = setTimeout(() => { try { cloudSync(); } catch { /* not ready */ } }, 1500); }
 const cloudTable = (k) => (SECRET_KEYS.includes(k) ? 'trip_secrets' : 'trip_kv');
@@ -7302,9 +7469,13 @@ function cloudMerge(k, r) {
   return false;
 }
 // 이 폰이 연결된 여행 찾기 (멤버인 여행만 보여요)
-async function cloudFindTrip() {
-  const { data, error } = await sb().from('trips').select('id, title, owner_id').eq('slug', TRIP_SLUG).maybeSingle();
+// 고르는 순서: 방금 초대받은 여행 → 이 폰이 보던 여행 → 도쿄 여행 → 가장 최근 여행
+async function cloudFindTrip(prefer = '') {
+  const { data: list, error } = await sb().from('trips').select('id, title, slug, owner_id, start_date, end_date, plan_rev').order('start_date', { ascending: false, nullsFirst: false });
   if (error) throw error;
+  CLOUD.trips = list || [];
+  const want = prefer || store.get('cloudTrip', '');
+  const data = CLOUD.trips.find((t) => t.id === want) || CLOUD.trips.find((t) => t.slug === TRIP_SLUG) || CLOUD.trips[0];
   if (!data) return null;
   const { data: mem } = await sb().from('trip_members').select('user_id, role').eq('trip_id', data.id);
   const { data: pro } = await sb().from('profiles').select('id, nick').in('id', (mem || []).map((m) => m.user_id));
@@ -7333,17 +7504,26 @@ async function cloudStartRun(force) {
   if (!AUTH.user || !navigator.onLine) { CLOUD.state = AUTH.user ? 'offline' : 'off'; return cloudRefreshUi(); }
   try {
     const join = store.get('cloudJoin', '');
+    let joined = '';
     if (join) {
-      const { error } = await sb().rpc('join_trip', { invite: join });
+      const { data, error } = await sb().rpc('join_trip', { invite: join });
       store.set('cloudJoin', '');
-      toast(error ? '초대 링크가 만료됐거나 이미 쓰였어요. 새 링크를 받아 주세요' : '여행에 들어왔어요. 두 폰 기록을 합칠게요');
+      joined = error ? '' : data || '';
+      toast(error ? '초대 링크가 만료됐거나 이미 쓰였어요. 새 링크를 받아 주세요' : '여행에 들어왔어요. 함께 쓰는 기록을 받아 올게요');
     }
-    const trip = await cloudFindTrip();
+    const trip = await cloudFindTrip(joined);
     if (!trip) { CLOUD.trip = null; CLOUD.state = 'none'; return cloudRefreshUi(); }
-    if (store.get('cloudTrip', '') !== trip.id) { store.set('cloudTrip', trip.id); store.set('cloudSent', {}); store.set('cloudCursor', ''); }
+    const cur = store.get('cloudTrip', '');
+    if (cur !== trip.id) {
+      // 처음 연결하는 도쿄 여행이면 이 폰 기록을 그대로 합치고, 그 밖엔 지금 기록을 접어 두고 바꿔요
+      if (!cur && trip.slug === TRIP_SLUG) { store.set('cloudSent', {}); store.set('cloudCursor', ''); }
+      else { if (CLOUD.chan) { sb().removeChannel(CLOUD.chan); CLOUD.chan = null; } CLOUD.trip = null; await tripStashSwap(cur || 'none', trip.id); }
+      store.set('cloudTrip', trip.id);
+    }
     const fresh = !CLOUD.trip || force;
     CLOUD.trip = trip;
     if (fresh) cloudSubscribe();
+    await tripPlanSync(trip);
     await cloudSync(true);
   } catch (e) { CLOUD.state = 'error'; CLOUD.err = e.message || String(e); cloudRefreshUi(); }
 }
@@ -7360,6 +7540,17 @@ function cloudSubscribe() {
   CLOUD.chan = sb().channel('trip-' + id)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_kv', filter: `trip_id=eq.${id}` }, on)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_secrets', filter: `trip_id=eq.${id}` }, on)
+    // 다른 사람이 일정 원본을 바꾸면 (새로 만든 여행만, 도쿄는 앱 파일이 원본)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trips', filter: `id=eq.${id}` }, (payload) => {
+      const row = payload.new;
+      if (!row || CLOUD.trip?.id !== row.id) return;
+      CLOUD.trip = { ...CLOUD.trip, title: row.title, plan_rev: row.plan_rev };
+      if (row.slug === TRIP_SLUG || store.get('plan', null)?.rev === row.plan_rev) return;
+      if (!row.plan?.days) { tripPlanSync(CLOUD.trip).catch(() => {}); return; } // 큰 일정은 실시간으로 안 실려 와서 따로 받아요
+      store.set('plan', { rev: row.plan_rev, data: row.plan });
+      state.trip = planFill(row.plan);
+      cloudRendered();
+    })
     .subscribe((st) => { if (st === 'SUBSCRIBED') { CLOUD.live = true; cloudRefreshUi(); } else if (st === 'CLOSED' || st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') { CLOUD.live = false; cloudRefreshUi(); } });
 }
 // 받은 기록이 화면에 보이게: 입력 중이면 입력이 끝난 뒤에 다시 그려요
@@ -7454,9 +7645,10 @@ async function cloudInvite() {
   const { data, error } = await sb().from('trip_invites').insert({ trip_id: CLOUD.trip.id }).select('code').single();
   if (error) return toast('초대 링크를 만들지 못했어요: ' + error.message);
   const url = `${location.origin}${location.pathname}?join=${data.code}`;
-  const text = `도쿄 여행 일정을 함께 봐요. 링크를 열고 설정 › 계정에서 카카오로 로그인하면 들어와져요 (7일 안에 한 번)\n${url}`;
+  const name = CLOUD.trip.title || '여행';
+  const text = `'${name}' 일정을 함께 봐요. 링크를 열고 설정 › 계정에서 카카오로 로그인하면 들어와져요 (7일 안에 한 번)\n${url}`;
   try {
-    if (navigator.share) await navigator.share({ title: '도쿄 여행 초대', text });
+    if (navigator.share) await navigator.share({ title: `${name} 초대`, text });
     else { await navigator.clipboard.writeText(text); toast('초대 링크를 복사했어요'); }
   } catch (e) { if (e.name !== 'AbortError') { CLOUD.invite = url; cloudRefreshUi(); } }
 }
@@ -7476,11 +7668,17 @@ function cloudRefreshUi() {
 }
 function cloudCard() {
   if (!AUTH.user) return `<div class="card set-card cloud-card"><div class="set-row"><span class="grow"><b>자동 동기화</b><small>위 계정에서 카카오로 로그인하면 두 폰 기록이 서버로 바로바로 맞춰져요</small></span></div></div>`;
-  if (CLOUD.state === 'none') return `<div class="card set-card cloud-card">
-      <div class="set-row"><span class="grow"><b>자동 동기화 시작</b><small>먼저 시작하는 폰이 서버에 여행을 만들고 이 폰 기록(일정 변경·경비·예약번호·사진)을 올려요. 다른 폰은 그다음 초대 링크로 들어와요</small></span></div>
-      <div class="btns"><button class="btn primary wide" data-cloud-create>서버에 여행 만들기</button></div>
-      <div class="small muted set-note">이미 다른 폰이 만들었다면, 그 폰에서 초대 링크를 받아 열어 주세요.</div>
+  if (CLOUD.state === 'none') {
+    // 도쿄 일정 기록이 이 폰에 있으면 그대로 올리는 버튼, 처음 쓰는 사람은 새 여행 만들기부터
+    const hasLocal = !state.planOf && Object.keys(store.get('meta', {})).length > 0;
+    if (!hasLocal) CLOUD.form = true;
+    return `<div class="card set-card cloud-card">
+      <div class="set-row"><span class="grow"><b>${hasLocal ? '자동 동기화 시작' : '내 여행 만들기'}</b><small>${hasLocal ? '먼저 시작하는 폰이 서버에 여행을 만들고 이 폰 기록(일정 변경·경비·예약번호·사진)을 올려요. 다른 폰은 그다음 초대 링크로 들어와요' : '여행 이름과 날짜만 넣으면 빈 일정이 만들어져요. 함께 갈 사람은 초대 링크로 들어와요'}</small></span></div>
+      ${hasLocal ? '<div class="btns"><button class="btn primary wide" data-cloud-create>이 폰 도쿄 일정으로 만들기</button></div>' : ''}
+      <div class="small muted set-note">다른 사람이 만든 여행에 들어가려면, 그 사람에게 초대 링크를 받아 열어 주세요.</div>
+      ${tripFormHtml()}
     </div>`;
+  }
   const when = CLOUD.at ? new Date(CLOUD.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
   const pend = cloudPending();
   const line = CLOUD.state === 'syncing' ? '맞추는 중…'
@@ -7495,6 +7693,7 @@ function cloudCard() {
         ${CLOUD.role === 'owner' ? `<button class="btn ${others.length ? '' : 'primary'}" data-cloud-invite>초대 링크</button>` : ''}</div>` : ''}
       ${CLOUD.invite ? `<input class="input" readonly value="${esc(CLOUD.invite)}" onclick="this.select()">` : ''}
       ${CLOUD.state === 'error' && CLOUD.err ? `<div class="small muted set-note">${esc(CLOUD.err)}</div>` : ''}
+      ${CLOUD.trip || CLOUD.trips.length ? `<div class="set-row trip-head"><span class="grow"><b>내 여행</b><small>여행마다 일정·기록·사진이 따로 저장돼요</small></span></div>${tripListHtml()}${tripFormHtml()}` : ''}
     </div>`;
 }
 window.addEventListener('online', () => cloudStart());
