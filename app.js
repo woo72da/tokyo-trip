@@ -936,8 +936,8 @@ function wxStory(date) {
 const GEAR = [
   ['coat', 'coat', '겉옷', [['hot', '더웠어요'], ['ok', '딱 맞았어요'], ['cold', '추웠어요']]],
 ];
-const PEOPLE = ['안드레아', '다희'];
-const gearLog = (date, name) => store.get(`gear:${date}:${name}`, null);
+// 옷차림 기록은 사람(계정 id)마다. 예전 '안드레아' 기록은 여행 마스터 것으로 읽어요.
+const gearLog = (date, id) => store.get(`gear:${date}:${id}`, null) || (id === mateKey('나') ? store.get(`gear:${date}:안드레아`, null) || store.get(`gear:${date}:나`, null) : null);
 const lastGear = (date, name) => state.trip.days.map((d) => d.date).filter((d) => d < date).reverse().map((d) => gearLog(d, name)).find(Boolean) || null;
 const gearText = (g) => (g ? GEAR.map(([k, , label, opts]) => g[k] && `${label} ${opts.find(([v]) => v === g[k])[1]}`).filter(Boolean).concat(g.memo ? [g.memo] : []) : []);
 // The latest record before `date` nudges the next day's advice for that person.
@@ -1100,9 +1100,32 @@ const SCENE_CAT = { 식당: '식당', 카페: '카페', 교통: '교통', 공항
 const expenses = () => store.get('exp', []);
 const yen = (n) => `${Math.round(n).toLocaleString('ko-KR')}엔`;
 const won = (n) => `${(Math.round((n * (state.fx?.rate || 8.5)) / 10) * 10).toLocaleString('ko-KR')}원`;
-// Records and files made before the names were set still say 나 / 와이프.
-const person = (name) => ({ 나: '안드레아', 와이프: '다희' })[name] || name;
-const who = () => person(store.get('who', '나'));
+// 여행메이트: 기록의 '누가'는 로그인한 계정 id예요 (로그인 전엔 'me', 로그인하면 계정으로 옮겨요).
+// 예전 기록의 '안드레아'·'나'는 여행 마스터로 봐요. 닉네임은 계정에 하나라, 바꾸면 지난 기록도 새 이름으로 보여요.
+const LEGACY_ME = ['나', '안드레아'];
+const meId = () => AUTH.user?.id || 'me';
+const myNick = () => (AUTH.user ? AUTH.nick || AUTH.user.user_metadata?.name || '여행자' : store.get('myNick', '') || '나');
+const callMe = () => `${myNick()}님`;
+function mateKey(by) {
+  if (!by) return '';
+  if (by === 'me') return meId();
+  if (LEGACY_ME.includes(by)) return CLOUD.trip?.owner_id || meId();
+  if (by === '와이프') return '다희';
+  return by;
+}
+// 이 여행의 사람들 (들어온 순서, 색 점 포함). 서버에 연결되기 전엔 나 혼자.
+const MATE_COLORS = ['#2f6fdf', '#e0672b', '#1f9d6b', '#b8489a', '#c9a227', '#6a5acd', '#d2445a', '#2a9bb0'];
+const mates = () => (CLOUD.trip && CLOUD.members.length ? CLOUD.members : [{ id: meId(), nick: myNick(), role: 'owner', color: MATE_COLORS[0] }]);
+function nameOf(by) {
+  const k = mateKey(by);
+  if (!k) return '';
+  if (k === meId()) return myNick();
+  const m = CLOUD.members.find((x) => x.id === k);
+  if (m) return m.nick;
+  const gone = store.get('mateNames', {})[k];
+  if (gone) return `${gone}(나감)`;
+  return /^[0-9a-f]{8}-/.test(k) ? '나간 사람' : k;
+}
 
 // Live JPY→KRW rate (open.er-api.com, no key), kept for offline; 6-hour refresh, 30 minutes when forced.
 // `upd` is when the provider last moved the rate (once a day), `at` when this phone fetched it.
@@ -1230,7 +1253,7 @@ function addExpense({ value, cur, pay, memo, cat, item, date, time = '' }) {
   const list = expenses();
   localStorage.setItem('lastPay', pay);
   const id = uid('e-');
-  list.push({ id, ...expAmount(value, cur), pay, memo, cat, item: item || null, date: date || tokyoNow().date, time: time || '', by: who(), at: Date.now() });
+  list.push({ id, ...expAmount(value, cur), pay, memo, cat, item: item || null, date: date || tokyoNow().date, time: time || '', by: meId(), at: Date.now() });
   store.set('exp', list);
   return id;
 }
@@ -1288,7 +1311,7 @@ function expRow(e, inDay = false) {
     <div class="exp-row">
       <span class="exp-cat" role="img" aria-label="${esc(e.cat)}" title="${esc(e.cat)}">${expIcon(e.cat)}</span>
       <button type="button" class="exp-open" data-exp-edit="${esc(e.id)}">
-        <span class="grow"><b>${esc(expTitle(e))}</b><small>${esc([inDay ? expTime(e) : `${expDateLabel(e.date)}${expTime(e) ? ' ' + expTime(e) : ''}`, person(e.by), e.pay ? { cash: '현금', card: '카드' }[e.pay] : ''].filter(Boolean).join(' · '))}</small></span>
+        <span class="grow"><b>${esc(expTitle(e))}</b><small>${esc([inDay ? expTime(e) : `${expDateLabel(e.date)}${expTime(e) ? ' ' + expTime(e) : ''}`, nameOf(e.by), e.pay ? { cash: '현금', card: '카드' }[e.pay] : ''].filter(Boolean).join(' · '))}</small></span>
         <span class="exp-amt">${e.orig?.cur === 'KRW' ? `<b>${e.orig.value.toLocaleString('ko-KR')}원</b><small>${yen(e.amount)}</small>` : `<b>${yen(e.amount)}</b><small>${won(e.amount)}</small>`}</span>
       </button>
       ${hasRcpt(e.id) ? `<button type="button" class="exp-rcpt" data-doc-view="${rcptSlot(e.id)}" aria-label="영수증 보기">${icon('image')}</button>` : ''}
@@ -1513,9 +1536,9 @@ async function buildSyncFile() {
     const blob = await docs.get(k);
     photos.push({ k, type: blob.type || 'image/jpeg', data: await blobToB64(blob) });
   }
-  const body = JSON.stringify({ app: 'tokyo-trip', v: 1, from: who(), at: Date.now(), kv, tomb: store.get('tomb', {}), photos });
+  const body = JSON.stringify({ app: 'tokyo-trip', v: 1, from: myNick(), at: Date.now(), kv, tomb: store.get('tomb', {}), photos });
   const d = new Date();
-  const name = `도쿄여행-${who()}폰-${d.getMonth() + 1}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`;
+  const name = `도쿄여행-${myNick()}-${d.getMonth() + 1}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`;
   state.syncFile = new File([body], name, { type: 'application/json' });
   state.syncPhotos = photos.length;
 }
@@ -1589,9 +1612,9 @@ async function importSync(file) {
     for (const k of keys.slice(0, -1)) await docs.del(k);
   }
   await refreshDocSlots();
-  store.set('syncGot', { at: Date.now(), from: person(data.from) });
+  store.set('syncGot', { at: Date.now(), from: nameOf(data.from) });
   render();
-  toast(records || photos ? `${person(data.from)}폰에서 기록 ${records}건 · 사진 ${photos}장을 합쳤어요` : '이미 같은 내용이에요');
+  toast(records || photos ? `${nameOf(data.from)} 폰에서 기록 ${records}건 · 사진 ${photos}장을 합쳤어요` : '이미 같은 내용이에요');
 }
 
 // 설정 › 동기화: the same send / merge steps, always open; whose phone it is comes from 설정 › 계정.
@@ -1603,7 +1626,7 @@ function syncPanel() {
   const when = (t) => new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   return `
     <div class="card set-card sync-panel">
-      <div class="set-row"><span class="grow"><b>${esc(who())}폰 기록을 다른 폰과 합쳐요</b><small>예약번호·링크·바우처·자료·체크·지출, 그리고 일정·장소 변경(시간 바꾸기·건너뛰기·도착·완료·추가한 일정과 장소·방문 기록)까지 함께 보내요</small></span></div>
+      <div class="set-row"><span class="grow"><b>이 폰 기록을 파일로 다른 폰과 합쳐요</b><small>예약번호·링크·바우처·자료·체크·지출, 그리고 일정·장소 변경(시간 바꾸기·건너뛰기·도착·완료·추가한 일정과 장소·방문 기록)까지 함께 보내요</small></span></div>
       <div class="btns">
         ${state.syncFailed ? `<button class="btn primary" data-sync-build>${icon('refresh')}다시 준비하기</button>`
             : f ? `<button class="btn primary" data-sync-share>${icon('ext')}보내기</button>`
@@ -2193,7 +2216,7 @@ function reportWeather(perDay) {
   const hi = Math.max(...wx.map((x) => x.wx.max));
   const rain = wx.filter((x) => x.wx.rain >= 1);
   const feel = { hot: 0, ok: 0, cold: 0 };
-  for (const x of perDay) for (const p of PEOPLE) { const c = gearLog(x.d.date, p)?.coat; if (c in feel) feel[c] += 1; }
+  for (const x of perDay) for (const p of mates()) { const c = gearLog(x.d.date, p.id)?.coat; if (c in feel) feel[c] += 1; }
   const said = feel.hot + feel.ok + feel.cold;
   const month = Number(state.trip.trip.start.slice(5, 7));
   const tip = !said ? `기온 ${lo}~${hi}° · 아침저녁엔 가벼운 겉옷이 있으면 좋아요`
@@ -2274,7 +2297,7 @@ async function reportText() {
   let day = '';
   for (const e of exp) {
     if (e.date !== day) { day = e.date; lines.push(`[${expDateLabel(e.date)}]`); }
-    lines.push(`${expTime(e) ? expTime(e) + ' ' : ''}${expTitle(e)} · ${e.cat} · ${{ card: '카드', cash: '현금' }[e.pay] || ''} · ${person(e.by) || ''} · ${Math.round(e.amount).toLocaleString('ko-KR')}엔`);
+    lines.push(`${expTime(e) ? expTime(e) + ' ' : ''}${expTitle(e)} · ${e.cat} · ${{ card: '카드', cash: '현금' }[e.pay] || ''} · ${nameOf(e.by) || ''} · ${Math.round(e.amount).toLocaleString('ko-KR')}엔`);
   }
   lines.push('', `합계 ${Math.round(total).toLocaleString('ko-KR')}엔 (약 ${won(total)})`);
   try { await navigator.clipboard.writeText(lines.join('\n')); toast(`지출 ${exp.length}건을 복사했어요`); } catch { toast('복사하지 못했어요'); }
@@ -2348,25 +2371,40 @@ function reportCost() {
       </details>
     </div>`;
 }
+// 정산: 함께 쓴 돈을 여행메이트 수로 똑같이 나누고, 보내는 횟수가 가장 적게 '누가 누구에게 얼마'. 쇼핑은 각자.
+function settleMoves(bal) {
+  const give = bal.filter((b) => b.v < -0.5).map((b) => ({ ...b, v: -b.v })).sort((a, b) => b.v - a.v);
+  const get = bal.filter((b) => b.v > 0.5).map((b) => ({ ...b })).sort((a, b) => b.v - a.v);
+  const out = [];
+  while (give.length && get.length) {
+    const a = give[0], b = get[0], n = Math.min(a.v, b.v);
+    out.push({ from: a.id, to: b.id, n: Math.round(n) });
+    a.v -= n; b.v -= n;
+    if (a.v < 0.5) give.shift();
+    if (b.v < 0.5) get.shift();
+  }
+  return out.filter((m) => m.n >= 100);
+}
 function reportSettle(exp) {
   if (!exp.length) return '';
-  const [a, b] = PEOPLE;
+  const key = (e) => mateKey(e.by);
+  const ids = [...new Set([...mates().map((m) => m.id), ...exp.map(key).filter(Boolean)])];
+  if (ids.length < 2) return '';
   const shared = exp.filter((e) => !OWN_CATS.includes(e.cat));
-  const unknown = shared.filter((e) => !PEOPLE.includes(person(e.by)));
-  const paid = (p) => shared.filter((e) => person(e.by) === p).reduce((s, e) => s + e.amount, 0);
-  const own = (p) => exp.filter((e) => OWN_CATS.includes(e.cat) && person(e.by) === p).reduce((s, e) => s + e.amount, 0);
-  const pa = paid(a), pb = paid(b);
-  const half = (pa + pb) / 2;
-  const diff = Math.round(pa - half);
-  const line = Math.abs(diff) < 100 ? '거의 같아요. 따로 보낼 돈이 없어요'
-    : `${diff > 0 ? b : a} → ${diff > 0 ? a : b} <b>${yen(Math.abs(diff))}</b> (약 ${esc(won(Math.abs(diff)))})`;
+  const unknown = shared.filter((e) => !key(e));
+  const paid = (id) => shared.filter((e) => key(e) === id).reduce((s, e) => s + e.amount, 0);
+  const own = (id) => exp.filter((e) => OWN_CATS.includes(e.cat) && key(e) === id).reduce((s, e) => s + e.amount, 0);
+  const total = ids.reduce((s, id) => s + paid(id), 0);
+  const each = total / ids.length;
+  const moves = settleMoves(ids.map((id) => ({ id, v: paid(id) - each })));
+  const plain = moves.map((m) => `${nameOf(m.from)} → ${nameOf(m.to)} ${m.n.toLocaleString('ko-KR')}엔 (약 ${won(m.n)})`);
   return `
-    <div class="section-title"><span>정산</span><em class="muted">함께 쓴 돈을 반반, 쇼핑은 각자</em></div>
+    <div class="section-title"><span>정산</span><em class="muted">함께 쓴 돈을 ${ids.length}명이 똑같이, 쇼핑은 각자</em></div>
     <div class="card rp-card rp-settle">
-      <div class="rp-owe">${line}</div>
-      <div class="rp-people">${[a, b].map((p) => `<div><span>${esc(p)}</span><b>${yen(paid(p))}</b><small>함께 쓴 돈에서 낸 금액</small>${own(p) ? `<small>쇼핑 ${yen(own(p))} (각자)</small>` : ''}</div>`).join('')}</div>
-      <div class="small muted">함께 쓴 돈 ${yen(pa + pb)} ÷ 2 = 1인 ${yen(half)}${unknown.length ? ` · 누가 냈는지 모르는 지출 ${unknown.length}건(${yen(unknown.reduce((s, e) => s + e.amount, 0))})은 빼고 계산했어요` : ''}</div>
-      ${Math.abs(diff) >= 100 ? `<button class="btn wide" data-copy-text="${esc(`${diff > 0 ? b : a} → ${diff > 0 ? a : b} ${Math.abs(diff).toLocaleString('ko-KR')}엔 (약 ${won(Math.abs(diff))})`)}">${icon('copy')}정산 금액 복사</button>` : ''}
+      ${moves.length ? moves.map((m) => `<div class="rp-owe">${esc(nameOf(m.from))} → ${esc(nameOf(m.to))} <b>${yen(m.n)}</b> (약 ${esc(won(m.n))})</div>`).join('') : '<div class="rp-owe">거의 같아요. 따로 보낼 돈이 없어요</div>'}
+      <div class="rp-people">${ids.map((id) => `<div><span>${esc(nameOf(id))}</span><b>${yen(paid(id))}</b><small>함께 쓴 돈에서 낸 금액</small>${own(id) ? `<small>쇼핑 ${yen(own(id))} (각자)</small>` : ''}</div>`).join('')}</div>
+      <div class="small muted">함께 쓴 돈 ${yen(total)} ÷ ${ids.length}명 = 1인 ${yen(each)}${unknown.length ? ` · 누가 냈는지 모르는 지출 ${unknown.length}건(${yen(unknown.reduce((s, e) => s + e.amount, 0))})은 빼고 계산했어요` : ''}</div>
+      ${moves.length ? `<button class="btn wide" data-copy-text="${esc(plain.join('\n'))}">${icon('copy')}정산 금액 복사</button>` : ''}
     </div>`;
 }
 // Rated places grouped by how much we'd go back: a tally strip on top, then one group per rating with its own
@@ -3482,13 +3520,17 @@ function daySummary(day, items, now) {
     </div>`;
 }
 
+// 다른 여행메이트의 옷차림 한 줄씩 (많으면 4명까지)
+function othersGear(pick) {
+  const rows = mates().filter((m) => m.id !== meId()).map((m) => [m.nick, gearText(pick(m)).join(' · ')]).filter(([, t]) => t);
+  return rows.slice(0, 4);
+}
 // The day's weather in words, then how this phone's person got on with umbrella, sunglasses and coat.
 function daySumWeather(date) {
   const st = wxStory(date);
-  const me = who();
-  const g = gearLog(date, me) || {};
-  const other = PEOPLE.find((p) => p !== me);
-  const theirs = gearText(gearLog(date, other));
+  const me = myNick();
+  const g = gearLog(date, meId()) || {};
+  const theirs = othersGear((m) => gearLog(date, m.id));
   // The last day has no next morning to advise, so only the memo stays.
   const last = date === state.trip.days[state.trip.days.length - 1].date;
   return `
@@ -3499,7 +3541,7 @@ function daySumWeather(date) {
         <div class="gear-row"><span class="gear-l">${icon(ic)}${label}</span>
           <div class="gear-opts">${opts.map(([v, t]) => `<button type="button" class="${g[k] === v ? 'on' : ''}" data-gear="${esc(date)}|${k}|${v}">${t}</button>`).join('')}</div></div>`).join('')}`}
       <input class="input gear-memo" data-gear-memo="${esc(date)}" value="${esc(g.memo || '')}" maxlength="120" placeholder="한 줄 메모 · 예: 맑아서 눈이 무척 부셨음" autocomplete="off">
-      ${theirs.length ? `<div class="small muted gear-other">${esc(other)}: ${esc(theirs.join(' · '))}</div>` : ''}
+      ${theirs.map(([n, t]) => `<div class="small muted gear-other">${esc(n)}: ${esc(t)}</div>`).join('')}
       ${last ? '' : '<div class="small muted gear-note">추웠다·더웠다고 남기면 다음 날 겉옷 추천이 한 단계 바뀌어요.</div>'}
     </div>`;
 }
@@ -3513,7 +3555,7 @@ function tomorrowCard(tday, idx) {
   const w = wxDay(tday.date);
   if (!w) return '';
   const st = wxStory(tday.date);
-  const g = gearFor(tday.date, dayItems(tday).filter((it) => !it.skip), who());
+  const g = gearFor(tday.date, dayItems(tday).filter((it) => !it.skip), meId());
   const bring = g?.need.map((n) => n.label) || [];
   const out = wxHours(tday.date, 8, 22).reduce((a, h) => a + h.rain, 0);
   const rain = w.rain < 1 ? (w.pop >= 30 ? `비 ${w.pop}%` : '') : out < w.rain / 3 ? `비 ${w.rain.toFixed(0)}mm (대부분 새벽·밤, 낮 ${mm(out)})` : `비 ${w.rain.toFixed(0)}mm`;
@@ -3525,9 +3567,6 @@ function tomorrowCard(tday, idx) {
     </button>`;
 }
 
-// What this phone calls its person: a nickname they set, else the name with 님.
-const nickOf = (name) => store.get('nick:' + name, '');
-const callOf = (name) => nickOf(name) || `${name}님`;
 const hasBatchim = (w) => { const c = w.charCodeAt(w.length - 1) - 0xac00; return c >= 0 && c < 11172 && c % 28 > 0; };
 const eulReul = (w) => (hasBatchim(w) ? '을' : '를');
 // A small stable pick per date, so the greeting changes day to day but not on every redraw.
@@ -3535,8 +3574,7 @@ const pickFor = (key, list) => list[[...key].reduce((a, ch) => (a * 31 + ch.char
 
 // The assistant-style hello at the top of the morning card: name, the day's shape, the one fixed time, the weather in a word.
 function greeting(day, items, g, now) {
-  const me = who();
-  const call = callOf(me);
+  const call = callMe();
   const days = state.trip.days;
   const idx = days.indexOf(day);
   const last = idx === days.length - 1;
@@ -3567,8 +3605,7 @@ function prepCard(day, items, now) {
   const first = items.find((it) => !it.skip);
   const st = store.get('prep:' + day.date, {});
   if (st.done || now.min < 240 || (first && now.min >= first.startMin)) return '';
-  const me = who();
-  const g = gearFor(day.date, items, me);
+  const g = gearFor(day.date, items, meId());
   const today = wxDay(day.date);
   if (!g || !today) return '';
   const hi = greeting(day, items, g, now);
@@ -3579,12 +3616,11 @@ function prepCard(day, items, now) {
   const diff = yd ? today.max - yd.max : 0;
   const cmp = !yd ? '' : Math.abs(diff) <= 1 ? '어제와 기온이 비슷하고' : `어제보다 ${Math.abs(diff)}° ${diff > 0 ? '따뜻하고' : '쌀쌀하고'}`;
   const ck = st.ck || {};
-  const other = PEOPLE.find((p) => p !== me);
-  const theirs = gearText(lastGear(day.date, other));
+  const theirs = othersGear((m) => lastGear(day.date, m.id));
   return `
     <div class="prep">
       <div class="prep-head">${wxIcon(today.icon)}<div class="grow"><span>오늘 아침 준비 · ${esc(dayLabel(day.date))}</span><b>${esc(hi.hello)}</b></div>
-        <button type="button" class="prep-nick" data-nick="${esc(me)}" aria-label="부르는 이름 바꾸기">${icon('pen')}</button></div>
+        <button type="button" class="prep-nick" data-nick aria-label="닉네임 바꾸기">${icon('pen')}</button></div>
       <p class="prep-hi">${esc(hi.say)}</p>
       <button type="button" class="prep-listen ${state.briefing ? 'on' : ''}" data-brief>${icon('sound')}<span class="play">브리핑 듣기</span><span class="stop">멈추기</span></button>
       <div class="prep-cmp"><b>${esc([cmp, story?.head].filter(Boolean).join(' '))}</b>
@@ -3595,7 +3631,7 @@ function prepCard(day, items, now) {
         </button>`).join('') || '<div class="small muted">오늘은 따로 챙길 게 없어요.</div>'}</div>
       ${g.skip.length ? `<div class="prep-skip">${esc(skipLine(g.skip))}</div>` : ''}
       ${g.bias.notes.length || g.bias.memo ? `<div class="prep-note">${icon('heart')}<span>${esc(g.bias.notes.join(' '))}${g.bias.memo ? ` <q>${esc(g.bias.memo)}</q>` : ''}</span></div>` : ''}
-      ${theirs.length ? `<div class="prep-skip">${esc(other)}의 지난 기록 · ${esc(theirs.join(' · '))}</div>` : ''}
+      ${theirs.map(([n, t]) => `<div class="prep-skip">${esc(n)}의 지난 기록 · ${esc(t)}</div>`).join('')}
       <button class="btn primary wide prep-done" data-prep-done="${esc(day.date)}">${icon('check')}준비 완료</button>
     </div>`;
 }
@@ -4042,7 +4078,7 @@ function exploreLog(now) {
         ${state.docSlots.has(slot) ? `<button class="log-thumb" data-doc-view="${esc(slot)}" data-thumb="${esc(slot)}" aria-label="사진 보기"></button>` : ''}
         <div class="place-main">
           <b>${esc(p.name)}</b>
-          <span>${esc([person(v.by), AGAIN[v.again]].filter(Boolean).join(' · '))}</span>
+          <span>${esc([nameOf(v.by), AGAIN[v.again]].filter(Boolean).join(' · '))}</span>
           ${v.memo ? `<small>${esc(v.memo)}</small>` : ''}
         </div>
       </div>`;
@@ -5186,7 +5222,7 @@ async function aiDiary(date, btn) {
     date: dayLabel(date), title: stripEmoji(day.title), weather: wxStory(date)?.head || '',
     stops: items.filter((it) => !isMove(it)).map((it) => ({ time: it.start, title: stripEmoji(it.title), done: isDone(it.id), skipped: !!it.skip })),
     visits, spent: { total: Math.round(spent.reduce((a, e) => a + e.amount, 0)), by: Object.entries(spent.reduce((m, e) => ({ ...m, [e.cat]: (m[e.cat] || 0) + e.amount }), {})).map(([c, n]) => `${c} ${Math.round(n)}엔`) },
-    gear: gearText(gearLog(date, who())),
+    gear: gearText(gearLog(date, meId())),
   };
   const wait = document.createElement('div');
   wait.innerHTML = aiLoading('AI가 오늘 기록을 정리하고 있어요', ['방문한 곳과 평가를 모으는 중', '지출과 날씨를 정리하는 중', '일기를 쓰는 중']);
@@ -5217,7 +5253,7 @@ async function aiTripStory(btn) {
       const diary = store.get('diary:' + d.date, null);
       return { day: i + 1, date: dayLabel(d.date), title: stripEmoji(d.title), weather: wxStory(d.date)?.head || '',
         visits, skipped: items.filter((it) => it.skip).map((it) => stripEmoji(it.title)), spent: Math.round(exp.filter((e) => e.date === d.date).reduce((a, e) => a + e.amount, 0)),
-        clothes: PEOPLE.map((p) => gearLog(d.date, p)?.coat).filter(Boolean), memos: PEOPLE.map((p) => gearLog(d.date, p)?.memo).filter(Boolean), diary: diary ? diary.text : '' };
+        clothes: mates().map((p) => gearLog(d.date, p.id)?.coat).filter(Boolean), memos: mates().map((p) => gearLog(d.date, p.id)?.memo).filter(Boolean), diary: diary ? diary.text : '' };
     }),
     spent: { total: Math.round(exp.reduce((a, e) => a + e.amount, 0)), by: Object.entries(exp.reduce((m, e) => ({ ...m, [e.cat]: (m[e.cat] || 0) + e.amount }), {})).map(([c, n]) => `${c} ${Math.round(n)}엔`) },
     budget: store.get('budget', state.trip.budget?.yen || 0),
@@ -5283,7 +5319,7 @@ function reqContext() {
   const now = tokyoNow();
   const day = state.trip.days[state.dayIndex];
   const sheet = !$('#sheet').hidden ? ($('#sheet-body h3')?.textContent || $('#sheet-body .eyebrow')?.textContent || '열린 화면') : '';
-  return { version: APP_VERSION, tab: { today: '오늘', days: '일정', explore: '탐색', wallet: '예약', talk: '번역', check: '체크' }[state.tab] || state.tab, day: day ? `${state.dayIndex + 1}일차 ${day.date}` : '', sheet, tokyo: `${now.date} ${clock(now.min)}`, who: who(), device: navigator.userAgent.replace(/\s*\(KHTML[^)]*\)/, '').slice(0, 120), errors: errLog.slice(-5) };
+  return { version: APP_VERSION, tab: { today: '오늘', days: '일정', explore: '탐색', wallet: '예약', talk: '번역', check: '체크' }[state.tab] || state.tab, day: day ? `${state.dayIndex + 1}일차 ${day.date}` : '', sheet, tokyo: `${now.date} ${clock(now.min)}`, who: myNick(), device: navigator.userAgent.replace(/\s*\(KHTML[^)]*\)/, '').slice(0, 120), errors: errLog.slice(-5) };
 }
 const REQ_STATUS = (labels) => { const n = labels.map((l) => l.name); return n.includes('working') ? ['work', '처리 중'] : n.includes('needs-confirm') ? ['ask', '확인 필요'] : n.includes('done') ? ['done', '반영됨'] : ['new', '접수됨']; };
 function openReq(view = 'new') {
@@ -5904,7 +5940,7 @@ function completeItem(id) {
     return render();
   }
   setDone(id, true);
-  if (p && !visitOf(p.id)) store.set('visit:' + p.id, { at: Date.now(), by: who(), memo: '', again: '' });
+  if (p && !visitOf(p.id)) store.set('visit:' + p.id, { at: Date.now(), by: meId(), memo: '', again: '' });
   render();
   openFinish(id);
 }
@@ -5938,7 +5974,7 @@ function openFinish(id) {
 function setAgain(id, val, from) {
   const v = visitOf(id);
   const again = v?.again === val ? '' : val;
-  store.set('visit:' + id, { at: v?.at || Date.now(), by: v?.by || who(), memo: v?.memo || '', again });
+  store.set('visit:' + id, { at: v?.at || Date.now(), by: v?.by || meId(), memo: v?.memo || '', again });
   render();
   if (from === 'place') return openPlace(id);
   document.querySelectorAll('.finish [data-rate]').forEach((b) => b.classList.toggle('primary', b.dataset.again === again));
@@ -5946,7 +5982,7 @@ function setAgain(id, val, from) {
 
 function toggleVisit(id) {
   const v = visitOf(id);
-  store.set('visit:' + id, v ? null : { at: Date.now(), by: who(), memo: '' });
+  store.set('visit:' + id, v ? null : { at: Date.now(), by: meId(), memo: '' });
   render();
   openPlace(id);
 }
@@ -6235,7 +6271,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 293;
+const APP_VERSION = 294;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6319,7 +6355,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-trip-open],[data-trip-new],[data-trip-cancel],[data-trip-create],[data-nt-day],[data-nt-reset],[data-nt-month],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-trip-open],[data-trip-new],[data-trip-cancel],[data-trip-create],[data-nt-day],[data-nt-reset],[data-nt-month],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-inv-off],[data-inv-close],[data-inv-join],[data-inv-kakao],[data-join-code],[data-mate],[data-mate-kick],[data-mate-leave],[data-mate-all],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6582,7 +6618,7 @@ document.addEventListener('click', async (e) => {
   // Saved first, then the camera opens straight from the same tap (iPhone allows the picker only there).
   else if (d.gear) {
     const [date, k, v] = d.gear.split('|');
-    const key = `gear:${date}:${who()}`;
+    const key = `gear:${date}:${meId()}`;
     const g = store.get(key, null) || {};
     store.set(key, { ...g, [k]: g[k] === v ? '' : v });
     el.parentElement.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === el && g[k] !== v));
@@ -6610,7 +6646,7 @@ document.addEventListener('click', async (e) => {
     briefStop();
     const key = 'prep:' + d.prepDone;
     store.set(key, { ...store.get(key, {}), done: true }); render();
-    toast(`${callOf(who())}, 좋은 하루 보내세요`, () => { store.set(key, { ...store.get(key, {}), done: false }); render(); }, '다시 보기');
+    toast(`${callMe()}, 좋은 하루 보내세요`, () => { store.set(key, { ...store.get(key, {}), done: false }); render(); }, '다시 보기');
   }
   else if ('brief' in d) briefPlay(state.brief || '');
   else if ('smsOpen' in d) openSmsSheet();
@@ -6640,6 +6676,15 @@ document.addEventListener('click', async (e) => {
   else if ('cloudCreate' in d) cloudCreateTrip();
   else if ('cloudNow' in d) { if (CLOUD.trip) cloudSync(true); else cloudStart(true); }
   else if ('cloudInvite' in d) cloudInvite();
+  else if ('invOff' in d) inviteOff();
+  else if ('invClose' in d) inviteClose();
+  else if ('invJoin' in d) inviteJoin();
+  else if ('invKakao' in d) inviteKakao();
+  else if ('joinCode' in d) inviteAsk();
+  else if (d.mate !== undefined) { CLOUD.mateOpen = CLOUD.mateOpen === d.mate ? '' : d.mate; cloudRefreshUi(); }
+  else if (d.mateKick) mateKick(d.mateKick);
+  else if ('mateLeave' in d) mateLeave();
+  else if ('mateAll' in d) { CLOUD.mateAll = true; cloudRefreshUi(); }
   else if ('tripOpen' in d) tripSwitch(d.tripOpen);
   else if ('tripNew' in d) { Object.assign(NT, { title: '', start: '', end: '', month: '' }); CLOUD.form = true; cloudRefreshUi(); setTimeout(() => $('#nt-title')?.focus(), 50); }
   else if ('ntDay' in d) ntTap(d.ntDay);
@@ -6678,10 +6723,7 @@ document.addEventListener('click', async (e) => {
   }
   else if ('smsRead' in d) showSms();
   else if ('smsAdd' in d) addSms();
-  else if (d.nick) {
-    const v = await askText('어떻게 불러 드릴까요?', nickOf(d.nick) || `${d.nick}님`, { body: '아침 준비 카드에서 이렇게 불러요. 비우면 이름으로 불러요.' });
-    if (v !== null) { const t = v.trim().slice(0, 12); store.set('nick:' + d.nick, t && t !== `${d.nick}님` ? t : ''); render(); toast(`앞으로 ${callOf(d.nick)}${hasBatchim(callOf(d.nick)) ? '이라고' : '라고'} 부를게요`); }
-  }
+  else if ('nick' in d) editNick();
   else if (d.tomorrow) { if (d.sumOpen && !lsList('daySumOpen').includes(d.sumOpen)) lsToggle('daySumOpen', d.sumOpen); state.dayIndex = Number(d.tomorrow); store.set('day', state.dayIndex); go('days'); }
   else if (d.daySum) {
     state.dayIndex = Number(d.daySum); store.set('day', state.dayIndex); go('days');
@@ -6710,7 +6752,6 @@ document.addEventListener('click', async (e) => {
     const v = await askText('예산 (엔, 쇼핑 제외)', String(store.get('budget', state.trip.budget?.yen || 0)), { numeric: true });
     if (v !== null && Number(v.replace(/[^0-9]/g, '')) >= 0) { store.set('budget', Number(v.replace(/[^0-9]/g, ''))); render(); }
   }
-  else if (d.who) { store.set('who', d.who); state.syncFile = null; render(); }
   else if ('syncBuild' in d) { state.syncFailed = false; render(); }
   else if ('syncShare' in d) shareSyncFile();
   else if ('syncPick' in d) $('#sync-file').click();
@@ -6729,14 +6770,14 @@ document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.classList.contains('amount') && !e.isComposing) formatAmount(t);
   if (t.dataset.gearMemo) {
-    const key = `gear:${t.dataset.gearMemo}:${who()}`;
+    const key = `gear:${t.dataset.gearMemo}:${meId()}`;
     store.set(key, { ...store.get(key, null), memo: t.value.trim() });
     return;
   }
   if (t.dataset.placeMemo) {
     const id = t.dataset.placeMemo;
     const v = visitOf(id);
-    store.set('visit:' + id, { ...v, at: v?.at || Date.now(), by: v?.by || who(), memo: t.value });
+    store.set('visit:' + id, { ...v, at: v?.at || Date.now(), by: v?.by || meId(), memo: t.value });
     return;
   }
   if (t.dataset.secret) store.set(t.dataset.secret, t.type === 'url' || t.type === 'tel' ? t.value.trim() : t.value.trim().toUpperCase());
@@ -7182,24 +7223,15 @@ function accountRefresh() {
   cloudRefreshUi();
 }
 function authProviderOf(u) { return PROVIDER_KO[u?.app_metadata?.provider] || '이메일'; }
-// 계정 카드 아래: 이 폰이 누구 폰인지(경비·기록의 주인)와 아침 준비 카드에서 부르는 이름. 예전 '내 정보'를 합쳤어요.
-function meRows() {
-  const me = who();
-  return `<div class="set-row"><span class="grow"><b>이 폰은 누구 폰인가요</b><small>경비·기록을 남긴 사람으로 쓰여요</small></span></div>
-      <div class="seg-row">${PEOPLE.map((w) => `<button class="seg ${me === w ? 'on' : ''}" data-who="${w}">${w}폰</button>`).join('')}</div>
-      <button class="set-row tap" data-nick="${esc(me)}"><span class="grow"><b>부르는 이름</b><small>아침 준비 카드에서 이렇게 불러요</small></span><em>${esc(callOf(me))}</em>${icon('pen')}</button>`;
-}
 function accountCard() {
-  return accountCardTop().replace(/<\/div>\s*$/, `${meRows()}\n    </div>`);
-}
-function accountCardTop() {
   const u = AUTH.user;
   const msg = AUTH.msg ? `<div class="ai-msg ${AUTH.ok ? 'ok' : ''}">${esc(AUTH.msg)}</div>` : '';
   if (u) {
-    const name = AUTH.nick && AUTH.nick !== '여행자' ? AUTH.nick : (u.user_metadata?.name || u.user_metadata?.nickname || '여행자');
+    const name = myNick();
     return `<div class="card set-card acct-card">
       <div class="set-row"><span class="grow"><b>${esc(name)}${AUTH.role === 'admin' ? ' <small class="acct-admin">관리자</small>' : ''}</b><small>${esc(u.email || '이메일 없음')} · ${authProviderOf(u)}로 로그인</small></span>
         <button class="btn" data-auth-out>로그아웃</button></div>
+      <button class="set-row tap" data-nick><span class="grow"><b>닉네임</b><small>여행메이트에게 보이고, 아침 인사에서 이렇게 불러요</small></span><em>${esc(myNick())}</em>${icon('pen')}</button>
     </div>`;
   }
   if (!window.supabase) return `<div class="card set-card acct-card"><div class="set-row"><span class="grow"><b>로그인</b><small>인터넷에 연결된 상태에서 앱을 한 번 다시 열어 주세요</small></span></div></div>`;
@@ -7262,13 +7294,13 @@ async function authOut() {
 // 서버 표: trip_kv(함께 쓰는 기록) · trip_secrets(예약번호·eSIM·자료 목록) · 비공개 사진 저장소 docs/<여행>/<사진>
 const TRIP_SLUG = 'tokyo-2026-11';
 const SECRET_KEYS = ['pnr', 'agoda', 'esim1', 'esim2', 'cdocs'];
-const CLOUD = { trip: null, trips: [], role: '', members: [], chan: null, busy: false, again: false, state: 'off', err: '', at: 0, cursor: '', invite: '', form: false };
+const CLOUD = { trip: null, trips: [], role: '', members: [], link: null, mateOpen: '', mateAll: false, chan: null, busy: false, again: false, state: 'off', err: '', at: 0, cursor: '', invite: '', form: false };
 
 // ---------- 여러 여행 (서버 버전 S-5) ----------
 // 일정 원본: 도쿄 여행은 앱에 들어 있는 data/trip.json (요청함으로 고치는 그대로), 새로 만든 여행은 서버 trips.plan.
 // 이 폰 기록은 여행마다 따로: 여행을 바꾸면 지금 여행 기록·사진을 폰 안에 접어 두고(stash) 고른 여행 것을 펼쳐요.
 // 아래 키는 여행과 상관없는 이 폰 설정·로그인이라 그대로 둬요.
-const GLOBAL_KEYS = new Set(['aiModel', 'aiKey', 'gKey', 'deskKey', 'who', 'srvKeys', 'usageQ', 'cloudJoin', 'cloudTrip', 'reqLast', 'fx', 'talkText', 'geoOn', 'introVer', 'wxCard', 'lastPay', 'tab', 'routeOff', 'routeErr']);
+const GLOBAL_KEYS = new Set(['aiModel', 'aiKey', 'gKey', 'deskKey', 'who', 'myNick', 'srvKeys', 'usageQ', 'cloudJoin', 'cloudTrip', 'reqLast', 'fx', 'talkText', 'geoOn', 'introVer', 'wxCard', 'lastPay', 'tab', 'routeOff', 'routeErr']);
 const isGlobalKey = (k) => GLOBAL_KEYS.has(k) || k.startsWith('sb-') || k.startsWith('stash:');
 const STASH = 'stash|';
 // 빠진 칸을 채워서 빈 여행도 화면이 깨지지 않게
@@ -7540,12 +7572,31 @@ async function cloudFindTrip(prefer = '') {
   const want = prefer || store.get('cloudTrip', '');
   const data = CLOUD.trips.find((t) => t.id === want) || CLOUD.trips.find((t) => t.slug === TRIP_SLUG) || CLOUD.trips[0];
   if (!data) return null;
-  const { data: mem } = await sb().from('trip_members').select('user_id, role').eq('trip_id', data.id);
+  await cloudMembers(data);
+  return data;
+}
+// 여행메이트 목록: 들어온 순서대로 색 점, 이름은 계정 닉네임. 나간 사람 이름은 이 폰에 남겨 둬요(지난 기록용).
+async function cloudMembers(trip) {
+  const { data: mem } = await sb().from('trip_members').select('user_id, role, joined_at').eq('trip_id', trip.id).order('joined_at');
   const { data: pro } = await sb().from('profiles').select('id, nick').in('id', (mem || []).map((m) => m.user_id));
   const nick = new Map((pro || []).map((p) => [p.id, p.nick]));
-  CLOUD.members = (mem || []).map((m) => ({ id: m.user_id, role: m.role, nick: nick.get(m.user_id) || '여행자' }));
+  CLOUD.members = (mem || []).map((m, i) => ({ id: m.user_id, role: m.role, nick: nick.get(m.user_id) || '여행자', color: MATE_COLORS[i % MATE_COLORS.length] }));
   CLOUD.role = CLOUD.members.find((m) => m.id === AUTH.user.id)?.role || '';
-  return data;
+  if (CLOUD.members.length) store.set('mateNames', { ...store.get('mateNames', {}), ...Object.fromEntries(CLOUD.members.map((m) => [m.id, m.nick])) });
+  CLOUD.link = null;
+  if (CLOUD.role === 'owner') inviteLoad(trip.id).then((l) => { CLOUD.link = l; cloudRefreshUi(); });
+}
+// 로그인 전에 남긴 기록('me')을 내 계정 기록으로 옮겨요
+function claimMine() {
+  const id = AUTH.user?.id;
+  if (!id) return;
+  const ex = expenses();
+  if (ex.some((e) => e.by === 'me')) store.set('exp', ex.map((e) => (e.by === 'me' ? { ...e, by: id } : e)));
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const k = localStorage.key(i);
+    if (k?.startsWith('visit:')) { const v = store.get(k, null); if (v?.by === 'me') store.set(k, { ...v, by: id }); }
+    else if (k?.startsWith('gear:') && k.endsWith(':me')) { const v = store.get(k, null); if (v) store.set(k.slice(0, -2) + id, { ...v, ...store.get(k.slice(0, -2) + id, {}) }); store.set(k, null); }
+  }
 }
 async function cloudCreateTrip() {
   if (!AUTH.user) return toast('먼저 카카오로 로그인해 주세요');
@@ -7572,7 +7623,7 @@ async function cloudStartRun(force) {
       const { data, error } = await sb().rpc('join_trip', { invite: join });
       store.set('cloudJoin', '');
       joined = error ? '' : data || '';
-      toast(error ? '초대 링크가 만료됐거나 이미 쓰였어요. 새 링크를 받아 주세요' : '여행에 들어왔어요. 함께 쓰는 기록을 받아 올게요');
+      if (error) toast('이 초대 링크는 끝났어요. 초대한 분께 새 링크를 부탁해 주세요');
     }
     const trip = await cloudFindTrip(joined);
     if (!trip) { CLOUD.trip = null; CLOUD.state = 'none'; return cloudRefreshUi(); }
@@ -7586,8 +7637,10 @@ async function cloudStartRun(force) {
     const fresh = !CLOUD.trip || force;
     CLOUD.trip = trip;
     if (fresh) cloudSubscribe();
+    claimMine();
     await tripPlanSync(trip);
     await cloudSync(true);
+    if (joined) inviteWelcome(trip);
   } catch (e) { CLOUD.state = 'error'; CLOUD.err = e.message || String(e); cloudRefreshUi(); }
 }
 function cloudSubscribe() {
@@ -7703,34 +7756,181 @@ async function cloudPhotos() {
   }
   return changed;
 }
+// 여행마다 공통 초대 링크 하나: 7일 동안 여러 명이 써요. 여행 마스터만 보내고 끌 수 있어요.
+async function inviteLoad(tripId) {
+  const { data, error } = await sb().from('trip_invites').select('code, expires_at, uses').eq('trip_id', tripId).is('revoked_at', null)
+    .gt('expires_at', new Date().toISOString()).order('expires_at', { ascending: false }).limit(1);
+  if (error) return null;
+  const l = data?.[0];
+  return l ? { code: l.code, until: l.expires_at, uses: l.uses || 0 } : null;
+}
+const inviteUrl = (code) => `${location.origin}${location.pathname}?join=${code}`;
+const mdOf = (iso) => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()}`; };
 async function cloudInvite() {
-  if (!CLOUD.trip) return;
-  const { data, error } = await sb().from('trip_invites').insert({ trip_id: CLOUD.trip.id }).select('code').single();
-  if (error) return toast('초대 링크를 만들지 못했어요: ' + error.message);
-  const url = `${location.origin}${location.pathname}?join=${data.code}`;
+  if (!CLOUD.trip || CLOUD.role !== 'owner') return;
+  if (!navigator.onLine) return toast('인터넷에 연결된 뒤 다시 눌러 주세요');
+  let link = CLOUD.link || await inviteLoad(CLOUD.trip.id);
+  if (!link) {
+    const { data, error } = await sb().from('trip_invites').insert({ trip_id: CLOUD.trip.id }).select('code, expires_at').single();
+    if (error) return toast('초대 링크를 만들지 못했어요. 잠시 뒤 다시 눌러 주세요');
+    link = { code: data.code, until: data.expires_at, uses: 0 };
+  }
+  CLOUD.link = link; cloudRefreshUi();
+  const url = inviteUrl(link.code);
   const name = CLOUD.trip.title || '여행';
-  const text = `'${name}' 일정을 함께 봐요. 링크를 열고 설정 › 계정에서 카카오로 로그인하면 들어와져요 (7일 안에 한 번)\n${url}`;
+  const text = `'${name}'에 함께해요. 링크를 열고 카카오로 시작하면 바로 들어와져요 (${mdOf(link.until)}까지)\n${url}`;
   try {
     if (navigator.share) await navigator.share({ title: `${name} 초대`, text });
-    else { await navigator.clipboard.writeText(text); toast('초대 링크를 복사했어요'); }
+    else { await navigator.clipboard.writeText(text); toast('초대 링크를 복사했어요. 단톡방에 붙여 넣어 주세요'); }
   } catch (e) { if (e.name !== 'AbortError') { CLOUD.invite = url; cloudRefreshUi(); } }
 }
-// 초대 링크로 열렸으면 기억해 두고, 로그인되면 들어가요
+async function inviteOff() {
+  if (!CLOUD.link) return;
+  if (!(await askConfirm('초대 링크를 끌까요?', { body: '이미 들어온 여행메이트는 그대로예요. 다시 보내면 새 링크가 만들어져요.', ok: '끄기', danger: true }))) return;
+  const { error } = await sb().from('trip_invites').update({ revoked_at: new Date().toISOString() }).eq('code', CLOUD.link.code);
+  if (error) return toast('링크를 끄지 못했어요. 잠시 뒤 다시 해 주세요');
+  CLOUD.link = null; CLOUD.invite = ''; cloudRefreshUi(); toast('초대 링크를 껐어요');
+}
+// 초대 링크로 열었을 때: 로그인 전에도 여행 이름·날짜·초대한 사람·인원을 보여 주고, 한 번 누르면 들어가요
+const INV = { code: '', info: null, err: '', busy: false };
 function cloudJoinFromUrl() {
   const q = new URLSearchParams(location.search);
-  const code = q.get('join');
+  const code = (q.get('join') || '').trim();
   if (!code) return;
-  store.set('cloudJoin', code);
   q.delete('join');
   history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
-  if (!AUTH.user) setTimeout(() => { openSettings(); toast('초대받은 여행이에요. 카카오로 로그인하면 들어가요'); }, 600);
+  setTimeout(() => inviteOpen(code), 500);
+}
+const inviteCodeOf = (txt) => (String(txt).match(/join=([0-9a-z]{6,})/i)?.[1] || String(txt).trim().match(/^[0-9a-z]{6,32}$/i)?.[0] || '').toLowerCase();
+async function inviteAsk() {
+  const v = await askText('초대 코드 입력', '', { body: '받은 초대 링크를 통째로 붙여 넣거나, 링크 끝의 12자리 코드를 넣어 주세요.', placeholder: '초대 링크 또는 코드' });
+  if (v === null) return;
+  const code = inviteCodeOf(v);
+  if (!code) return toast('초대 코드를 찾지 못했어요. 링크를 다시 확인해 주세요');
+  inviteOpen(code);
+}
+async function inviteOpen(code) {
+  Object.assign(INV, { code, info: null, err: '', busy: false });
+  inviteDraw();
+  if (!sb() || !navigator.onLine) { INV.err = 'offline'; return inviteDraw(); }
+  const { data, error } = await sb().rpc('invite_preview', { invite: code });
+  // 미리보기를 못 받아도(서버 준비 전) 들어가기는 할 수 있게 빈 카드로 보여 줘요
+  INV.info = error ? {} : data;
+  if (!error && !data) INV.err = 'gone';
+  else if (data && data.live === false) INV.err = 'gone';
+  inviteDraw();
+}
+function inviteClose() { const el = $('#invite'); if (el) el.hidden = true; }
+function inviteDraw() {
+  let el = $('#invite');
+  if (!el) { el = document.createElement('div'); el.id = 'invite'; el.className = 'ask invite'; document.body.appendChild(el); }
+  const i = INV.info;
+  const dates = i?.start ? `${dayLabel(i.start)} ~ ${dayLabel(i.end)}` : '';
+  const body = INV.err === 'offline' ? `<b class="ask-t">인터넷에 연결해 주세요</b><p class="ask-s">초대 링크를 확인하려면 인터넷이 필요해요. 연결된 뒤 링크를 다시 열어 주세요.</p>
+      <div class="ask-bs one"><button type="button" class="btn primary" data-inv-close>닫기</button></div>`
+    : INV.err === 'gone' ? `<b class="ask-t">이 초대 링크는 끝났어요</b><p class="ask-s">기간(7일)이 지났거나 여행 마스터가 링크를 껐어요. 초대한 분께 새 링크를 부탁해 주세요.</p>
+      <div class="ask-bs one"><button type="button" class="btn primary" data-inv-close>닫기</button></div>`
+    : !i ? '<p class="ask-s inv-wait">초대를 확인하고 있어요…</p>'
+    : `<div class="inv-top">${icon('plane')}<span>여행 초대</span></div>
+      <b class="ask-t inv-title">${esc(i.title || '함께하는 여행')}</b>
+      ${dates ? `<p class="inv-dates">${esc(dates)}</p>` : ''}
+      ${i.owner ? `<p class="ask-s">${esc(i.owner)}님이 초대했어요 · 함께하는 사람 ${Number(i.members) || 1}명</p>` : ''}
+      ${i.mine ? '<p class="ask-s">이미 함께하는 여행이에요.</p>' : `<p class="ask-s">${AUTH.user ? '참여하면 일정·예약·경비를 함께 보고 바꿀 수 있어요.' : '카카오로 시작하면 바로 이 여행의 여행메이트가 돼요.'}</p>`}
+      <div class="ask-bs one">
+        ${i.mine ? '<button type="button" class="btn primary" data-inv-join>여행 열기</button>'
+          : AUTH.user ? `<button type="button" class="btn primary" data-inv-join ${INV.busy ? 'disabled' : ''}>${INV.busy ? '들어가는 중…' : '참여하기'}</button>`
+          : '<button type="button" class="btn acct-kakao" data-inv-kakao><span class="acct-kakao-mark" aria-hidden="true"></span>카카오로 시작하기</button>'}
+        <button type="button" class="btn ghost" data-inv-close>나중에</button></div>`;
+  el.innerHTML = `<div class="ask-dim" data-inv-close></div><div class="ask-card inv-card" role="dialog" aria-modal="true">${body}</div>`;
+  el.hidden = false;
+}
+async function inviteJoin() {
+  if (!AUTH.user) return;
+  INV.busy = true; inviteDraw();
+  store.set('cloudJoin', INV.code);
+  await cloudStart(true);
+  INV.busy = false; inviteClose();
+}
+function inviteKakao() {
+  // 카카오에서 돌아오면 로그인되자마자 이 코드로 들어가요
+  store.set('cloudJoin', INV.code);
+  authKakao();
+}
+// 들어온 직후 한 번: 여행메이트에게 보일 닉네임 확인
+async function inviteWelcome(trip) {
+  toast(`'${trip.title || '여행'}'에 들어왔어요`);
+  const v = await askBox({ title: '여행메이트에게 보일 닉네임', body: '모든 여행에 같이 쓰여요. 설정 › 계정에서 언제든 바꿀 수 있어요.', ok: '시작하기', cancel: '그대로', input: { value: myNick(), placeholder: '1~12자' } });
+  if (v !== null && v.trim() && v.trim() !== myNick()) await saveNick(v);
+}
+// 닉네임: 로그인하면 계정에 하나(모든 여행 공통), 로그인 전엔 이 폰에만
+async function saveNick(v) {
+  const t = String(v).trim().slice(0, 12);
+  if (!t) { toast('한 글자 이상 넣어 주세요'); return false; }
+  if (AUTH.user) {
+    if (!navigator.onLine) { toast('인터넷에 연결된 뒤 다시 바꿔 주세요'); return false; }
+    if (CLOUD.members.some((m) => m.id !== AUTH.user.id && m.nick === t)
+      && !(await askConfirm('같은 닉네임의 여행메이트가 있어요', { body: '그래도 이 닉네임으로 쓸까요?', ok: '그대로 쓰기' }))) return false;
+    const { error } = await sb().from('profiles').update({ nick: t }).eq('id', AUTH.user.id);
+    if (error) { toast('닉네임을 바꾸지 못했어요. 잠시 뒤 다시 해 주세요'); return false; }
+    AUTH.nick = t;
+    const m = CLOUD.members.find((x) => x.id === AUTH.user.id);
+    if (m) m.nick = t;
+  } else store.set('myNick', t);
+  render(); accountRefresh();
+  toast(`앞으로 ${t}님${hasBatchim(t + '님') ? '이라고' : '라고'} 부를게요`);
+  return true;
+}
+async function editNick() {
+  const v = await askText('닉네임', myNick(), { body: AUTH.user ? '여행메이트에게 보이고, 아침 인사에서 이렇게 불러요. 모든 여행에 같이 쓰여요.' : '아침 인사에서 이렇게 불러요. 로그인하면 계정 닉네임을 써요.', placeholder: '1~12자' });
+  if (v !== null) await saveNick(v);
+}
+// 여행메이트 관리: 여행 마스터는 내보내기, 동반자는 나가기
+async function mateKick(id) {
+  const m = CLOUD.members.find((x) => x.id === id);
+  if (!m || CLOUD.role !== 'owner' || id === AUTH.user.id) return;
+  if (!(await askConfirm(`${m.nick}님을 이 여행에서 내보낼까요?`, { body: '그동안 남긴 기록은 그대로 남아요. 다시 들어오려면 초대 링크가 필요해요.', ok: '내보내기', danger: true }))) return;
+  const { error } = await sb().from('trip_members').delete().eq('trip_id', CLOUD.trip.id).eq('user_id', id);
+  if (error) return toast('내보내지 못했어요. 잠시 뒤 다시 해 주세요');
+  CLOUD.members = CLOUD.members.filter((x) => x.id !== id); CLOUD.mateOpen = '';
+  cloudRefreshUi(); render(); toast(`${m.nick}님을 내보냈어요`);
+}
+async function mateLeave() {
+  if (!CLOUD.trip || CLOUD.role === 'owner') return;
+  if (!(await askConfirm('이 여행에서 나갈까요?', { body: '내가 남긴 기록은 여행에 남아요. 다시 들어오려면 초대 링크가 필요해요.', ok: '나가기', danger: true }))) return;
+  const { error } = await sb().from('trip_members').delete().eq('trip_id', CLOUD.trip.id).eq('user_id', AUTH.user.id);
+  if (error) return toast('나가지 못했어요. 잠시 뒤 다시 해 주세요');
+  toast(`'${CLOUD.trip.title || '여행'}'에서 나왔어요`);
+  await cloudStart(true);
+  render();
+}
+const ROLE_KO = { owner: '여행 마스터', editor: '함께 편집', viewer: '보기만' };
+function mateListHtml() {
+  const list = CLOUD.members;
+  const all = CLOUD.mateAll || list.length <= 6;
+  const owner = CLOUD.role === 'owner';
+  const l = CLOUD.link;
+  return `
+    <div class="set-row"><span class="grow"><b>함께하는 사람 ${list.length}명</b><small>${list.length > 1 ? '초대 링크로 들어온 여행메이트예요' : '아직 없어요. 초대 링크를 보내 주세요'}</small></span>
+      ${owner ? `<button class="btn ${list.length > 1 ? '' : 'primary'}" data-cloud-invite>초대 링크 보내기</button>` : ''}</div>
+    <div class="mate-list">${(all ? list : list.slice(0, 6)).map((m) => {
+      const me = m.id === AUTH.user.id;
+      const open = CLOUD.mateOpen === m.id;
+      return `<div class="mate-row ${open ? 'open' : ''}"><i class="mate-dot" style="background:${m.color}"></i>
+        <span class="grow"><b>${esc(m.nick)}${me ? ' <small class="mate-me">나</small>' : ''}</b><small>${ROLE_KO[m.role] || ''}</small></span>
+        ${me ? `<button class="btn mate-btn" data-nick aria-label="내 닉네임 바꾸기">${icon('pen')}</button>`
+          : owner ? `<button class="btn mate-btn" data-mate="${esc(m.id)}">${open ? '닫기' : '관리'}</button>` : ''}
+        ${open ? `<div class="mate-acts"><button class="btn danger" data-mate-kick="${esc(m.id)}">내보내기</button></div>` : ''}
+      </div>`; }).join('')}
+      ${all ? '' : `<button class="btn wide" data-mate-all>외 ${list.length - 6}명 더 보기</button>`}</div>
+    ${owner && l ? `<div class="set-row"><span class="grow"><b>초대 링크</b><small>${mdOf(l.until)}까지 · ${l.uses}명 들어옴</small></span><button class="btn" data-inv-off>링크 끄기</button></div>` : ''}
+    ${!owner ? '<div class="btns"><button class="btn danger wide" data-mate-leave>이 여행에서 나가기</button></div>' : ''}`;
 }
 function cloudRefreshUi() {
   const el = $('#sheet-body .cloud-card');
   if (el) el.outerHTML = cloudCard();
 }
 function cloudCard() {
-  if (!AUTH.user) return `<div class="card set-card cloud-card"><div class="set-row"><span class="grow"><b>자동 동기화</b><small>위 계정에서 카카오로 로그인하면 두 폰 기록이 서버로 바로바로 맞춰져요</small></span></div></div>`;
+  if (!AUTH.user) return `<div class="card set-card cloud-card"><div class="set-row"><span class="grow"><b>자동 동기화</b><small>위 계정에서 카카오로 로그인하면 여행메이트와 기록이 바로바로 맞춰져요</small></span></div></div>`;
   if (CLOUD.state === 'none') {
     // 도쿄 일정 기록이 이 폰에 있으면 그대로 올리는 버튼, 처음 쓰는 사람은 새 여행 만들기부터
     const hasLocal = !state.planOf && Object.keys(store.get('meta', {})).length > 0;
@@ -7738,7 +7938,7 @@ function cloudCard() {
     return `<div class="card set-card cloud-card">
       <div class="set-row"><span class="grow"><b>${hasLocal ? '자동 동기화 시작' : '내 여행 만들기'}</b><small>${hasLocal ? '먼저 시작하는 폰이 서버에 여행을 만들고 이 폰 기록(일정 변경·경비·예약번호·사진)을 올려요. 다른 폰은 그다음 초대 링크로 들어와요' : '여행 이름과 날짜만 넣으면 빈 일정이 만들어져요. 함께 갈 사람은 초대 링크로 들어와요'}</small></span></div>
       ${hasLocal ? '<div class="btns"><button class="btn primary wide" data-cloud-create>이 폰 도쿄 일정으로 만들기</button></div>' : ''}
-      <div class="small muted set-note">다른 사람이 만든 여행에 들어가려면, 그 사람에게 초대 링크를 받아 열어 주세요.</div>
+      <div class="set-row"><span class="grow"><b>초대받았나요?</b><small>받은 초대 링크를 열거나, 링크를 여기에 붙여 넣어 주세요</small></span><button class="btn" data-join-code>초대 코드 입력</button></div>
       ${tripFormHtml()}
     </div>`;
   }
@@ -7748,12 +7948,10 @@ function cloudCard() {
     : CLOUD.state === 'offline' ? (pend ? `인터넷이 연결되면 바뀐 기록 ${pend}건을 보내요` : '인터넷이 연결되면 다시 맞춰요')
     : CLOUD.state === 'error' ? '서버와 맞추지 못했어요. 잠시 뒤 다시 해 볼게요'
     : CLOUD.trip ? `${when} 서버와 맞췄어요${CLOUD.live ? ' · 실시간 연결' : ''}` : '연결 중…';
-  const others = CLOUD.members.filter((m) => m.id !== AUTH.user.id);
   return `<div class="card set-card cloud-card">
       <div class="set-row"><span class="grow"><b>자동 동기화 ${CLOUD.state === 'error' ? '<small class="cloud-bad">오류</small>' : ''}</b><small>${esc(line)}</small></span>
         <button class="btn" data-cloud-now ${CLOUD.state === 'syncing' ? 'disabled' : ''}>${icon('refresh')}지금 맞추기</button></div>
-      ${CLOUD.trip ? `<div class="set-row"><span class="grow"><b>함께하는 사람</b><small>${others.length ? others.map((m) => esc(m.nick)).join(', ') : '아직 없어요. 초대 링크를 보내 주세요'}</small></span>
-        ${CLOUD.role === 'owner' ? `<button class="btn ${others.length ? '' : 'primary'}" data-cloud-invite>초대 링크</button>` : ''}</div>` : ''}
+      ${CLOUD.trip ? mateListHtml() : ''}
       ${CLOUD.invite ? `<input class="input" readonly value="${esc(CLOUD.invite)}" onclick="this.select()">` : ''}
       ${CLOUD.state === 'error' && CLOUD.err ? `<div class="small muted set-note">${esc(CLOUD.err)}</div>` : ''}
       ${CLOUD.trip || CLOUD.trips.length ? `<div class="set-row trip-head"><span class="grow"><b>내 여행</b><small>여행마다 일정·기록·사진이 따로 저장돼요</small></span></div>${tripListHtml()}${tripFormHtml()}` : ''}
