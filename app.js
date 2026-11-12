@@ -6199,7 +6199,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 285;
+const APP_VERSION = 286;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7084,6 +7084,8 @@ async function init() {
 const SB_URL = 'https://fdyqogadwtaqfthhnpyj.supabase.co';
 const SB_KEY = 'sb_publishable_P4QnIKfw07z9zip5cbnDSw_Kx21KkPF';
 const AUTH = { sb: null, user: null, nick: '', step: '', email: '', msg: '', ok: false, busy: false };
+// 이메일 로그인: Supabase 기본 메일엔 숫자 코드가 없어 홈 화면 앱에선 못 씀 → 개인 도메인·메일 서버 연결 후 true
+const EMAIL_LOGIN = false;
 const PROVIDER_KO = { email: '이메일', kakao: '카카오', apple: 'Apple' };
 function sb() {
   if (AUTH.sb || !window.supabase?.createClient) return AUTH.sb;
@@ -7140,11 +7142,11 @@ function accountCard() {
   return `<div class="card set-card acct-card">
       <div class="set-row"><span class="grow"><b>로그인</b><small>로그인해 두면 다음 업데이트부터 일정·경비가 두 폰에 바로 보이고, 폰을 바꿔도 남아요</small></span></div>
       <button class="btn wide acct-kakao" data-auth-kakao><span class="acct-kakao-mark" aria-hidden="true"></span>카카오로 로그인</button>
-      <div class="acct-or"><span>또는 이메일</span></div>
+      ${EMAIL_LOGIN ? `<div class="acct-or"><span>또는 이메일</span></div>
       <input class="input" id="auth-email" type="email" inputmode="email" autocomplete="email" placeholder="이메일 주소" value="${esc(AUTH.email)}">
-      <div class="btns"><button class="btn wide" data-auth-email ${AUTH.busy ? 'disabled' : ''}>로그인 코드 받기</button></div>
+      <div class="btns"><button class="btn wide" data-auth-email ${AUTH.busy ? 'disabled' : ''}>로그인 코드 받기</button></div>` : ''}
       ${msg}
-      <div class="small muted set-note">Apple 로그인은 준비 중이에요.</div>
+      <div class="small muted set-note">${EMAIL_LOGIN ? 'Apple 로그인은 준비 중이에요.' : '이메일·Apple 로그인은 준비 중이에요.'}</div>
     </div>`;
 }
 document.addEventListener('keydown', (e) => {
