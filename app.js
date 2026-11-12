@@ -6240,7 +6240,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 289;
+const APP_VERSION = 290;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6331,6 +6331,7 @@ document.addEventListener('click', async (e) => {
   const el = e.target.closest(ACTIONS);
   if (!el) return;
   const d = el.dataset;
+  usageTrack(d);
   if (d.tab) go(d.tab);
   else if (d.go) go(d.go);
   else if (d.day) { state.dayIndex = Number(d.day); store.set('day', state.dayIndex); render(); }
@@ -7499,6 +7500,46 @@ function cloudCard() {
 window.addEventListener('online', () => cloudStart());
 window.addEventListener('offline', () => { if (CLOUD.trip) { CLOUD.state = 'offline'; cloudRefreshUi(); } });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && CLOUD.trip) cloudSync(); });
+
+// ---------- 기능 사용 기록 (서버 버전 S-4) ----------
+// 어떤 버튼을 눌렀는지 '이름'만 남겨요 (예: tab.today, qk.late, aiPlan). 장소·예약·금액 같은 내용은 남기지 않아요.
+// 로그인한 폰만, 모아서 1분마다·앱을 내릴 때 보내요. 인터넷이 없으면 폰에 쌓아 두었다가 보내요 (최대 500개).
+const USAGE_VALUE = new Set(['tab', 'go', 'qk', 'aiPlan', 'geoSet', 'fx', 'exCat', 'fKind']); // 값도 이름에 붙이는 버튼 (짧은 종류 이름만)
+const USAGE_SKIP = new Set(['close', 'closeJa', 'closeViewer']);
+let USAGE_KEYS = null;
+function usageName(d) {
+  // 눌린 버튼의 '동작' 속성 (ACTIONS 목록에 있는 것) 하나만
+  USAGE_KEYS ??= new Set([...ACTIONS.matchAll(/\[data-([a-z0-9-]+)\]/g)].map((m) => m[1].replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase())));
+  const k = Object.keys(d).find((x) => USAGE_KEYS.has(x));
+  if (!k || USAGE_SKIP.has(k)) return '';
+  const v = d[k];
+  return (USAGE_VALUE.has(k) && /^[a-z]{2,12}$/i.test(v || '') ? `${k}.${v}` : k).slice(0, 60);
+}
+function usageTrack(d) {
+  try {
+    if (!AUTH.user) return;
+    const name = usageName(d);
+    if (!name) return;
+    const q = store.get('usageQ', []);
+    q.push({ name, at: new Date().toISOString() });
+    store.set('usageQ', q.slice(-500));
+    if (q.length >= 30) usageFlush();
+  } catch { /* 기록 실패는 앱 동작에 영향 없음 */ }
+}
+async function usageFlush() {
+  if (usageFlush.busy || !AUTH.user || !navigator.onLine) return;
+  const q = store.get('usageQ', []);
+  if (!q.length) return;
+  usageFlush.busy = true;
+  try {
+    const rows = q.map((x) => ({ name: x.name, at: x.at, app_version: String(APP_VERSION), trip_id: CLOUD.trip?.id || null, user_id: AUTH.user.id }));
+    const { error } = await sb().from('usage_events').insert(rows);
+    if (!error) store.set('usageQ', store.get('usageQ', []).slice(q.length));
+  } catch { /* 다음에 다시 */ }
+  usageFlush.busy = false;
+}
+setInterval(usageFlush, 60000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) usageFlush(); });
 
 // ---------- 위치로 도착·이동 알아채기 (앱이 켜져 있는 동안만) ----------
 // A: a banner from the top for the everyday ones (arrived? / on the way), C: a centred popup only when a fixed
