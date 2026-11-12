@@ -9,6 +9,10 @@ const err = (req, status, type, message) => json(req, status, { type: 'error', e
 export function OPTIONS(req) { return new Response(null, { status: 204, headers: cors(req) }); }
 
 export async function POST(req) {
+  try { return await relay(req); }
+  catch (e) { console.error('claude relay', e); return err(req, 500, 'api_error', `서버 함수 오류: ${String(e?.message || e).slice(0, 120)}`); }
+}
+async function relay(req) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return err(req, 503, 'api_error', '서버에 Claude 키가 아직 없어요');
   // 앱은 x-api-key 자리에 로그인 토큰을 넣어 보내요
@@ -24,7 +28,9 @@ export async function POST(req) {
   const headers = { 'x-api-key': key, 'content-type': 'application/json', 'anthropic-version': req.headers.get('anthropic-version') || '2023-06-01' };
   const beta = req.headers.get('anthropic-beta');
   if (beta) headers['anthropic-beta'] = beta;
-  const up = await fetch(`https://api.anthropic.com/v1/messages${url.search}`, { method: 'POST', headers, body, signal: req.signal });
+  let up;
+  try { up = await fetch(`https://api.anthropic.com/v1/messages${url.search}`, { method: 'POST', headers, body }); }
+  catch (e) { waitUntil(logCall({ user_id: user.id, kind: 'claude', model, ok: false })); return err(req, 502, 'api_error', `Claude에 연결하지 못했어요 (${String(e?.message || e).slice(0, 80)})`); }
 
   const out = new Headers(cors(req));
   for (const h of ['content-type', 'request-id', 'retry-after']) { const v = up.headers.get(h); if (v) out.set(h, v); }

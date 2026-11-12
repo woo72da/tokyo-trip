@@ -4372,6 +4372,7 @@ async function gFetch(path, { body, mask, query = '' } = {}) {
   if (res.ok) return data;
   const why = data.error?.message || '';
   if (gSrv() && [401, 429, 503].includes(res.status) && /[가-힣]/.test(why)) throw new Error(why);
+  if (gSrv() && res.status === 403) throw new Error(`서버 구글 키에 권한이 없어요. 구글 콘솔에서 키를 만든 프로젝트에 Places API (New)·Routes API가 '사용'인지, 키의 API 제한에 두 개가 들어 있는지 확인해 주세요 (${why.slice(0, 80)})`);
   if (res.status === 403 && /referer|referrer/i.test(why)) throw new Error('구글 키의 웹사이트 제한에 https://woo72da.github.io/* 를 넣었는지 확인해 주세요.');
   if (res.status === 403 && /not been used|disabled|SERVICE_DISABLED/i.test(why)) throw new Error('구글 콘솔에서 "Places API (New)"를 사용으로 켜 주세요.');
   if (res.status === 403 && /billing/i.test(why)) throw new Error('구글 콘솔에서 프로젝트에 결제 계정을 연결해 주세요.');
@@ -5400,7 +5401,7 @@ function aiSettings() {
     </div>
     <div class="card ai-set g-set">
       <div class="ai-sub first">${icon('pin')}구글 장소 키 <small>Places API</small></div>
-      <div class="small muted">넣으면 이름만 입력해도 구글 지도와 같은 위치·영업시간·평점·사진을 가져와요. 웹사이트 제한(woo72da.github.io)과 API 제한(Places API (New))을 걸어 두세요. 일정의 이동 시간·노선을 구글 경로로 계산하려면 같은 키에 <b>Routes API</b>도 켜고 API 제한에 추가해 주세요.</div>${gKey() && routeOff() ? '<div class="ai-note">이동 경로(Routes API)가 꺼져 있어 이동 시간은 직선거리로 추정해요. 구글 콘솔에서 Routes API를 켠 뒤 \'연결 확인\'을 눌러 주세요.</div>' : ''}
+      <div class="small muted">${gSrv() ? '이름만 입력해도 구글 지도와 같은 위치·영업시간·평점·사진과 이동 경로를 서버 키로 가져와요.' : `넣으면 이름만 입력해도 구글 지도와 같은 위치·영업시간·평점·사진을 가져와요. 웹사이트 제한(woo72da.github.io)과 API 제한(Places API (New))을 걸어 두세요. 일정의 이동 시간·노선을 구글 경로로 계산하려면 같은 키에 <b>Routes API</b>도 켜고 API 제한에 추가해 주세요.`}</div>${gKey() && routeOff() ? '<div class="ai-note">이동 경로(Routes API)가 꺼져 있어 이동 시간은 직선거리로 추정해요. 구글 콘솔에서 Routes API를 켠 뒤 \'연결 확인\'을 눌러 주세요.</div>' : ''}
       ${gSrv() ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>서버 키로 쓰는 중</b><small>장소 정보·사진·이동 경로를 서버 키로 받아요</small></span>
           <button class="btn" data-g-test ${state.gTest?.busy ? 'disabled' : ''}>${state.gTest?.busy ? '확인 중…' : '연결 확인'}</button>${gOwn() ? '<button class="btn danger key-del" data-g-forget aria-label="이 폰의 구글 키 삭제">삭제</button>' : ''}</div>
@@ -6239,7 +6240,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 288;
+const APP_VERSION = 289;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
