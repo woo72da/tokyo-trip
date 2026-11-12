@@ -1,0 +1,10 @@
+{
+  "name": "tokyo-trip",
+  "private": true,
+  "type": "module",
+  "description": "도쿄 여행 웹앱 + Vercel 서버 함수 (api/)",
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@vercel/functions": "3.11.1"
+  }
+}

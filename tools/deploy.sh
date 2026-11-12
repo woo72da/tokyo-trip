@@ -40,7 +40,7 @@ done
 # 4. Nothing private goes up: sync files, eSIM codes, stray JSON.
 while IFS= read -r f; do
   case "$f" in
-    data/trip.json|manifest.webmanifest|audio/index.json) ;;
+    data/trip.json|manifest.webmanifest|audio/index.json|package.json|vercel.json) ;;
     *.json) git reset -q; die "$f는 올리지 않는 파일이에요 (동기화 파일일 수 있어요)." ;;
   esac
 done <<< "$changed"

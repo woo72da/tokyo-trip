@@ -324,10 +324,10 @@ async function fetchRoute(a, b, date, min, key) {
   const stop = new AbortController();
   const timer = setTimeout(() => stop.abort(), 15000);
   try {
-    const res = await fetch(R_URL, {
+    const res = await gCall(R_URL, {
       signal: stop.signal,
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': gKey(), 'X-Goog-FieldMask': R_MASK },
+      headers: { 'Content-Type': 'application/json', 'X-Goog-FieldMask': R_MASK },
       body: JSON.stringify({
         origin: { location: { latLng: { latitude: a.lat, longitude: a.lng } } },
         destination: { location: { latLng: { latitude: b.lat, longitude: b.lng } } },
@@ -4220,18 +4220,38 @@ const AI_MODELS = {
   opus: { id: 'claude-opus-5-5', label: 'Opus 5.5 · 정확해요 (기본)', search: 'web_search_20260209', fetch: 'web_fetch_20260209', fallback: true },
   haiku: { id: 'claude-haiku-5-5', label: 'Haiku 5.5 · 빠르고 저렴해요', search: 'web_search_20250305', fetch: 'web_fetch_20250910', fallback: false },
 };
-const aiKey = () => store.get('aiKey', '');
+// 서버 버전 S-3: 로그인하고 서버에 키가 있으면 서버 키로(폰엔 키 없음), 아니면 이 폰에 넣은 키로
+const API_BASE = 'https://tokyo-trip-snowy.vercel.app/api';
+const srvKeys = () => store.get('srvKeys', {});
+const aiOwn = () => store.get('aiKey', '');
+const aiSrv = () => !!(AUTH.user && srvKeys().claude);
+const aiKey = () => (aiSrv() ? 'server' : aiOwn());
+async function srvCheck() {
+  if (!navigator.onLine) return;
+  try {
+    const r = await fetch(`${API_BASE}/status`, { cache: 'no-store' });
+    if (!r.ok) return;
+    const k = await r.json();
+    const was = JSON.stringify(srvKeys());
+    store.set('srvKeys', { claude: !!k.claude, google: !!k.google });
+    if (JSON.stringify(srvKeys()) !== was) render();
+  } catch { /* 서버에 못 닿으면 이전 값 그대로 */ }
+}
+async function srvToken() { return (await sb()?.auth.getSession())?.data?.session?.access_token || ''; }
 const aiModel = () => AI_MODELS[store.get('aiModel', 'opus')] || AI_MODELS.opus;
 let aiSdk = null;
 // The official SDK, loaded only when the helper is first used (needs internet anyway).
 async function aiClient() {
   if (!aiSdk) aiSdk = await import('https://esm.sh/@anthropic-ai/sdk@1.1.0');
   const Anthropic = aiSdk.default;
-  return { Anthropic, client: new Anthropic({ apiKey: aiKey(), dangerouslyAllowBrowser: true, maxRetries: 1, timeout: 120000 }) };
+  if (aiSrv()) return { Anthropic, client: new Anthropic({ apiKey: await srvToken(), baseURL: `${API_BASE}/claude`, dangerouslyAllowBrowser: true, maxRetries: 1, timeout: 280000 }) };
+  return { Anthropic, client: new Anthropic({ apiKey: aiOwn(), dangerouslyAllowBrowser: true, maxRetries: 1, timeout: 120000 }) };
 }
 // What went wrong, in words a traveler can act on.
 function aiError(e, Anthropic) {
   if (!navigator.onLine) return '인터넷이 연결되어 있지 않아요.';
+  // 서버 키를 쓸 때는 서버가 보낸 한국어 이유(로그인·하루 한도)를 그대로
+  if (aiSrv() && Anthropic && e instanceof Anthropic.APIError && [401, 429, 503].includes(e.status) && /[가-힣]/.test(e.error?.error?.message || '')) return e.error.error.message;
   if (Anthropic && e instanceof Anthropic.AuthenticationError) return 'API 키가 맞지 않아요. 설정 › AI 도우미에서 키를 다시 확인해 주세요.';
   if (Anthropic && e instanceof Anthropic.PermissionDeniedError) return '이 키로는 쓸 수 없는 기능이에요. 콘솔에서 키 권한을 확인해 주세요.';
   if (Anthropic && e instanceof Anthropic.RateLimitError) return '요청이 많아요. 잠시 뒤 다시 시도해 주세요.';
@@ -4328,18 +4348,30 @@ function fixMyPlaces() {
 
 // ---------- Google Places API (New): the same place data Google Maps shows, with the traveler's own key ----------
 // The key lives in localStorage under 'gKey' (not synced, never in the repo). Restrict it to this site and Places API (New).
-const gKey = () => store.get('gKey', '');
+const gOwn = () => store.get('gKey', '');
+const gSrv = () => !!(AUTH.user && srvKeys().google);
+const gKey = () => (gSrv() ? 'server' : gOwn());
+// 구글 호출 한 곳: 서버 키면 서버 함수로, 아니면 구글로 바로
+async function gCall(url, { method = 'GET', headers = {}, body, signal } = {}) {
+  if (!gSrv()) return fetch(url, { method, headers: { ...headers, 'X-Goog-Api-Key': gOwn() }, body, signal });
+  const u = new URL(url);
+  const path = u.pathname.replace(/^\/(v1\/)?/, '');
+  u.searchParams.delete('key');
+  const qs = u.searchParams.toString();
+  return fetch(`${API_BASE}/google?path=${encodeURIComponent(path)}${qs ? '&' + qs : ''}`, { method, headers: { ...headers, Authorization: `Bearer ${await srvToken()}` }, body, signal });
+}
 const G_BASE = 'https://places.googleapis.com/v1';
 const TOKYO = { latitude: 35.6895, longitude: 139.7530 };
 async function gFetch(path, { body, mask, query = '' } = {}) {
   if (!navigator.onLine) throw new Error('인터넷이 연결되어 있지 않아요.');
-  const headers = { 'X-Goog-Api-Key': gKey(), ...(mask ? { 'X-Goog-FieldMask': mask } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) };
+  const headers = { ...(mask ? { 'X-Goog-FieldMask': mask } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) };
   let res;
-  try { res = await fetch(`${G_BASE}/${path}${query}`, { method: body ? 'POST' : 'GET', headers, body: body ? JSON.stringify(body) : undefined }); }
+  try { res = await gCall(`${G_BASE}/${path}${query}`, { method: body ? 'POST' : 'GET', headers, body: body ? JSON.stringify(body) : undefined }); }
   catch { throw new Error('구글에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요.'); }
   const data = await res.json().catch(() => ({}));
   if (res.ok) return data;
   const why = data.error?.message || '';
+  if (gSrv() && [401, 429, 503].includes(res.status) && /[가-힣]/.test(why)) throw new Error(why);
   if (res.status === 403 && /referer|referrer/i.test(why)) throw new Error('구글 키의 웹사이트 제한에 https://woo72da.github.io/* 를 넣었는지 확인해 주세요.');
   if (res.status === 403 && /not been used|disabled|SERVICE_DISABLED/i.test(why)) throw new Error('구글 콘솔에서 "Places API (New)"를 사용으로 켜 주세요.');
   if (res.status === 403 && /billing/i.test(why)) throw new Error('구글 콘솔에서 프로젝트에 결제 계정을 연결해 주세요.');
@@ -4730,7 +4762,7 @@ async function gTest() {
   store.set('routeOff', '');
   const pt = (lat, lng) => ({ location: { latLng: { latitude: lat, longitude: lng } } });
   try {
-    const res = await fetch(R_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': gKey(), 'X-Goog-FieldMask': 'routes.duration' }, body: JSON.stringify({ origin: pt(35.7141, 139.7774), destination: pt(35.7106, 139.7966), travelMode: 'TRANSIT', departureTime: departIso(tokyoNow().date, 600) }) });
+    const res = await gCall(R_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Goog-FieldMask': 'routes.duration' }, body: JSON.stringify({ origin: pt(35.7141, 139.7774), destination: pt(35.7106, 139.7966), travelMode: 'TRANSIT', departureTime: departIso(tokyoNow().date, 600) }) });
     const data = await res.json().catch(() => ({}));
     if (res.ok) { store.set('routeErr', null); msg += ' · 이동 경로도 연결됐어요'; }
     else {
@@ -5348,24 +5380,31 @@ function syncReqFab() { $('#req-fab')?.remove(); }
 // 설정 › AI 도우미: Claude key and model, and the Google Places key.
 function aiSettings() {
   const key = aiKey();
+  const own = aiOwn();
   const pick = store.get('aiModel', 'opus');
   return `
     <div class="card ai-set">
       <div class="ai-hello">${aiChar(key ? 'main' : 'thinking')}<span><b>${key ? '여행 준비부터 오늘 기록까지 함께해요' : 'Claude 키를 넣으면 도와드릴게요'}</b><small>말로 일정 바꾸기 · 사진 읽기 · 장소 찾기 · 기록 쓰기</small></span></div>
       <div class="small muted">구글지도 링크를 붙여 넣으면 장소 정보를 찾아 일정에 바로 넣어요. 본인 Claude API 키가 필요하고, 키는 이 폰에만 저장돼요 (동기화·GitHub에 안 올라가요).</div>
-      ${key ? `
+      ${aiSrv() ? `
+        <div class="ai-on">${icon('check')}<span class="grow"><b>서버 키로 쓰는 중</b><small>로그인해 두면 이 폰엔 키가 없어도 돼요${own ? ' · 이 폰에 넣은 키는 쓰지 않아요' : ''}</small></span>
+          <button class="btn" data-ai-test ${state.aiTest?.busy ? 'disabled' : ''}>${state.aiTest?.busy ? '확인 중…' : '연결 확인'}</button>${own ? '<button class="btn danger key-del" data-ai-forget aria-label="이 폰의 API 키 삭제">삭제</button>' : ''}</div>
+        ${state.aiTest?.msg ? `<div class="ai-msg ${state.aiTest.ok ? 'ok' : ''}">${esc(state.aiTest.msg)}</div>` : ''}` : key ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>키 저장됨</b><small>키 끝자리 ••••${esc(key.slice(-4))}</small></span>
           <button class="btn" data-ai-test ${state.aiTest?.busy ? 'disabled' : ''}>${state.aiTest?.busy ? '확인 중…' : '연결 확인'}</button><button class="btn danger key-del" data-ai-forget aria-label="API 키 삭제">삭제</button></div>
         ${state.aiTest?.msg ? `<div class="ai-msg ${state.aiTest.ok ? 'ok' : ''}">${esc(state.aiTest.msg)}</div>` : ''}` : `
         <input class="input" id="ai-key" type="password" autocomplete="off" placeholder="sk-ant-로 시작하는 API 키">`}
       <label class="field"><span>모델</span><select class="input" id="ai-model">${Object.entries(AI_MODELS).map(([k, m]) => `<option value="${k}" ${k === pick ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>
-      ${key ? '' : '<div class="btns"><button class="btn primary wide" data-ai-save>저장</button></div>'}
-      <div class="small muted ai-cost">요청 한 번에 보통 수십 원 정도 들어요. Claude 콘솔에서 월 사용 한도를 걸어 두면 안심이에요.</div>
+      ${key ? '' : '<div class="btns"><button class="btn primary wide" data-ai-save>저장</button></div>'}${!aiSrv() && !key ? '<div class="small muted set-note">카카오로 로그인하면 키 없이 서버 키로 쓸 수 있어요.</div>' : ''}
+      <div class="small muted ai-cost">${aiSrv() ? '한 사람이 하루 100번까지 쓸 수 있어요.' : '요청 한 번에 보통 수십 원 정도 들어요. Claude 콘솔에서 월 사용 한도를 걸어 두면 안심이에요.'}</div>
     </div>
     <div class="card ai-set g-set">
       <div class="ai-sub first">${icon('pin')}구글 장소 키 <small>Places API</small></div>
       <div class="small muted">넣으면 이름만 입력해도 구글 지도와 같은 위치·영업시간·평점·사진을 가져와요. 웹사이트 제한(woo72da.github.io)과 API 제한(Places API (New))을 걸어 두세요. 일정의 이동 시간·노선을 구글 경로로 계산하려면 같은 키에 <b>Routes API</b>도 켜고 API 제한에 추가해 주세요.</div>${gKey() && routeOff() ? '<div class="ai-note">이동 경로(Routes API)가 꺼져 있어 이동 시간은 직선거리로 추정해요. 구글 콘솔에서 Routes API를 켠 뒤 \'연결 확인\'을 눌러 주세요.</div>' : ''}
-      ${gKey() ? `
+      ${gSrv() ? `
+        <div class="ai-on">${icon('check')}<span class="grow"><b>서버 키로 쓰는 중</b><small>장소 정보·사진·이동 경로를 서버 키로 받아요</small></span>
+          <button class="btn" data-g-test ${state.gTest?.busy ? 'disabled' : ''}>${state.gTest?.busy ? '확인 중…' : '연결 확인'}</button>${gOwn() ? '<button class="btn danger key-del" data-g-forget aria-label="이 폰의 구글 키 삭제">삭제</button>' : ''}</div>
+        ${state.gTest?.msg ? `<div class="ai-msg ${state.gTest.ok ? 'ok' : ''}">${esc(state.gTest.msg)}</div>` : ''}` : gKey() ? `
         <div class="ai-on">${icon('check')}<span class="grow"><b>구글 키 저장됨</b><small>키 끝자리 ••••${esc(gKey().slice(-4))}</small></span>
           <button class="btn" data-g-test ${state.gTest?.busy ? 'disabled' : ''}>${state.gTest?.busy ? '확인 중…' : '연결 확인'}</button><button class="btn danger key-del" data-g-forget aria-label="구글 키 삭제">삭제</button></div>
         ${state.gTest?.msg ? `<div class="ai-msg ${state.gTest.ok ? 'ok' : ''}">${esc(state.gTest.msg)}</div>` : ''}` : `
@@ -6200,7 +6239,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 287;
+const APP_VERSION = 288;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7082,6 +7121,7 @@ async function init() {
   geoStart();
   cloudJoinFromUrl();
   authStart();
+  srvCheck();
 }
 
 // ---------- 계정 (서버 버전 S-1: 로그인만) ----------
