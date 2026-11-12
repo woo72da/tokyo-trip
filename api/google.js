@@ -10,7 +10,7 @@ const ALLOW = [
 ];
 export function OPTIONS(req) { return new Response(null, { status: 204, headers: cors(req) }); }
 async function handle(req) {
-  const key = process.env.GOOGLE_API_KEY;
+  const key = (process.env.GOOGLE_API_KEY || '').trim();
   if (!key) return json(req, 503, { error: { message: '서버에 구글 키가 아직 없어요' } });
   const user = await whoIs((req.headers.get('authorization') || '').replace(/^Bearer /, ''));
   if (!user) return json(req, 401, { error: { message: '로그인이 필요해요' } });

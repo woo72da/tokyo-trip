@@ -10,11 +10,13 @@ export function OPTIONS(req) { return new Response(null, { status: 204, headers:
 
 export async function POST(req) {
   try { return await relay(req); }
-  catch (e) { console.error('claude relay', e); return err(req, 500, 'api_error', `서버 함수 오류: ${String(e?.message || e).slice(0, 120)}`); }
+  catch (e) { console.error('claude relay failed:', e?.name || 'Error'); return err(req, 500, 'api_error', '서버 함수에서 오류가 났어요. 잠시 뒤 다시 시도해 주세요'); }
 }
 async function relay(req) {
-  const key = process.env.ANTHROPIC_API_KEY;
+  const key = (process.env.ANTHROPIC_API_KEY || '').trim();
   if (!key) return err(req, 503, 'api_error', '서버에 Claude 키가 아직 없어요');
+  // Claude 구독용 로그인 토큰(sk-ant-oat…)은 API 키가 아니라 쓸 수 없어요
+  if (!key.startsWith('sk-ant-api')) return err(req, 503, 'api_error', '서버 Claude 키가 API 키가 아니에요. console.anthropic.com에서 만든 sk-ant-api로 시작하는 키를 넣어 주세요');
   // 앱은 x-api-key 자리에 로그인 토큰을 넣어 보내요
   const user = await whoIs(req.headers.get('x-api-key') || (req.headers.get('authorization') || '').replace(/^Bearer /, ''));
   if (!user) return err(req, 401, 'authentication_error', '로그인이 필요해요. 설정 › 계정에서 다시 로그인해 주세요');
@@ -30,7 +32,7 @@ async function relay(req) {
   if (beta) headers['anthropic-beta'] = beta;
   let up;
   try { up = await fetch(`https://api.anthropic.com/v1/messages${url.search}`, { method: 'POST', headers, body }); }
-  catch (e) { waitUntil(logCall({ user_id: user.id, kind: 'claude', model, ok: false })); return err(req, 502, 'api_error', `Claude에 연결하지 못했어요 (${String(e?.message || e).slice(0, 80)})`); }
+  catch (e) { waitUntil(logCall({ user_id: user.id, kind: 'claude', model, ok: false })); console.error('claude fetch failed:', e?.name || 'Error'); return err(req, 502, 'api_error', /header/i.test(String(e?.message)) ? '서버 Claude 키 형식이 맞지 않아요. Vercel 환경 변수의 ANTHROPIC_API_KEY를 확인해 주세요' : 'Claude에 연결하지 못했어요. 잠시 뒤 다시 시도해 주세요'); }
 
   const out = new Headers(cors(req));
   for (const h of ['content-type', 'request-id', 'retry-after']) { const v = up.headers.get(h); if (v) out.set(h, v); }
