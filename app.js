@@ -5395,6 +5395,7 @@ function settingsBody() {
   return `
     <div class="sheet-head"><h3>설정</h3></div>
     <div class="settings">
+      ${sec('id', '계정', accountCard())}
       ${sec('id', '내 정보', `
         <div class="card set-card">
           <div class="set-row"><span class="grow"><b>나는 누구인가요</b><small>경비·기록을 남긴 사람, 동기화 파일 이름에 쓰여요</small></span></div>
@@ -6198,7 +6199,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 284;
+const APP_VERSION = 285;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6282,7 +6283,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6594,6 +6595,11 @@ document.addEventListener('click', async (e) => {
   else if ('smsPhoto' in d) smsFromPhoto();
   // The AI key lives on each phone, so a phone without one (another person's) still sees the button and is told how to turn it on.
   else if ('geoSet' in d) geoSet(d.geoSet === 'on');
+  else if ('authKakao' in d) authKakao();
+  else if ('authEmail' in d) authEmail();
+  else if ('authVerify' in d) authVerify();
+  else if ('authBack' in d) { AUTH.step = ''; AUTH.msg = ''; accountRefresh(); }
+  else if ('authOut' in d) authOut();
   else if ('rcptAi' in d) { if (aiKey()) rcptFromPhoto(); else { openSettings('ai'); toast('영수증 사진 읽기는 AI 도우미 키가 있어야 해요. 이 폰에서 키를 넣어 주세요.'); } }
   else if ('menuAi' in d) menuFromPhoto();
   else if ('aiPlan' in d) {
@@ -7070,6 +7076,113 @@ async function init() {
   loadClips();
   loadLatest();
   geoStart();
+  authStart();
+}
+
+// ---------- 계정 (서버 버전 S-1: 로그인만) ----------
+// 공개용 키라 앱에 들어가도 돼요. 무엇을 읽고 쓸 수 있는지는 DB 규칙(RLS)이 정해요.
+const SB_URL = 'https://fdyqogadwtaqfthhnpyj.supabase.co';
+const SB_KEY = 'sb_publishable_P4QnIKfw07z9zip5cbnDSw_Kx21KkPF';
+const AUTH = { sb: null, user: null, nick: '', step: '', email: '', msg: '', ok: false, busy: false };
+const PROVIDER_KO = { email: '이메일', kakao: '카카오', apple: 'Apple' };
+function sb() {
+  if (AUTH.sb || !window.supabase?.createClient) return AUTH.sb;
+  // implicit: 메일 링크를 다른 브라우저에서 열어도 로그인돼요 (아이폰 홈 화면 앱은 사파리와 저장소가 달라서)
+  AUTH.sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { flowType: 'implicit', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'sb-auth' } });
+  AUTH.sb.auth.onAuthStateChange((ev, session) => {
+    const was = AUTH.user?.id;
+    AUTH.user = session?.user || null;
+    if (AUTH.user && AUTH.user.id !== was) { AUTH.step = ''; AUTH.msg = ''; authProfile(); }
+    if (ev === 'SIGNED_IN' && !was) toast('로그인했어요');
+    if (ev === 'SIGNED_OUT') AUTH.nick = '';
+    accountRefresh();
+  });
+  return AUTH.sb;
+}
+async function authStart() {
+  // 카카오·메일 링크에서 돌아왔는데 실패했으면 이유를 보여 줘요
+  const q = new URLSearchParams(location.hash.slice(1) + '&' + location.search.slice(1));
+  const err = q.get('error_description');
+  if (!sb()) return;
+  const { data } = await sb().auth.getSession();
+  AUTH.user = data.session?.user || null;
+  if (AUTH.user) authProfile();
+  if (err) { toast('로그인하지 못했어요: ' + err.replace(/\+/g, ' ')); history.replaceState(null, '', location.pathname); }
+}
+async function authProfile() {
+  if (!AUTH.user || !navigator.onLine) return;
+  const { data } = await sb().from('profiles').select('nick, role').eq('id', AUTH.user.id).maybeSingle();
+  if (data) { AUTH.nick = data.nick; AUTH.role = data.role; accountRefresh(); }
+}
+function accountRefresh() {
+  const el = $('#sheet-body .acct-card');
+  if (el) el.outerHTML = accountCard();
+}
+function authProviderOf(u) { return PROVIDER_KO[u?.app_metadata?.provider] || '이메일'; }
+function accountCard() {
+  const u = AUTH.user;
+  const msg = AUTH.msg ? `<div class="ai-msg ${AUTH.ok ? 'ok' : ''}">${esc(AUTH.msg)}</div>` : '';
+  if (u) {
+    const name = AUTH.nick && AUTH.nick !== '여행자' ? AUTH.nick : (u.user_metadata?.name || u.user_metadata?.nickname || '여행자');
+    return `<div class="card set-card acct-card">
+      <div class="set-row"><span class="grow"><b>${esc(name)}${AUTH.role === 'admin' ? ' <small class="acct-admin">관리자</small>' : ''}</b><small>${esc(u.email || '이메일 없음')} · ${authProviderOf(u)}로 로그인</small></span>
+        <button class="btn" data-auth-out>로그아웃</button></div>
+      <div class="small muted set-note">다음 업데이트부터 일정·경비가 이 계정에 저장돼서 두 폰에 바로 보여요. 지금은 이 폰 저장 그대로예요.</div>
+    </div>`;
+  }
+  if (!window.supabase) return `<div class="card set-card acct-card"><div class="set-row"><span class="grow"><b>로그인</b><small>인터넷에 연결된 상태에서 앱을 한 번 다시 열어 주세요</small></span></div></div>`;
+  if (AUTH.step === 'code') return `<div class="card set-card acct-card">
+      <div class="set-row"><span class="grow"><b>메일 확인</b><small>${esc(AUTH.email)}로 보낸 메일의 숫자 코드를 넣어 주세요. 메일의 링크를 눌러도 돼요</small></span></div>
+      <input class="input acct-code" id="auth-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="숫자 코드">
+      <div class="btns"><button class="btn" data-auth-back>이메일 다시 입력</button><button class="btn primary" data-auth-verify ${AUTH.busy ? 'disabled' : ''}>확인</button></div>
+      ${msg}
+    </div>`;
+  return `<div class="card set-card acct-card">
+      <div class="set-row"><span class="grow"><b>로그인</b><small>로그인해 두면 다음 업데이트부터 일정·경비가 두 폰에 바로 보이고, 폰을 바꿔도 남아요</small></span></div>
+      <button class="btn wide acct-kakao" data-auth-kakao><span class="acct-kakao-mark" aria-hidden="true"></span>카카오로 로그인</button>
+      <div class="acct-or"><span>또는 이메일</span></div>
+      <input class="input" id="auth-email" type="email" inputmode="email" autocomplete="email" placeholder="이메일 주소" value="${esc(AUTH.email)}">
+      <div class="btns"><button class="btn wide" data-auth-email ${AUTH.busy ? 'disabled' : ''}>로그인 코드 받기</button></div>
+      ${msg}
+      <div class="small muted set-note">Apple 로그인은 준비 중이에요.</div>
+    </div>`;
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  if (e.target.id === 'auth-email') { e.preventDefault(); authEmail(); }
+  else if (e.target.id === 'auth-code') { e.preventDefault(); authVerify(); }
+});
+async function authEmail() {
+  const email = ($('#auth-email')?.value || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { AUTH.msg = '이메일 주소를 확인해 주세요'; AUTH.ok = false; return accountRefresh(); }
+  if (!navigator.onLine) { AUTH.msg = '인터넷에 연결된 뒤 다시 눌러 주세요'; AUTH.ok = false; return accountRefresh(); }
+  AUTH.email = email; AUTH.busy = true; AUTH.msg = ''; accountRefresh();
+  const { error } = await sb().auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: location.origin + location.pathname } });
+  AUTH.busy = false;
+  if (error) { AUTH.msg = /rate|seconds/i.test(error.message) ? '메일을 너무 자주 보냈어요. 잠시 뒤 다시 눌러 주세요' : '메일을 보내지 못했어요: ' + error.message; AUTH.ok = false; }
+  else { AUTH.step = 'code'; AUTH.msg = '메일을 보냈어요'; AUTH.ok = true; }
+  accountRefresh();
+  setTimeout(() => $('#auth-code')?.focus(), 50);
+}
+async function authVerify() {
+  const token = ($('#auth-code')?.value || '').replace(/\D/g, '');
+  if (token.length < 6) { AUTH.msg = '메일에 있는 숫자 코드를 모두 넣어 주세요'; AUTH.ok = false; return accountRefresh(); }
+  AUTH.busy = true; accountRefresh();
+  const { error } = await sb().auth.verifyOtp({ email: AUTH.email, token, type: 'email' });
+  AUTH.busy = false;
+  if (error) { AUTH.msg = /expired|invalid/i.test(error.message) ? '코드가 맞지 않거나 시간이 지났어요. 다시 받아 주세요' : error.message; AUTH.ok = false; accountRefresh(); }
+}
+async function authKakao() {
+  if (!navigator.onLine) return toast('인터넷에 연결된 뒤 다시 눌러 주세요');
+  const { error } = await sb().auth.signInWithOAuth({ provider: 'kakao', options: { redirectTo: location.origin + location.pathname } });
+  if (error) toast('카카오 로그인을 열지 못했어요: ' + error.message);
+}
+async function authOut() {
+  if (!(await askConfirm('로그아웃할까요?', { body: '이 폰에 저장된 일정·경비는 그대로 남아요.', ok: '로그아웃' }))) return;
+  await sb().auth.signOut({ scope: 'local' });
+  AUTH.user = null; AUTH.step = ''; AUTH.msg = '';
+  accountRefresh();
+  toast('로그아웃했어요');
 }
 
 // ---------- 위치로 도착·이동 알아채기 (앱이 켜져 있는 동안만) ----------
