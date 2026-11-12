@@ -6242,7 +6242,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 291;
+const APP_VERSION = 292;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6326,7 +6326,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-trip-open],[data-trip-new],[data-trip-cancel],[data-trip-create],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-trip-open],[data-trip-new],[data-trip-cancel],[data-trip-create],[data-nt-day],[data-nt-reset],[data-nt-month],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6648,7 +6648,10 @@ document.addEventListener('click', async (e) => {
   else if ('cloudNow' in d) { if (CLOUD.trip) cloudSync(true); else cloudStart(true); }
   else if ('cloudInvite' in d) cloudInvite();
   else if ('tripOpen' in d) tripSwitch(d.tripOpen);
-  else if ('tripNew' in d) { CLOUD.form = true; cloudRefreshUi(); setTimeout(() => $('#nt-title')?.focus(), 50); }
+  else if ('tripNew' in d) { Object.assign(NT, { title: '', start: '', end: '', month: '' }); CLOUD.form = true; cloudRefreshUi(); setTimeout(() => $('#nt-title')?.focus(), 50); }
+  else if ('ntDay' in d) ntTap(d.ntDay);
+  else if ('ntReset' in d) { NT.start = ''; NT.end = ''; ntRefresh(); }
+  else if ('ntMonth' in d) ntMonth(+d.ntMonth);
   else if ('tripCancel' in d) { CLOUD.form = false; cloudRefreshUi(); }
   else if ('tripCreate' in d) tripCreate();
   else if ('rcptAi' in d) { if (aiKey()) rcptFromPhoto(); else { openSettings('ai'); toast('영수증 사진 읽기는 AI 도우미 키가 있어야 해요. 이 폰에서 키를 넣어 주세요.'); } }
@@ -7377,9 +7380,10 @@ async function tripCreate() {
   if (!AUTH.user) return toast('먼저 카카오로 로그인해 주세요');
   if (!navigator.onLine) return toast('인터넷에 연결된 뒤 다시 눌러 주세요');
   const title = ($('#nt-title')?.value || '').trim();
-  const start = $('#nt-start')?.value || '', end = $('#nt-end')?.value || '';
+  const { start, end } = NT;
   if (!title) return toast('여행 이름을 적어 주세요');
-  if (!start || !end || end < start) return toast('가는 날과 오는 날을 골라 주세요');
+  if (!start) return toast('달력에서 가는 날을 눌러 주세요');
+  if (!end) return toast('달력에서 오는 날을 눌러 주세요');
   if (daysBetween(start, end) > 29) return toast('여행은 30일까지 만들 수 있어요');
   const plan = blankPlan(title.slice(0, 40), start, end);
   const { data, error } = await sb().from('trips').insert({ title: title.slice(0, 40), start_date: start, end_date: end, timezone: TZ, plan }).select('id, title, slug, owner_id, start_date, end_date, plan_rev').single();
@@ -7399,14 +7403,71 @@ function tripListHtml() {
 }
 function tripFormHtml() {
   if (!CLOUD.form) return `<div class="btns"><button class="btn wide" data-trip-new>${icon('plus')}새 여행 만들기</button></div>`;
-  const today = tokyoNow().date;
   return `<div class="trip-form">
-      <label class="small muted">여행 이름<input class="input" id="nt-title" maxlength="40" placeholder="예: 오사카 3박 4일"></label>
-      <div class="trip-dates"><label class="small muted">가는 날<input class="input" type="date" id="nt-start" min="${today}"></label>
-      <label class="small muted">오는 날<input class="input" type="date" id="nt-end" min="${today}"></label></div>
+      <label class="small muted">여행 이름<input class="input" id="nt-title" maxlength="40" placeholder="예: 오사카 3박 4일" value="${esc(NT.title)}" oninput="NT.title=this.value"></label>
+      ${ntPickHtml()}
       <div class="small muted set-note">날짜별 빈 일정이 만들어져요. 일정은 일정 탭에서 추가하거나 AI 도우미로 짜요. 지금 여행 기록은 그대로 남아 있다가 다시 열면 돌아와요.</div>
-      <div class="btns"><button class="btn" data-trip-cancel>취소</button><button class="btn primary" data-trip-create>만들기</button></div>
+      <div class="btns"><button class="btn" data-trip-cancel>취소</button><button class="btn primary" data-trip-create ${NT.start && NT.end ? '' : 'disabled'}>만들기</button></div>
     </div>`;
+}
+// 여행 날짜 고르기: 항공권·숙소 예약 사이트처럼 달력에서 가는 날 → 오는 날을 차례로 누르면 기간이 칠해져요
+const NT = { title: '', start: '', end: '', month: '' };
+const ntLabel = (d) => `${+d.slice(5, 7)}월 ${+d.slice(8, 10)}일 (${WEEKDAYS[new Date(d + 'T00:00:00Z').getUTCDay()]})`;
+function ntPickHtml() {
+  const today = tokyoNow().date;
+  const m = NT.month || (NT.start || today).slice(0, 7);
+  const [y, mo] = m.split('-').map(Number);
+  const lead = new Date(Date.UTC(y, mo - 1, 1)).getUTCDay();
+  const count = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  const nights = NT.start && NT.end ? daysBetween(NT.start, NT.end) : -1;
+  const next = !NT.start ? 'start' : !NT.end ? 'end' : 'done';
+  const cells = [];
+  for (let i = 0; i < lead; i++) cells.push('<span></span>');
+  for (let n = 1; n <= count; n++) {
+    const d = `${m}-${String(n).padStart(2, '0')}`;
+    const dow = (lead + n - 1) % 7;
+    const past = d < today;
+    const tooLong = next === 'end' && daysBetween(NT.start, d) > 29;
+    const cls = ['nt-day', dow === 0 ? 'sun' : dow === 6 ? 'sat' : '', d === today ? 'today' : '',
+      d === NT.start ? 'start' : '', d === NT.end ? 'end' : '', NT.start && NT.end && d > NT.start && d < NT.end ? 'in' : '',
+      NT.start && NT.end && NT.start !== NT.end ? 'range' : ''].filter(Boolean).join(' ');
+    const tag = d === NT.start && d === NT.end ? '당일' : d === NT.start ? '가는 날' : d === NT.end ? '오는 날' : '';
+    cells.push(`<button type="button" class="${cls}" data-nt-day="${d}" ${past || tooLong ? 'disabled' : ''} aria-label="${ntLabel(d)}${tag ? ' ' + tag : ''}"><b>${n}</b>${tag ? `<i>${tag}</i>` : ''}</button>`);
+  }
+  const canPrev = m > today.slice(0, 7);
+  return `<div class="nt-pick" id="nt-pick">
+      <div class="nt-sum">
+        <button type="button" class="nt-box ${next === 'start' ? 'on' : ''}" data-nt-reset><small>가는 날</small><b>${NT.start ? ntLabel(NT.start) : '날짜 선택'}</b></button>
+        <span class="nt-nights">${nights >= 0 ? (nights ? `${nights}박 ${nights + 1}일` : '당일') : ''}</span>
+        <div class="nt-box ${next === 'end' ? 'on' : ''}"><small>오는 날</small><b>${NT.end ? ntLabel(NT.end) : '날짜 선택'}</b></div>
+      </div>
+      <div class="nt-hint small muted">${next === 'start' ? '달력에서 가는 날을 눌러 주세요' : next === 'end' ? '이제 오는 날을 눌러 주세요 · 당일치기는 같은 날을 한 번 더' : '다른 날을 누르면 가는 날부터 다시 골라요'}</div>
+      <div class="nt-cal">
+        <div class="nt-head"><button type="button" class="nt-nav" data-nt-month="-1" ${canPrev ? '' : 'disabled'} aria-label="이전 달">‹</button><b>${y}년 ${mo}월</b><button type="button" class="nt-nav" data-nt-month="1" aria-label="다음 달">›</button></div>
+        <div class="nt-week">${WEEKDAYS.map((w, i) => `<span class="${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${w}</span>`).join('')}</div>
+        <div class="nt-grid">${cells.join('')}</div>
+      </div>
+    </div>`;
+}
+function ntRefresh() {
+  const el = $('#nt-pick');
+  if (el) el.outerHTML = ntPickHtml();
+  const go = $('[data-trip-create]');
+  if (go) go.disabled = !(NT.start && NT.end);
+}
+function ntTap(d) {
+  if (!d) return;
+  // 처음 누르거나 기간이 다 정해진 뒤 누르면 가는 날부터 다시, 가는 날보다 앞을 누르면 가는 날을 옮겨요
+  if (!NT.start || NT.end || d < NT.start) { NT.start = d; NT.end = ''; }
+  else NT.end = d;
+  ntRefresh();
+}
+function ntMonth(step) {
+  const base = NT.month || (NT.start || tokyoNow().date).slice(0, 7);
+  const [y, mo] = base.split('-').map(Number);
+  const x = new Date(Date.UTC(y, mo - 1 + step, 1));
+  NT.month = x.toISOString().slice(0, 7);
+  ntRefresh();
 }
 // 바꾼 기록은 1.5초 모아서 보내요. 서버 연결 전이면 그냥 폰에 남아 있다가 연결되면 보내요.
 function cloudSoon() { clearTimeout(cloudSoon.t); cloudSoon.t = setTimeout(() => { try { cloudSync(); } catch { /* not ready */ } }, 1500); }
