@@ -5466,8 +5466,8 @@ function settingsBody() {
     <div class="sheet-head"><h3>설정</h3></div>
     <div class="settings">
       ${sec('id', '계정', accountCard())}
-      ${sec('spark', 'AI 도우미', aiSettings() + deskSettings(), 'set-ai')}
       ${sec('refresh', '여행', cloudCard())}
+      ${sec('spark', 'AI 도우미', aiSettings() + deskSettings(), 'set-ai')}
       ${sec('clock', '일정 알림', geoCard() + alarmPanel())}
       ${sec('checklist', '앱 정보', `
         <div class="card set-card">
@@ -6264,7 +6264,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 295;
+const APP_VERSION = 296;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
