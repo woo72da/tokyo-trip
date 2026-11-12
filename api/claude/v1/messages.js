@@ -15,8 +15,8 @@ export async function POST(req) {
 async function relay(req) {
   const key = (process.env.ANTHROPIC_API_KEY || '').trim();
   if (!key) return err(req, 503, 'api_error', '서버에 Claude 키가 아직 없어요');
-  // Claude 구독용 로그인 토큰(sk-ant-oat…)은 API 키가 아니라 쓸 수 없어요
-  if (!key.startsWith('sk-ant-api')) return err(req, 503, 'api_error', '서버 Claude 키가 API 키가 아니에요. console.anthropic.com에서 만든 sk-ant-api로 시작하는 키를 넣어 주세요');
+  // Claude 구독 로그인 토큰(sk-ant-oat…)·관리자 키는 API 호출에 못 써요. 그 밖의 형식은 Claude가 직접 판단
+  if (/^sk-ant-(oat|ort|admin)/.test(key)) return err(req, 503, 'api_error', '서버 Claude 키가 API 키가 아니에요. console.anthropic.com → API Keys에서 만든 키를 넣어 주세요');
   // 앱은 x-api-key 자리에 로그인 토큰을 넣어 보내요
   const user = await whoIs(req.headers.get('x-api-key') || (req.headers.get('authorization') || '').replace(/^Bearer /, ''));
   if (!user) return err(req, 401, 'authentication_error', '로그인이 필요해요. 설정 › 계정에서 다시 로그인해 주세요');
