@@ -23,6 +23,7 @@ const store = {
       if (isShared(key)) {
         localStorage.setItem('meta', JSON.stringify({ ...this.get('meta', {}), [key]: at }));
         state.syncFile = null;
+        cloudSoon();
       }
     } catch { /* ignore */ }
   },
@@ -34,7 +35,7 @@ const isShared = (key) => /^(ck|done|visit|save|edit|seal|start|gear|diary|nick|
 // Deleted list entries and photos are remembered so a sync doesn't bring them back.
 // Ids stay unique across both phones even when two records are made in the same millisecond.
 const uid = (prefix) => `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-const forget = (id) => store.set('tomb', { ...store.get('tomb', {}), [id]: Date.now() });
+const forget = (id) => { store.set('tomb', { ...store.get('tomb', {}), [id]: Date.now() }); cloudSoon(); };
 // Items marked `done` in trip.json (already booked) start checked.
 // A checklist item linked to document photos counts as done once every photo is in.
 const docsReady = (c) => !!c?.docs?.length && c.docs.every((slot) => state.docSlots.has(slot));
@@ -78,7 +79,7 @@ const docs = {
     });
   },
   get: (id) => docs.run('readonly', (s) => s.get(id)),
-  put: (id, blob) => docs.run('readwrite', (s) => s.put(blob, id)),
+  put: (id, blob) => docs.run('readwrite', (s) => s.put(blob, id)).then((r) => { cloudSoon(); return r; }),
   del: (id) => { forget('doc:' + id); return docs.run('readwrite', (s) => s.delete(id)); },
   keys: () => docs.run('readonly', (s) => s.getAllKeys()),
   // Photo keys for one slot, oldest first.
@@ -5403,7 +5404,7 @@ function settingsBody() {
           <button class="set-row tap" data-nick="${esc(me)}"><span class="grow"><b>부르는 이름</b><small>아침 준비 카드에서 이렇게 불러요</small></span><em>${esc(callOf(me))}</em>${icon('pen')}</button>
         </div>`)}
       ${sec('spark', 'AI 도우미', aiSettings() + deskSettings(), 'set-ai')}
-      ${sec('refresh', '동기화', syncPanel())}
+      ${sec('refresh', '동기화', cloudCard() + syncPanel())}
       ${sec('clock', '일정 알림', geoCard() + alarmPanel())}
       ${sec('checklist', '앱 정보', `
         <div class="card set-card">
@@ -6199,7 +6200,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 286;
+const APP_VERSION = 287;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6283,7 +6284,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-who],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6600,6 +6601,9 @@ document.addEventListener('click', async (e) => {
   else if ('authVerify' in d) authVerify();
   else if ('authBack' in d) { AUTH.step = ''; AUTH.msg = ''; accountRefresh(); }
   else if ('authOut' in d) authOut();
+  else if ('cloudCreate' in d) cloudCreateTrip();
+  else if ('cloudNow' in d) { if (CLOUD.trip) cloudSync(true); else cloudStart(true); }
+  else if ('cloudInvite' in d) cloudInvite();
   else if ('rcptAi' in d) { if (aiKey()) rcptFromPhoto(); else { openSettings('ai'); toast('영수증 사진 읽기는 AI 도우미 키가 있어야 해요. 이 폰에서 키를 넣어 주세요.'); } }
   else if ('menuAi' in d) menuFromPhoto();
   else if ('aiPlan' in d) {
@@ -7076,6 +7080,7 @@ async function init() {
   loadClips();
   loadLatest();
   geoStart();
+  cloudJoinFromUrl();
   authStart();
 }
 
@@ -7094,9 +7099,9 @@ function sb() {
   AUTH.sb.auth.onAuthStateChange((ev, session) => {
     const was = AUTH.user?.id;
     AUTH.user = session?.user || null;
-    if (AUTH.user && AUTH.user.id !== was) { AUTH.step = ''; AUTH.msg = ''; authProfile(); }
+    if (AUTH.user && AUTH.user.id !== was) { AUTH.step = ''; AUTH.msg = ''; authProfile(); setTimeout(() => cloudStart(true)); }
     if (ev === 'SIGNED_IN' && !was) toast('로그인했어요');
-    if (ev === 'SIGNED_OUT') AUTH.nick = '';
+    if (ev === 'SIGNED_OUT') { AUTH.nick = ''; if (CLOUD.chan) sb().removeChannel(CLOUD.chan); Object.assign(CLOUD, { trip: null, chan: null, state: 'off', live: false, members: [] }); cloudRefreshUi(); }
     accountRefresh();
   });
   return AUTH.sb;
@@ -7108,7 +7113,7 @@ async function authStart() {
   if (!sb()) return;
   const { data } = await sb().auth.getSession();
   AUTH.user = data.session?.user || null;
-  if (AUTH.user) authProfile();
+  if (AUTH.user) { authProfile(); cloudStart(); }
   if (err) { toast('로그인하지 못했어요: ' + err.replace(/\+/g, ' ')); history.replaceState(null, '', location.pathname); }
 }
 async function authProfile() {
@@ -7119,6 +7124,7 @@ async function authProfile() {
 function accountRefresh() {
   const el = $('#sheet-body .acct-card');
   if (el) el.outerHTML = accountCard();
+  cloudRefreshUi();
 }
 function authProviderOf(u) { return PROVIDER_KO[u?.app_metadata?.provider] || '이메일'; }
 function accountCard() {
@@ -7186,6 +7192,272 @@ async function authOut() {
   accountRefresh();
   toast('로그아웃했어요');
 }
+
+// ---------- 서버 동기화 (서버 버전 S-2) ----------
+// 파일 동기화와 같은 규칙: 기록마다 나중에 바꾼 쪽이 남고, 목록(경비·추가 일정·장소·자료)은 합치고, 지운 건 되살아나지 않아요.
+// 서버 표: trip_kv(함께 쓰는 기록) · trip_secrets(예약번호·eSIM·자료 목록) · 비공개 사진 저장소 docs/<여행>/<사진>
+const TRIP_SLUG = 'tokyo-2026-11';
+const SECRET_KEYS = ['pnr', 'agoda', 'esim1', 'esim2', 'cdocs'];
+const CLOUD = { trip: null, role: '', members: [], chan: null, busy: false, again: false, state: 'off', err: '', at: 0, cursor: '', invite: '' };
+// 바꾼 기록은 1.5초 모아서 보내요. 서버 연결 전이면 그냥 폰에 남아 있다가 연결되면 보내요.
+function cloudSoon() { clearTimeout(cloudSoon.t); cloudSoon.t = setTimeout(() => { try { cloudSync(); } catch { /* not ready */ } }, 1500); }
+const cloudTable = (k) => (SECRET_KEYS.includes(k) ? 'trip_secrets' : 'trip_kv');
+const cloudSent = () => store.get('cloudSent', {});
+const docName = (k) => encodeURIComponent(k).replace(/%/g, '!');
+const docKey = (n) => decodeURIComponent(n.replace(/!/g, '%'));
+function cloudPending() {
+  if (!CLOUD.trip) return 0;
+  const meta = store.get('meta', {}), sent = cloudSent();
+  let n = 0;
+  for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (isShared(k) && (meta[k] || 1) > (sent[k] || 0)) n += 1; }
+  if (JSON.stringify(store.get('tomb', {})) !== (sent.__tomb || '{}')) n += 1;
+  return n;
+}
+// 서버에서 온 기록 하나를 이 폰 기록과 합쳐요. 바뀌었으면 true.
+function cloudMerge(k, r) {
+  if (!r || typeof r !== 'object' || !('t' in r)) return false;
+  const meta = store.get('meta', {}), sent = cloudSent();
+  const lt = meta[k] || 0;
+  if (k === 'tomb') {
+    const tomb = { ...store.get('tomb', {}) };
+    let changed = false;
+    for (const [id, t] of Object.entries(r.v || {})) if ((tomb[id] || 0) < t) { tomb[id] = t; changed = true; }
+    if (changed) {
+      localStorage.setItem('tomb', JSON.stringify(tomb));
+      for (const lk of MERGED_LISTS) {
+        const list = store.get(lk, []);
+        const kept = list.filter((x) => !tomb[`${lk}:${x.id}`]);
+        if (kept.length !== list.length) localStorage.setItem(lk, JSON.stringify(kept));
+      }
+    }
+    // 서버 것과 같아졌으면 다시 보낼 필요 없음
+    if (Object.entries(tomb).every(([id, t]) => (r.v || {})[id] >= t)) store.set('cloudSent', { ...cloudSent(), __tomb: JSON.stringify(tomb) });
+    return changed;
+  }
+  if (!isShared(k)) return false;
+  if (MERGED_LISTS.includes(k)) {
+    const tomb = store.get('tomb', {});
+    const mine = store.get(k, []), theirs = Array.isArray(r.v) ? r.v : [];
+    const byId = new Map(mine.map((x) => [x.id, x]));
+    for (const x of theirs) { const m = byId.get(x.id); if (!m || (x.at || 0) > (m.at || 0)) byId.set(x.id, x); }
+    const merged = [...byId.values()].filter((x) => !tomb[`${k}:${x.id}`]);
+    const local = JSON.stringify(merged) !== JSON.stringify(mine);
+    const canon = (l) => JSON.stringify([...l].sort((a, b) => String(a.id).localeCompare(String(b.id))));
+    const same = canon(merged) === canon(theirs);
+    // 서버와 같아졌으면 다시 보낼 필요 없음, 이 폰에만 있던 게 섞였으면 합친 목록을 다시 보내요
+    const t = same ? Math.max(r.t, lt) : Date.now();
+    if (local || same) { localStorage.setItem(k, JSON.stringify(merged)); store.set('meta', { ...meta, [k]: t }); }
+    if (same) store.set('cloudSent', { ...sent, [k]: t });
+    return local;
+  }
+  if (r.t > lt) {
+    localStorage.setItem(k, JSON.stringify(r.v));
+    store.set('meta', { ...meta, [k]: r.t });
+    store.set('cloudSent', { ...sent, [k]: r.t });
+    return true;
+  }
+  if (r.t === lt) store.set('cloudSent', { ...sent, [k]: r.t });
+  return false;
+}
+// 이 폰이 연결된 여행 찾기 (멤버인 여행만 보여요)
+async function cloudFindTrip() {
+  const { data, error } = await sb().from('trips').select('id, title, owner_id').eq('slug', TRIP_SLUG).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const { data: mem } = await sb().from('trip_members').select('user_id, role').eq('trip_id', data.id);
+  const { data: pro } = await sb().from('profiles').select('id, nick').in('id', (mem || []).map((m) => m.user_id));
+  const nick = new Map((pro || []).map((p) => [p.id, p.nick]));
+  CLOUD.members = (mem || []).map((m) => ({ id: m.user_id, role: m.role, nick: nick.get(m.user_id) || '여행자' }));
+  CLOUD.role = CLOUD.members.find((m) => m.id === AUTH.user.id)?.role || '';
+  return data;
+}
+async function cloudCreateTrip() {
+  if (!AUTH.user) return toast('먼저 카카오로 로그인해 주세요');
+  if (!navigator.onLine) return toast('인터넷에 연결된 뒤 다시 눌러 주세요');
+  const t = state.trip.trip;
+  const { error } = await sb().from('trips').insert({ slug: TRIP_SLUG, title: t.title, start_date: t.start, end_date: t.end, timezone: t.timezone || TZ, plan: state.trip });
+  if (error) { toast(/duplicate|unique/i.test(error.message) ? '이미 서버에 여행이 있어요. 함께하는 사람에게 초대 링크를 받아 열어 주세요' : '여행을 만들지 못했어요: ' + error.message); return; }
+  store.set('cloudSent', {});
+  await cloudStart(true);
+  toast('서버에 여행을 만들고 이 폰 기록을 올렸어요');
+}
+// 로그인 상태가 바뀌거나 앱을 열면: 여행 찾기 → 처음엔 전부 받아 합치기 → 보낼 것 보내기 → 실시간 구독
+async function cloudStart(force = false) {
+  if (CLOUD.starting) return CLOUD.starting;
+  CLOUD.starting = cloudStartRun(force).finally(() => { CLOUD.starting = null; });
+  return CLOUD.starting;
+}
+async function cloudStartRun(force) {
+  if (!AUTH.user || !navigator.onLine) { CLOUD.state = AUTH.user ? 'offline' : 'off'; return cloudRefreshUi(); }
+  try {
+    const join = store.get('cloudJoin', '');
+    if (join) {
+      const { error } = await sb().rpc('join_trip', { invite: join });
+      store.set('cloudJoin', '');
+      toast(error ? '초대 링크가 만료됐거나 이미 쓰였어요. 새 링크를 받아 주세요' : '여행에 들어왔어요. 두 폰 기록을 합칠게요');
+    }
+    const trip = await cloudFindTrip();
+    if (!trip) { CLOUD.trip = null; CLOUD.state = 'none'; return cloudRefreshUi(); }
+    if (store.get('cloudTrip', '') !== trip.id) { store.set('cloudTrip', trip.id); store.set('cloudSent', {}); store.set('cloudCursor', ''); }
+    const fresh = !CLOUD.trip || force;
+    CLOUD.trip = trip;
+    if (fresh) cloudSubscribe();
+    await cloudSync(true);
+  } catch (e) { CLOUD.state = 'error'; CLOUD.err = e.message || String(e); cloudRefreshUi(); }
+}
+function cloudSubscribe() {
+  if (CLOUD.chan) sb().removeChannel(CLOUD.chan);
+  const id = CLOUD.trip.id;
+  const on = (payload) => {
+    const row = payload.new;
+    if (!row?.key) return;
+    if (row.updated_by === AUTH.user?.id && row.value?.t === store.get('meta', {})[row.key]) return;
+    if (row.updated_at > (store.get('cloudCursor', '') || '')) store.set('cloudCursor', row.updated_at);
+    if (cloudMerge(row.key, row.value)) cloudRendered();
+  };
+  CLOUD.chan = sb().channel('trip-' + id)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_kv', filter: `trip_id=eq.${id}` }, on)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_secrets', filter: `trip_id=eq.${id}` }, on)
+    .subscribe((st) => { if (st === 'SUBSCRIBED') { CLOUD.live = true; cloudRefreshUi(); } else if (st === 'CLOSED' || st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') { CLOUD.live = false; cloudRefreshUi(); } });
+}
+// 받은 기록이 화면에 보이게: 입력 중이면 입력이 끝난 뒤에 다시 그려요
+function cloudRendered() {
+  refreshDocSlots().catch(() => {});
+  const a = document.activeElement;
+  if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) { CLOUD.renderLater = true; return; }
+  render();
+}
+document.addEventListener('focusout', () => { if (CLOUD.renderLater) setTimeout(() => { if (!/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) { CLOUD.renderLater = false; render(); } }, 300); });
+// 받기 → 보내기 → 사진. 동시에 두 번 돌지 않아요.
+async function cloudSync(full = false) {
+  if (!CLOUD.trip || !AUTH.user || !navigator.onLine) { if (CLOUD.trip) { CLOUD.state = 'offline'; cloudRefreshUi(); } return; }
+  if (CLOUD.busy) { CLOUD.again = true; return; }
+  CLOUD.busy = true; CLOUD.state = 'syncing'; cloudRefreshUi();
+  try {
+    const id = CLOUD.trip.id;
+    let changed = false;
+    // 1. 받기 (처음엔 전부, 그다음엔 마지막으로 받은 시각 이후만)
+    const cursor = full ? '' : store.get('cloudCursor', '');
+    for (const table of ['trip_kv', 'trip_secrets']) {
+      let q = sb().from(table).select('key, value, updated_at').eq('trip_id', id).order('updated_at').limit(1000);
+      if (cursor) q = q.gt('updated_at', cursor);
+      const { data, error } = await q;
+      if (error) throw error;
+      for (const row of data || []) {
+        if (cloudMerge(row.key, row.value)) changed = true;
+        if (row.updated_at > (store.get('cloudCursor', '') || '')) store.set('cloudCursor', row.updated_at);
+      }
+    }
+    // 2. 보내기
+    const meta = store.get('meta', {}), sent = { ...cloudSent() };
+    const rows = { trip_kv: [], trip_secrets: [] };
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!isShared(k)) continue;
+      const t = meta[k] || 1;
+      if (t > (sent[k] || 0)) rows[cloudTable(k)].push({ trip_id: id, key: k, value: { v: store.get(k, null), t } });
+    }
+    const tombStr = JSON.stringify(store.get('tomb', {}));
+    if (tombStr !== (sent.__tomb || '{}')) rows.trip_kv.push({ trip_id: id, key: 'tomb', value: { v: store.get('tomb', {}), t: Date.now() } });
+    for (const [table, list] of Object.entries(rows)) {
+      for (let i = 0; i < list.length; i += 200) {
+        const { error } = await sb().from(table).upsert(list.slice(i, i + 200), { onConflict: 'trip_id,key' });
+        if (error) throw error;
+      }
+      for (const r of list) { if (r.key === 'tomb') sent.__tomb = tombStr; else sent[r.key] = r.value.t; }
+    }
+    store.set('cloudSent', sent);
+    // 3. 사진
+    if (await cloudPhotos()) changed = true;
+    CLOUD.state = 'ok'; CLOUD.err = ''; CLOUD.at = Date.now();
+    if (changed) cloudRendered();
+  } catch (e) {
+    CLOUD.state = 'error'; CLOUD.err = e.message || String(e);
+  } finally {
+    CLOUD.busy = false;
+    cloudRefreshUi();
+    if (CLOUD.again) { CLOUD.again = false; setTimeout(() => cloudSync(), 300); }
+  }
+}
+// 바우처·문서·영수증 사진: 없는 쪽으로 올리고 받고, 지운 건 양쪽에서 지워요
+async function cloudPhotos() {
+  const id = CLOUD.trip.id;
+  const bucket = sb().storage.from('docs');
+  const { data: files, error } = await bucket.list(id, { limit: 1000 });
+  if (error) throw error;
+  const remote = new Set((files || []).map((f) => docKey(f.name)));
+  const local = new Set(await docs.keys());
+  const tomb = store.get('tomb', {});
+  let changed = false;
+  const gone = [...remote].filter((k) => tomb['doc:' + k]);
+  if (gone.length && CLOUD.role !== 'viewer') await bucket.remove(gone.map((k) => `${id}/${docName(k)}`));
+  for (const k of local) {
+    if (tomb['doc:' + k]) { await docs.run('readwrite', (st) => st.delete(k)); changed = true; continue; }
+    if (remote.has(k) || CLOUD.role === 'viewer') continue;
+    const blob = await docs.get(k);
+    const { error: up } = await bucket.upload(`${id}/${docName(k)}`, blob, { contentType: blob.type || 'image/jpeg', upsert: false });
+    if (up && !/exist|duplicate/i.test(up.message)) throw up;
+  }
+  for (const k of remote) {
+    if (local.has(k) || tomb['doc:' + k]) continue;
+    const { data: blob, error: dl } = await bucket.download(`${id}/${docName(k)}`);
+    if (dl) continue;
+    await docs.run('readwrite', (st) => st.put(blob, k));
+    changed = true;
+  }
+  return changed;
+}
+async function cloudInvite() {
+  if (!CLOUD.trip) return;
+  const { data, error } = await sb().from('trip_invites').insert({ trip_id: CLOUD.trip.id }).select('code').single();
+  if (error) return toast('초대 링크를 만들지 못했어요: ' + error.message);
+  const url = `${location.origin}${location.pathname}?join=${data.code}`;
+  const text = `도쿄 여행 일정을 함께 봐요. 링크를 열고 설정 › 계정에서 카카오로 로그인하면 들어와져요 (7일 안에 한 번)\n${url}`;
+  try {
+    if (navigator.share) await navigator.share({ title: '도쿄 여행 초대', text });
+    else { await navigator.clipboard.writeText(text); toast('초대 링크를 복사했어요'); }
+  } catch (e) { if (e.name !== 'AbortError') { CLOUD.invite = url; cloudRefreshUi(); } }
+}
+// 초대 링크로 열렸으면 기억해 두고, 로그인되면 들어가요
+function cloudJoinFromUrl() {
+  const q = new URLSearchParams(location.search);
+  const code = q.get('join');
+  if (!code) return;
+  store.set('cloudJoin', code);
+  q.delete('join');
+  history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+  if (!AUTH.user) setTimeout(() => { openSettings(); toast('초대받은 여행이에요. 카카오로 로그인하면 들어가요'); }, 600);
+}
+function cloudRefreshUi() {
+  const el = $('#sheet-body .cloud-card');
+  if (el) el.outerHTML = cloudCard();
+}
+function cloudCard() {
+  if (!AUTH.user) return `<div class="card set-card cloud-card"><div class="set-row"><span class="grow"><b>자동 동기화</b><small>위 계정에서 카카오로 로그인하면 두 폰 기록이 서버로 바로바로 맞춰져요</small></span></div></div>`;
+  if (CLOUD.state === 'none') return `<div class="card set-card cloud-card">
+      <div class="set-row"><span class="grow"><b>자동 동기화 시작</b><small>먼저 시작하는 폰이 서버에 여행을 만들고 이 폰 기록(일정 변경·경비·예약번호·사진)을 올려요. 다른 폰은 그다음 초대 링크로 들어와요</small></span></div>
+      <div class="btns"><button class="btn primary wide" data-cloud-create>서버에 여행 만들기</button></div>
+      <div class="small muted set-note">이미 다른 폰이 만들었다면, 그 폰에서 초대 링크를 받아 열어 주세요.</div>
+    </div>`;
+  const when = CLOUD.at ? new Date(CLOUD.at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
+  const pend = cloudPending();
+  const line = CLOUD.state === 'syncing' ? '맞추는 중…'
+    : CLOUD.state === 'offline' ? (pend ? `인터넷이 연결되면 바뀐 기록 ${pend}건을 보내요` : '인터넷이 연결되면 다시 맞춰요')
+    : CLOUD.state === 'error' ? '서버와 맞추지 못했어요. 잠시 뒤 다시 해 볼게요'
+    : CLOUD.trip ? `${when} 서버와 맞췄어요${CLOUD.live ? ' · 실시간 연결' : ''}` : '연결 중…';
+  const others = CLOUD.members.filter((m) => m.id !== AUTH.user.id);
+  return `<div class="card set-card cloud-card">
+      <div class="set-row"><span class="grow"><b>자동 동기화 ${CLOUD.state === 'error' ? '<small class="cloud-bad">오류</small>' : ''}</b><small>${esc(line)}</small></span>
+        <button class="btn" data-cloud-now ${CLOUD.state === 'syncing' ? 'disabled' : ''}>${icon('refresh')}지금 맞추기</button></div>
+      ${CLOUD.trip ? `<div class="set-row"><span class="grow"><b>함께하는 사람</b><small>${others.length ? others.map((m) => esc(m.nick)).join(', ') : '아직 없어요. 초대 링크를 보내 주세요'}</small></span>
+        ${CLOUD.role === 'owner' ? `<button class="btn ${others.length ? '' : 'primary'}" data-cloud-invite>초대 링크</button>` : ''}</div>` : ''}
+      ${CLOUD.invite ? `<input class="input" readonly value="${esc(CLOUD.invite)}" onclick="this.select()">` : ''}
+      ${CLOUD.state === 'error' && CLOUD.err ? `<div class="small muted set-note">${esc(CLOUD.err)}</div>` : ''}
+    </div>`;
+}
+window.addEventListener('online', () => cloudStart());
+window.addEventListener('offline', () => { if (CLOUD.trip) { CLOUD.state = 'offline'; cloudRefreshUi(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && CLOUD.trip) cloudSync(); });
 
 // ---------- 위치로 도착·이동 알아채기 (앱이 켜져 있는 동안만) ----------
 // A: a banner from the top for the everyday ones (arrived? / on the way), C: a centred popup only when a fixed
