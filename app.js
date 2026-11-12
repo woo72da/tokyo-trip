@@ -1594,7 +1594,7 @@ async function importSync(file) {
   toast(records || photos ? `${person(data.from)}폰에서 기록 ${records}건 · 사진 ${photos}장을 합쳤어요` : '이미 같은 내용이에요');
 }
 
-// 설정 › 동기화: the same send / merge steps, always open; whose phone it is comes from 내 정보.
+// 설정 › 동기화: the same send / merge steps, always open; whose phone it is comes from 설정 › 계정.
 function syncPanel() {
   const got = store.get('syncGot', null);
   const sent = store.get('syncSent', 0);
@@ -5430,21 +5430,14 @@ function deskSettings() {
     </div>`;
 }
 
-// One place for the settings: whose phone this is, AI keys, sync and reminders, the request box, the app itself.
+// One place for the settings: the account (with whose phone this is), AI keys, sync and reminders, the request box, the app itself.
 function settingsBody() {
-  const me = who();
   // Section titles like the rest of the app: a short bar + the title; AI 도우미 keeps its star, after the words.
   const sec = (ic, title, html, cls = '') => `<section class="set-sec ${cls}"><div class="section-title set-h"><span>${title}</span>${ic === 'spark' ? aiBadge('set') : ''}</div>${html}</section>`;
   return `
     <div class="sheet-head"><h3>설정</h3></div>
     <div class="settings">
       ${sec('id', '계정', accountCard())}
-      ${sec('id', '내 정보', `
-        <div class="card set-card">
-          <div class="set-row"><span class="grow"><b>나는 누구인가요</b><small>경비·기록을 남긴 사람, 동기화 파일 이름에 쓰여요</small></span></div>
-          <div class="seg-row">${PEOPLE.map((w) => `<button class="seg ${me === w ? 'on' : ''}" data-who="${w}">${w}폰</button>`).join('')}</div>
-          <button class="set-row tap" data-nick="${esc(me)}"><span class="grow"><b>부르는 이름</b><small>아침 준비 카드에서 이렇게 불러요</small></span><em>${esc(callOf(me))}</em>${icon('pen')}</button>
-        </div>`)}
       ${sec('spark', 'AI 도우미', aiSettings() + deskSettings(), 'set-ai')}
       ${sec('refresh', '동기화', cloudCard() + syncPanel())}
       ${sec('clock', '일정 알림', geoCard() + alarmPanel())}
@@ -6242,7 +6235,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 292;
+const APP_VERSION = 293;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7189,7 +7182,17 @@ function accountRefresh() {
   cloudRefreshUi();
 }
 function authProviderOf(u) { return PROVIDER_KO[u?.app_metadata?.provider] || '이메일'; }
+// 계정 카드 아래: 이 폰이 누구 폰인지(경비·기록의 주인)와 아침 준비 카드에서 부르는 이름. 예전 '내 정보'를 합쳤어요.
+function meRows() {
+  const me = who();
+  return `<div class="set-row"><span class="grow"><b>이 폰은 누구 폰인가요</b><small>경비·기록을 남긴 사람으로 쓰여요</small></span></div>
+      <div class="seg-row">${PEOPLE.map((w) => `<button class="seg ${me === w ? 'on' : ''}" data-who="${w}">${w}폰</button>`).join('')}</div>
+      <button class="set-row tap" data-nick="${esc(me)}"><span class="grow"><b>부르는 이름</b><small>아침 준비 카드에서 이렇게 불러요</small></span><em>${esc(callOf(me))}</em>${icon('pen')}</button>`;
+}
 function accountCard() {
+  return accountCardTop().replace(/<\/div>\s*$/, `${meRows()}\n    </div>`);
+}
+function accountCardTop() {
   const u = AUTH.user;
   const msg = AUTH.msg ? `<div class="ai-msg ${AUTH.ok ? 'ok' : ''}">${esc(AUTH.msg)}</div>` : '';
   if (u) {
@@ -7197,7 +7200,6 @@ function accountCard() {
     return `<div class="card set-card acct-card">
       <div class="set-row"><span class="grow"><b>${esc(name)}${AUTH.role === 'admin' ? ' <small class="acct-admin">관리자</small>' : ''}</b><small>${esc(u.email || '이메일 없음')} · ${authProviderOf(u)}로 로그인</small></span>
         <button class="btn" data-auth-out>로그아웃</button></div>
-      <div class="small muted set-note">다음 업데이트부터 일정·경비가 이 계정에 저장돼서 두 폰에 바로 보여요. 지금은 이 폰 저장 그대로예요.</div>
     </div>`;
   }
   if (!window.supabase) return `<div class="card set-card acct-card"><div class="set-row"><span class="grow"><b>로그인</b><small>인터넷에 연결된 상태에서 앱을 한 번 다시 열어 주세요</small></span></div></div>`;
@@ -7208,7 +7210,7 @@ function accountCard() {
       ${msg}
     </div>`;
   return `<div class="card set-card acct-card">
-      <div class="set-row"><span class="grow"><b>로그인</b><small>로그인해 두면 다음 업데이트부터 일정·경비가 두 폰에 바로 보이고, 폰을 바꿔도 남아요</small></span></div>
+      <div class="set-row"><span class="grow"><b>로그인</b><small>로그인해 두면 일정·경비가 함께하는 폰에 바로 보이고, 폰을 바꿔도 남아요</small></span></div>
       <button class="btn wide acct-kakao" data-auth-kakao><span class="acct-kakao-mark" aria-hidden="true"></span>카카오로 로그인</button>
       ${EMAIL_LOGIN ? `<div class="acct-or"><span>또는 이메일</span></div>
       <input class="input" id="auth-email" type="email" inputmode="email" autocomplete="email" placeholder="이메일 주소" value="${esc(AUTH.email)}">
