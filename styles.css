@@ -2416,6 +2416,8 @@ input.input[type="time"]::-webkit-datetime-edit { padding: 0; }
 .sheet-panel.scrolled #sheet-body > .sheet-head:first-child:not(.item-head) { box-shadow: 0 1px 0 var(--line); }
 .sheet-panel.scrolled:not(:has(#sheet-body > .sheet-head:first-child:not(.item-head))) > .sheet-grip { box-shadow: 0 1px 0 var(--line); }
 .sheet-close { z-index: 4; top: 10px; margin-top: 0; }
+/* v297: with a sticky title row the close button must take no room (40px tall, -40px), otherwise the title sits 8px lower than its place and covers the top of what follows (개선 요청 tabs) */
+.sheet-panel:has(#sheet-body > .sheet-head:first-child:not(.item-head)) .sheet-close { margin-bottom: -40px; }
 @media (prefers-color-scheme: light) {
   .sheet-backdrop { background: rgba(5,8,15,.30); }
   .sheet-panel { box-shadow: 0 -10px 30px rgba(10,14,22,.16), 0 -1px 0 rgba(10,14,22,.06); }
