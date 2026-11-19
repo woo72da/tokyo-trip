@@ -6294,7 +6294,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 307;
+const APP_VERSION = 308;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7773,6 +7773,7 @@ function cloudSubscribe() {
       state.trip = planFill(row.plan);
       cloudRendered();
     })
+    .on('broadcast', { event: 'mates' }, () => { memberCheck(true); })
     .subscribe((st) => { if (st === 'SUBSCRIBED') { CLOUD.live = true; cloudRefreshUi(); } else if (st === 'CLOSED' || st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') { CLOUD.live = false; cloudRefreshUi(); } });
 }
 // 받은 기록이 화면에 보이게: 입력 중이면 입력이 끝난 뒤에 다시 그려요
@@ -7827,6 +7828,7 @@ async function cloudSync(full = false) {
           if (!isRefused(error)) throw error; // 인터넷 등 다른 문제면 다음에 다시 보내요
           // 권한이 막 바뀐 경우: 역할을 다시 받고, 한 줄씩 보내 거절된 건 이 폰에만 남겨요(보낸 것으로 치지 않음)
           await cloudMembers(CLOUD.trip);
+          if (!CLOUD.role) { setTimeout(memberCheck, 0); return; } // 이 여행 멤버가 아니게 됐어요
           for (const row of part) {
             const { error: e1 } = await sb().from(table).upsert([row], { onConflict: 'trip_id,key' });
             if (e1 && !isRefused(e1)) throw e1;
@@ -8016,6 +8018,7 @@ async function mateKick(id) {
   const { error } = await sb().from('trip_members').delete().eq('trip_id', CLOUD.trip.id).eq('user_id', id);
   if (error) return toast('내보내지 못했어요. 잠시 뒤 다시 해 주세요');
   CLOUD.members = CLOUD.members.filter((x) => x.id !== id); CLOUD.mateOpen = '';
+  mateNotice('kick');
   cloudRefreshUi(); render(); toast(`${m.nick}님을 내보냈어요`);
 }
 async function mateLeave() {
@@ -8049,11 +8052,16 @@ async function tripDelete() {
     CLOUD.switching = false; cloudRefreshUi();
     return toast('여행을 지우지 못했어요. 잠시 뒤 다시 해 주세요');
   }
-  // 이제 없는 여행이라 보내기·실시간을 멈추고, 남은 여행(도쿄 먼저)으로 옮겨요
+  CLOUD.switching = false;
+  mateNotice('gone');
+  await tripDrop(t);
+  toast(`'${name}'${eulReul(name)} 지웠어요`);
+}
+// 이 폰에서 지금 여행을 떼어 내요(지워졌거나 내보내짐): 실시간 멈춤 → 남은 여행(도쿄 먼저)으로, 없으면 처음 상태로
+async function tripDrop(t) {
   if (CLOUD.chan) { sb().removeChannel(CLOUD.chan); CLOUD.chan = null; }
   CLOUD.trip = null;
   CLOUD.trips = CLOUD.trips.filter((x) => x.id !== t.id);
-  CLOUD.switching = false;
   const next = CLOUD.trips.find((x) => x.slug === TRIP_SLUG) || CLOUD.trips[0];
   if (next) await tripSwitch(next.id);
   else {
@@ -8063,11 +8071,29 @@ async function tripDelete() {
     if (ks.length) await docs.run('readwrite', (s) => { let r; for (const k of ks) r = s.delete(k); return r; });
     store.set('cloudTrip', '');
     tripPlanShow(await (await fetch('data/trip.json')).json(), '');
+    CLOUD.quietGone = true;
     await cloudStart(true);
   }
   await tripPurgeLocal(t.id);
   cloudRefreshUi(); render();
-  toast(`'${name}'${eulReul(name)} 지웠어요`);
+}
+// 같은 여행 폰들에 '멤버가 바뀌었어요' 알림(실시간). 받은 폰은 서버에서 내가 아직 멤버인지 직접 확인해요
+function mateNotice(kind) { CLOUD.chan?.send({ type: 'broadcast', event: 'mates', payload: { kind } }).catch?.(() => {}); }
+let memberChecking = null;
+async function memberCheck(fresh = false) {
+  const t = CLOUD.trip;
+  if (!t || !AUTH.user || !navigator.onLine || CLOUD.switching || memberChecking) return;
+  memberChecking = (async () => {
+    const { data, error } = await sb().from('trip_members').select('user_id').eq('trip_id', t.id).eq('user_id', AUTH.user.id).maybeSingle();
+    if (error || CLOUD.trip?.id !== t.id) return;
+    if (data) { await membersRefresh(fresh); return; }
+    const name = t.title || '여행';
+    while (CLOUD.busy) await new Promise((r) => setTimeout(r, 200)); // 하던 동기화가 끝난 뒤에 떼어 내요
+    if (CLOUD.trip?.id !== t.id) return;
+    await tripDrop(t);
+    toast(`'${name}'에서 빠졌어요. 여행 마스터가 내보냈거나 여행이 지워졌어요`);
+  })().catch(() => {}).finally(() => { memberChecking = null; });
+  return memberChecking;
 }
 // 없어진 여행의 접어 둔 폰 기록·사진 지우기
 async function tripPurgeLocal(id) {
@@ -8116,6 +8142,7 @@ async function mateRole(id, role) {
   const { error } = await sb().from('trip_members').update({ role, days: null }).eq('trip_id', CLOUD.trip.id).eq('user_id', id);
   if (error) return toast('권한을 바꾸지 못했어요. 잠시 뒤 다시 해 주세요');
   CLOUD.members = CLOUD.members.map((m) => (m.id === id ? { ...m, role, days: null } : m));
+  mateNotice('role');
   cloudRefreshUi(); toast(`${CLOUD.members.find((m) => m.id === id)?.nick}님을 '${ROLE_KO[role]}'으로 바꿨어요`);
 }
 async function mateDay(id, date) {
@@ -8126,6 +8153,7 @@ async function mateDay(id, date) {
   const { error } = await sb().from('trip_members').update({ days: days?.length ? days : null }).eq('trip_id', CLOUD.trip.id).eq('user_id', id);
   if (error) return toast('맡은 날짜를 바꾸지 못했어요. 잠시 뒤 다시 해 주세요');
   CLOUD.members = CLOUD.members.map((x) => (x.id === id ? { ...x, days: days?.length ? days : null } : x));
+  mateNotice('role');
   cloudRefreshUi();
 }
 const roleLine = (m) => `${ROLE_KO[m.role] || ''}${m.role === 'editor' && m.days?.length ? ` · ${m.days.map((x) => `${+x.slice(5, 7)}/${+x.slice(8, 10)}`).join(', ')}` : ''}`;
@@ -8242,7 +8270,7 @@ function cloudCard() {
 }
 window.addEventListener('online', () => cloudStart());
 window.addEventListener('offline', () => { if (CLOUD.trip) { CLOUD.state = 'offline'; cloudRefreshUi(); } });
-document.addEventListener('visibilitychange', () => { if (!document.hidden && CLOUD.trip) cloudSync(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && CLOUD.trip) memberCheck().then(() => { if (CLOUD.trip) cloudSync(); }); });
 
 // ---------- 기능 사용 기록 (서버 버전 S-4) ----------
 // 어떤 버튼을 눌렀는지 '이름'만 남겨요 (예: tab.today, qk.late, aiPlan). 장소·예약·금액 같은 내용은 남기지 않아요.
