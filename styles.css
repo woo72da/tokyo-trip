@@ -2697,3 +2697,9 @@ button.talk-card-head { width: 100%; border: 0; background: none; padding: 0; fo
 /* 계정: 닉네임(누르면 바꾸기)과 계정 정보를 한 줄에 */
 .acct-nick { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .acct-nick svg { width: 15px; height: 15px; color: var(--muted); }
+
+/* 여행 없는 처음 상태 */
+.no-trip { padding: 24px 18px; text-align: center; }
+.no-trip > b { display: block; font-size: 19px; margin-bottom: 6px; }
+.no-trip .btns { flex-direction: column; margin-top: 16px; }
+.no-trip p:last-child { margin-top: 12px; }

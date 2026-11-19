@@ -6294,7 +6294,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 309;
+const APP_VERSION = 310;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6331,9 +6331,30 @@ function placeWxStrip(at) {
   strip.scrollLeft = at ?? cell.getBoundingClientRect().left - strip.getBoundingClientRect().left - 16;
 }
 
+// 여행 없는 처음 상태의 탭 화면: 안내 한 줄 + 시작하는 방법
+const NO_TRIP = {
+  today: ['오늘', '여행을 만들거나 초대 링크로 들어오면 오늘 할 일·날씨·이동이 여기에 보여요'],
+  days: ['일정', '여행을 만들면 날짜별 일정이 여기에 보여요. AI로 일정을 짜 달라고 할 수도 있어요'],
+  explore: ['탐색', '여행을 만들면 가고 싶은 곳을 모으고, 다녀온 곳은 여행 일지로 남아요'],
+  wallet: ['예약', '여행을 만들면 항공·숙소 예약과 경비를 여기에 모아 둘 수 있어요'],
+  check: ['준비물', '여행을 만들면 준비물 체크리스트가 여기에 보여요'],
+};
+function noTripView(tab) {
+  const [title, say] = NO_TRIP[tab];
+  setHeader('', title, '');
+  const login = !AUTH.user && window.supabase ? '<button class="btn wide acct-kakao" data-auth-kakao><span class="acct-kakao-mark" aria-hidden="true"></span>카카오로 로그인</button>' : '';
+  return `<div class="card no-trip">
+      <b>아직 여행이 없어요</b>
+      <p class="small muted">${say}</p>
+      <div class="btns">${login}<button class="btn ${login ? '' : 'primary'} wide" data-empty-new>${icon('plus')}새 여행 만들기</button>
+      ${tab === 'today' ? '<button class="btn wide" data-join-code>초대 코드 입력</button>' : ''}</div>
+      ${tab === 'today' && !AUTH.user ? '<p class="small muted">로그인하면 여행을 만들고 함께 갈 사람을 초대할 수 있어요. 번역 탭은 지금도 쓸 수 있어요.</p>' : ''}
+    </div>`;
+}
 function render() {
   if (!state.trip) return;
   const views = { today: renderToday, days: renderDays, explore: renderExplore, wallet: renderWallet, talk: renderTalk, check: renderCheck };
+  if (state.noTrip) for (const t of ['today', 'days', 'explore', 'wallet', 'check']) views[t] = () => noTripView(t);
   const stripKey = `${state.tab}:${state.dayIndex}:${Math.floor(tokyoNow().min / 60)}`;
   const stripAt = stripKey === state.stripKey ? $('.wx-strip')?.scrollLeft : null;
   $('#view').innerHTML = views[state.tab]() + versionLine();
@@ -6343,7 +6364,7 @@ function render() {
   syncReqFab();
   state.stripKey = stripKey;
   placeWxStrip(stripAt);
-  $('#top-add').hidden = state.tab !== 'explore';
+  $('#top-add').hidden = state.tab !== 'explore' || !!state.noTrip;
   document.documentElement.style.setProperty('--top-h', `${$('.top').offsetHeight}px`);
   $('#top-logo').hidden = state.tab !== 'today';
   $('.top').classList.toggle('has-logo', state.tab === 'today');
@@ -6378,7 +6399,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-trip-open],[data-trip-new],[data-trip-cancel],[data-trip-create],[data-nt-day],[data-nt-reset],[data-nt-month],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-inv-off],[data-inv-close],[data-inv-join],[data-inv-kakao],[data-join-code],[data-mate],[data-mate-kick],[data-mate-leave],[data-trip-del],[data-mate-role],[data-mate-day],[data-log-open],[data-log-undo],[data-mate-all],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-trip-open],[data-trip-new],[data-trip-cancel],[data-trip-create],[data-nt-day],[data-nt-reset],[data-nt-month],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-inv-off],[data-inv-close],[data-inv-join],[data-inv-kakao],[data-join-code],[data-mate],[data-mate-kick],[data-mate-leave],[data-trip-del],[data-mate-role],[data-mate-day],[data-log-open],[data-log-undo],[data-mate-all],[data-sync-build],[data-sync-share],[data-sync-pick],[data-empty-new],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6705,6 +6726,7 @@ document.addEventListener('click', async (e) => {
   else if ('invJoin' in d) inviteJoin();
   else if ('invKakao' in d) inviteKakao();
   else if ('joinCode' in d) inviteAsk();
+  else if ('emptyNew' in d) { if (!AUTH.user) toast('먼저 카카오로 로그인해 주세요'); else { CLOUD.form = true; openSettings('sync'); } }
   else if (d.mate !== undefined) { CLOUD.mateOpen = CLOUD.mateOpen === d.mate ? '' : d.mate; cloudRefreshUi(); }
   else if (d.mateKick) mateKick(d.mateKick);
   else if ('mateLeave' in d) mateLeave();
@@ -7161,6 +7183,7 @@ function introLine() {
   if (!line) return;
   const { trip, days } = state.trip;
   const { date } = tokyoNow();
+  if (state.noTrip) { const b0 = $('.intro-text b'); if (b0) b0.textContent = '여행 준비 중'; document.title = '여행 준비 중'; line.textContent = ''; return; }
   // 서버에서 만든 여행은 여행 이름으로 (도쿄 여행은 그대로)
   const name = state.planOf ? trip.title : '도쿄 여행';
   const b = $('.intro-text b');
@@ -7174,11 +7197,15 @@ function introLine() {
 async function init() {
   try {
     // 서버에서 만든 여행이면 폰에 저장해 둔 일정으로, 아니면 앱에 들어 있는 도쿄 일정 파일로 열어요
+    // 연결된 여행도, 이 폰에 남긴 기록도 없으면 여행 없는 처음 상태로 열어요(남의 도쿄 일정을 보여 주지 않아요)
     const cached = store.get('cloudTrip', '') ? store.get('plan', null) : null;
     if (cached?.data?.days) { state.trip = planFill(cached.data); state.planOf = store.get('cloudTrip', ''); }
     else {
       const res = await fetch('data/trip.json', { cache: 'no-cache' });
-      state.trip = await res.json();
+      const file = await res.json();
+      const used = store.get('cloudTrip', '') || Object.keys(store.get('meta', {})).length > 0;
+      state.trip = used ? file : emptyPlan(file);
+      state.noTrip = !used;
       state.planOf = '';
     }
     introLine();
@@ -7328,7 +7355,7 @@ const CLOUD = { trip: null, trips: [], role: '', members: [], link: null, mateOp
 // 일정 원본: 도쿄 여행은 앱에 들어 있는 data/trip.json (요청함으로 고치는 그대로), 새로 만든 여행은 서버 trips.plan.
 // 이 폰 기록은 여행마다 따로: 여행을 바꾸면 지금 여행 기록·사진을 폰 안에 접어 두고(stash) 고른 여행 것을 펼쳐요.
 // 아래 키는 여행과 상관없는 이 폰 설정·로그인이라 그대로 둬요.
-const GLOBAL_KEYS = new Set(['aiModel', 'aiKey', 'gKey', 'deskKey', 'who', 'myNick', 'srvKeys', 'usageQ', 'cloudJoin', 'cloudTrip', 'reqLast', 'fx', 'talkText', 'geoOn', 'introVer', 'wxCard', 'lastPay', 'tab', 'routeOff', 'routeErr']);
+const GLOBAL_KEYS = new Set(['aiModel', 'aiKey', 'gKey', 'deskKey', 'who', 'myNick', 'srvKeys', 'usageQ', 'cloudJoin', 'cloudTrip', 'cloudUser', 'reqLast', 'fx', 'talkText', 'geoOn', 'introVer', 'wxCard', 'lastPay', 'tab', 'routeOff', 'routeErr']);
 const isGlobalKey = (k) => GLOBAL_KEYS.has(k) || k.startsWith('sb-') || k.startsWith('stash:');
 const STASH = 'stash|';
 // 빠진 칸을 채워서 빈 여행도 화면이 깨지지 않게
@@ -7342,6 +7369,27 @@ function planFill(p) {
     flights: [], checklist: [], links: {}, docs: [], phrases: [], transfers: [], emergency: [], places: [], phraseSteps: {}, sources: {}, unresolved: [],
     ...p, guides, links: { jejuair: { label: '항공권 예약 확인', url: 'https://www.google.com/travel/flights' }, agoda: { label: '숙소 예약 확인', url: 'https://www.google.com/travel/hotels' }, ...(p.links || {}) }, trip: { travelers: 2, timezone: TZ, ...t }, stay, budget: { yen: 0, note: '', ...(p.budget || {}) }, days: Array.isArray(p.days) ? p.days : [],
   };
+}
+// 여행 없는 처음 상태: 일정·장소 없이 일본 회화·긴급 연락처만 (도쿄 파일에서)
+function emptyPlan(file = {}) {
+  return planFill({ trip: { id: '', title: '', start: '', end: '', travelers: 1, timezone: TZ, infoAsOf: '' }, days: [],
+    phrases: file.phrases || [], phraseSteps: file.phraseSteps || {}, emergency: file.emergency || [] });
+}
+async function tripResetEmpty(keep = false) {
+  // 이 폰의 여행 기록·사진을 비우고 처음 상태로 (keep: 지우지 않고 접어만 둬요 - 다른 계정으로 바꿔 로그인한 경우)
+  const was = store.get('cloudTrip', '');
+  if (keep && was) await tripStashSwap(was, 'none');
+  else {
+    for (const k of Object.keys(localStorage)) if (!isGlobalKey(k)) localStorage.removeItem(k);
+    const ks = (await docs.keys()).map(String);
+    if (ks.length) await docs.run('readwrite', (s) => { let r; for (const k of ks) r = s.delete(k); return r; });
+  }
+  store.set('cloudTrip', '');
+  let file = {};
+  try { file = await (await fetch('data/trip.json')).json(); } catch { file = { phrases: state.trip?.phrases, phraseSteps: state.trip?.phraseSteps, emergency: state.trip?.emergency }; }
+  state.trip = emptyPlan(file); state.planOf = ''; state.noTrip = true; state.dayIndex = 0;
+  if (['today', 'days', 'explore', 'wallet', 'check'].includes(state.tab)) state.tab = 'today';
+  introLine(); refreshDocSlots().catch(() => {}); render();
 }
 const dateAdd = (d, n) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 function blankPlan(title, start, end) {
@@ -7382,6 +7430,7 @@ async function tripStashSwap(from, to) {
 function tripPlanShow(plan, of) {
   state.trip = planFill(plan);
   state.planOf = of;
+  state.noTrip = false;
   const todayIdx = state.trip.days.findIndex((d) => d.date === tokyoNow().date);
   state.dayIndex = todayIdx >= 0 ? todayIdx : 0;
   introLine();
@@ -7393,7 +7442,7 @@ const strHash = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((
 async function tripPlanSync(trip) {
   if (trip.slug === TRIP_SLUG) {
     // 도쿄 여행: 앱 파일이 원본. 화면이 다른 여행 일정이면 파일로 돌아오고, 파일이 바뀌었으면 서버에도 올려 둬요 (네이티브·어드민용)
-    if (state.planOf) {
+    if (state.planOf || state.noTrip) {
       const res = await fetch('data/trip.json', { cache: 'no-cache' });
       tripPlanShow(await res.json(), '');
     }
@@ -7697,6 +7746,7 @@ function claimMine() {
 }
 async function cloudCreateTrip() {
   if (!AUTH.user) return toast('먼저 카카오로 로그인해 주세요');
+  if (state.noTrip) return;
   if (!navigator.onLine) return toast('인터넷에 연결된 뒤 다시 눌러 주세요');
   const t = state.trip.trip;
   const { error } = await sb().from('trips').insert({ slug: TRIP_SLUG, title: t.title, start_date: t.start, end_date: t.end, timezone: t.timezone || TZ, plan: state.trip });
@@ -7723,8 +7773,21 @@ async function cloudStartRun(force) {
       if (error) toast(/kicked/.test(error.message || '') ? '이 여행에서 내보내진 계정이라 이 링크로는 들어갈 수 없어요' : '이 초대 링크는 끝났어요. 초대한 분께 새 링크를 부탁해 주세요');
     }
     const trip = await cloudFindTrip(joined);
-    if (!trip) { CLOUD.trip = null; CLOUD.state = 'none'; return cloudRefreshUi(); }
+    if (!trip) {
+      // 이 폰이 연결돼 있던 여행이 더는 없어요(내보내짐·삭제, 꺼져 있는 동안): 처음 상태로
+      const was = store.get('cloudTrip', '');
+      CLOUD.trip = null; CLOUD.state = 'none';
+      if (was) {
+        // 그 여행에 연결했던 계정이 지금 계정과 같을 때만 지워요. 계정이 다르거나 모르면(로그인 확인 실패 포함) 접어만 둬요
+        const { data: ses } = await sb().auth.getSession();
+        const same = !!ses?.session && store.get('cloudUser', '') === AUTH.user.id;
+        await tripResetEmpty(!same);
+        if (same) toast('보던 여행을 더 볼 수 없어요. 지워졌거나 여행메이트에서 빠졌어요');
+      }
+      return cloudRefreshUi();
+    }
     const cur = store.get('cloudTrip', '');
+    store.set('cloudUser', AUTH.user.id);
     if (cur !== trip.id) {
       // 처음 연결하는 도쿄 여행이면 이 폰 기록을 그대로 합치고, 그 밖엔 지금 기록을 접어 두고 바꿔요
       if (!cur && trip.slug === TRIP_SLUG) { store.set('cloudSent', {}); store.set('cloudCursor', ''); }
@@ -8067,12 +8130,8 @@ async function tripDrop(t) {
   const next = CLOUD.trips.find((x) => x.slug === TRIP_SLUG) || CLOUD.trips[0];
   if (next) await tripSwitch(next.id);
   else {
-    // 남은 여행이 없으면 이 폰의 여행 기록·사진을 비우고 '내 여행 만들기'로
-    for (const k of Object.keys(localStorage)) if (!isGlobalKey(k)) localStorage.removeItem(k);
-    const ks = (await docs.keys()).map(String);
-    if (ks.length) await docs.run('readwrite', (s) => { let r; for (const k of ks) r = s.delete(k); return r; });
-    store.set('cloudTrip', '');
-    tripPlanShow(await (await fetch('data/trip.json')).json(), '');
+    // 남은 여행이 없으면 이 폰의 여행 기록·사진을 비우고 여행 없는 처음 상태로
+    await tripResetEmpty();
     CLOUD.quietGone = true;
     await cloudStart(true);
   }
@@ -8246,7 +8305,7 @@ function cloudCard() {
   if (!AUTH.user) return `<div class="card set-card cloud-card"><div class="set-row"><span class="grow"><b>내 여행</b><small>위 계정에서 카카오로 로그인하면 여행을 만들고 여행메이트를 초대할 수 있어요. 기록은 자동으로 맞춰져요</small></span></div></div>`;
   if (CLOUD.state === 'none') {
     // 도쿄 일정 기록이 이 폰에 있으면 그대로 올리는 버튼, 처음 쓰는 사람은 새 여행 만들기부터
-    const hasLocal = !state.planOf && Object.keys(store.get('meta', {})).length > 0;
+    const hasLocal = !state.noTrip && !state.planOf && Object.keys(store.get('meta', {})).length > 0;
     if (!hasLocal) CLOUD.form = true;
     return `<div class="card set-card cloud-card">
       <div class="set-row"><span class="grow"><b>${hasLocal ? '이 폰 기록으로 여행 시작' : '내 여행 만들기'}</b><small>${hasLocal ? '먼저 시작하는 폰이 서버에 여행을 만들고 이 폰 기록(일정 변경·경비·예약번호·사진)을 올려요. 다른 폰은 그다음 초대 링크로 들어와요' : '여행 이름과 날짜만 넣으면 빈 일정이 만들어져요. 함께 갈 사람은 초대 링크로 들어와요'}</small></span></div>
