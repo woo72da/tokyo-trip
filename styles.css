@@ -2644,7 +2644,7 @@ button.talk-card-head { width: 100%; border: 0; background: none; padding: 0; fo
 .nt-day.start b, .nt-day.end b { background: var(--accent); color: var(--paper); }
 
 /* 여행메이트: 초대 카드 · 함께하는 사람 목록 (v294) */
-.invite .ask-bs.one { grid-template-columns: 1fr; }
+.ask-bs.one { grid-template-columns: 1fr; }
 .inv-card { text-align: left; }
 .inv-top { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--accent); margin-bottom: 8px; }
 .inv-top svg { width: 16px; height: 16px; }
