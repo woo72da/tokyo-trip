@@ -6264,7 +6264,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 298;
+const APP_VERSION = 299;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6348,7 +6348,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-trip-open],[data-trip-new],[data-trip-cancel],[data-trip-create],[data-nt-day],[data-nt-reset],[data-nt-month],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-inv-off],[data-inv-close],[data-inv-join],[data-inv-kakao],[data-join-code],[data-mate],[data-mate-kick],[data-mate-leave],[data-mate-all],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-trip-open],[data-trip-new],[data-trip-cancel],[data-trip-create],[data-nt-day],[data-nt-reset],[data-nt-month],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-inv-off],[data-inv-close],[data-inv-join],[data-inv-kakao],[data-join-code],[data-mate],[data-mate-kick],[data-mate-leave],[data-trip-del],[data-mate-all],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6677,6 +6677,7 @@ document.addEventListener('click', async (e) => {
   else if (d.mate !== undefined) { CLOUD.mateOpen = CLOUD.mateOpen === d.mate ? '' : d.mate; cloudRefreshUi(); }
   else if (d.mateKick) mateKick(d.mateKick);
   else if ('mateLeave' in d) mateLeave();
+  else if ('tripDel' in d) tripDelete();
   else if ('mateAll' in d) { CLOUD.mateAll = true; cloudRefreshUi(); }
   else if ('tripOpen' in d) tripSwitch(d.tripOpen);
   else if ('tripNew' in d) { Object.assign(NT, { title: '', start: '', end: '', month: '' }); CLOUD.form = true; cloudRefreshUi(); setTimeout(() => $('#nt-title')?.focus(), 50); }
@@ -7626,6 +7627,14 @@ async function cloudStartRun(force) {
       if (!cur && trip.slug === TRIP_SLUG) { store.set('cloudSent', {}); store.set('cloudCursor', ''); }
       else { if (CLOUD.chan) { sb().removeChannel(CLOUD.chan); CLOUD.chan = null; } CLOUD.trip = null; await tripStashSwap(cur || 'none', trip.id); }
       store.set('cloudTrip', trip.id);
+      // 보던 여행이 목록에 없으면(지워졌거나 여행메이트에서 빠짐) 알려 줘요
+      if (cur && !CLOUD.trips.some((t) => t.id === cur)) { if (!CLOUD.quietGone) toast('보던 여행을 더 볼 수 없어요. 지워졌거나 여행메이트에서 빠졌어요'); }
+    }
+    CLOUD.quietGone = false;
+    // 목록에 없는 여행의 접어 둔 폰 기록·사진은 정리해요
+    for (const k of Object.keys(localStorage)) {
+      const id = k.startsWith('stash:') ? k.slice(6) : '';
+      if (/^[0-9a-f-]{36}$/.test(id) && !CLOUD.trips.some((t) => t.id === id)) await tripPurgeLocal(id);
     }
     const fresh = !CLOUD.trip || force;
     CLOUD.trip = trip;
@@ -7893,8 +7902,54 @@ async function mateLeave() {
   const { error } = await sb().from('trip_members').delete().eq('trip_id', CLOUD.trip.id).eq('user_id', AUTH.user.id);
   if (error) return toast('나가지 못했어요. 잠시 뒤 다시 해 주세요');
   toast(`'${CLOUD.trip.title || '여행'}'에서 나왔어요`);
+  CLOUD.quietGone = true;
   await cloudStart(true);
   render();
+}
+// 여행 삭제 (여행 마스터만, 앱에 들어 있는 도쿄 여행은 빼고): 서버 사진 → 여행(멤버·초대·기록은 DB가 같이 지움) → 이 폰 기록
+async function tripDelete() {
+  const t = CLOUD.trip;
+  if (!t || CLOUD.role !== 'owner' || t.slug === TRIP_SLUG || CLOUD.switching) return;
+  if (!navigator.onLine) return toast('인터넷에 연결된 뒤 다시 눌러 주세요');
+  const name = t.title || '여행';
+  if (!(await askConfirm(`'${name}'${eulReul(name)} 지울까요?`, { body: '일정·경비·예약번호·사진이 모두 지워지고 되돌릴 수 없어요. 여행메이트 화면에서도 사라져요.', ok: '지우기', danger: true }))) return;
+  CLOUD.switching = true; cloudRefreshUi();
+  try {
+    const bucket = sb().storage.from('docs');
+    const { data: files } = await bucket.list(t.id, { limit: 1000 });
+    if (files?.length) await bucket.remove(files.map((f) => `${t.id}/${f.name}`));
+    const { data: gone, error } = await sb().from('trips').delete().eq('id', t.id).select('id');
+    if (error || !gone?.length) throw new Error('not deleted');
+  } catch (e) {
+    CLOUD.switching = false; cloudRefreshUi();
+    return toast('여행을 지우지 못했어요. 잠시 뒤 다시 해 주세요');
+  }
+  // 이제 없는 여행이라 보내기·실시간을 멈추고, 남은 여행(도쿄 먼저)으로 옮겨요
+  if (CLOUD.chan) { sb().removeChannel(CLOUD.chan); CLOUD.chan = null; }
+  CLOUD.trip = null;
+  CLOUD.trips = CLOUD.trips.filter((x) => x.id !== t.id);
+  CLOUD.switching = false;
+  const next = CLOUD.trips.find((x) => x.slug === TRIP_SLUG) || CLOUD.trips[0];
+  if (next) await tripSwitch(next.id);
+  else {
+    // 남은 여행이 없으면 이 폰의 여행 기록·사진을 비우고 '내 여행 만들기'로
+    for (const k of Object.keys(localStorage)) if (!isGlobalKey(k)) localStorage.removeItem(k);
+    const ks = (await docs.keys()).map(String);
+    if (ks.length) await docs.run('readwrite', (s) => { let r; for (const k of ks) r = s.delete(k); return r; });
+    store.set('cloudTrip', '');
+    tripPlanShow(await (await fetch('data/trip.json')).json(), '');
+    await cloudStart(true);
+  }
+  await tripPurgeLocal(t.id);
+  cloudRefreshUi(); render();
+  toast(`'${name}'${eulReul(name)} 지웠어요`);
+}
+// 없어진 여행의 접어 둔 폰 기록·사진 지우기
+async function tripPurgeLocal(id) {
+  localStorage.removeItem('stash:' + id);
+  const pre = `${STASH}${id}|`;
+  const ks = (await docs.run('readonly', (s) => s.getAllKeys())).map(String).filter((k) => k.startsWith(pre));
+  if (ks.length) await docs.run('readwrite', (s) => { let r; for (const k of ks) r = s.delete(k); return r; });
 }
 const ROLE_KO = { owner: '여행 마스터', editor: '함께 편집', viewer: '보기만' };
 function mateListHtml() {
@@ -7916,7 +7971,8 @@ function mateListHtml() {
       </div>`; }).join('')}
       ${all ? '' : `<button class="btn wide" data-mate-all>외 ${list.length - 6}명 더 보기</button>`}</div>
     ${owner && l ? `<div class="set-row"><span class="grow"><b>초대 링크</b><small>${mdOf(l.until)}까지 · ${l.uses}명 들어옴</small></span><button class="btn" data-inv-off>링크 끄기</button></div>` : ''}
-    ${!owner ? '<div class="btns"><button class="btn danger wide" data-mate-leave>이 여행에서 나가기</button></div>' : ''}`;
+    ${!owner ? '<div class="btns"><button class="btn danger wide" data-mate-leave>이 여행에서 나가기</button></div>'
+      : CLOUD.trip.slug !== TRIP_SLUG ? `<div class="btns"><button class="btn danger wide" data-trip-del>${icon('trash')}이 여행 삭제</button></div>` : ''}`;
 }
 function cloudRefreshUi() {
   const el = $('#sheet-body .cloud-card');
