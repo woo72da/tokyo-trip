@@ -39,7 +39,7 @@ tools/deploy.sh
 
 - 올리기 전에 바뀐 파일 목록을 보여 주고 `y`를 눌러야 올립니다. `-y`를 붙이면 묻지 않습니다.
 - 화면 파일(`app.js`, `styles.css`, `index.html`, `sw.js`)이 바뀌었는데 `sw.js`·`app.js` 버전이 그대로면 멈춥니다. 두 버전이 다를 때도 멈춥니다.
-- `data/trip.json`, `manifest.webmanifest`, `audio/index.json` 말고 다른 JSON 파일(동기화 파일 등)과 eSIM 링크로 보이는 내용은 올리지 않습니다. 동기화 파일 이름(`도쿄여행-*.json`)과 `.DS_Store`는 아예 목록에 넣지 않습니다.
+- `data/trip.json`, `manifest.webmanifest`, `audio/index.json` 말고 다른 JSON 파일(동기화 파일 등)과 eSIM 링크로 보이는 내용은 올리지 않습니다. 동기화·백업 파일, 인수인계 메모(`HANDOFF*.md`), `.DS_Store`, `.env`, `.claude/` 등은 저장소의 `.gitignore`로 아예 목록에 넣지 않습니다(맥을 바꿔도 그대로 적용).
 - GitHub에만 있는 파일은 지우지 않습니다.
 - 처음 한 번은 GitHub 로그인이 필요합니다: `brew install gh` → `gh auth login`(GitHub.com · HTTPS · 브라우저 로그인) → `gh auth setup-git`.
 

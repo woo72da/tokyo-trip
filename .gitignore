@@ -1,0 +1,30 @@
+# 공개 저장소(GitHub Pages)에 올리지 않는 파일.
+# tools/deploy.sh가 폴더 안 파일을 모두 올리기 때문에, 여기 적은 것만 빠져요.
+# (예전엔 이 맥의 .git/info/exclude에만 있어서 맥을 바꾸면 사라졌어요)
+
+# 맥이 만드는 파일
+.DS_Store
+
+# 동기화·백업 파일 (예약번호·사진이 들어 있을 수 있음)
+*동기화*
+도쿄여행-*.json
+*백업*
+*backup*.json
+*.bak
+
+# 인수인계·개인 메모
+HANDOFF*.md
+*메모*.md
+*.local.md
+
+# 비밀값·로컬 설정
+.env
+.env.*
+.vercel/
+.claude/
+
+# 작업용 파일
+node_modules/
+__pycache__/
+*.log
+tools/icon-source.webp
