@@ -6294,7 +6294,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 308;
+const APP_VERSION = 309;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7720,7 +7720,7 @@ async function cloudStartRun(force) {
       const { data, error } = await sb().rpc('join_trip', { invite: join });
       store.set('cloudJoin', '');
       joined = error ? '' : data || '';
-      if (error) toast('이 초대 링크는 끝났어요. 초대한 분께 새 링크를 부탁해 주세요');
+      if (error) toast(/kicked/.test(error.message || '') ? '이 여행에서 내보내진 계정이라 이 링크로는 들어갈 수 없어요' : '이 초대 링크는 끝났어요. 초대한 분께 새 링크를 부탁해 주세요');
     }
     const trip = await cloudFindTrip(joined);
     if (!trip) { CLOUD.trip = null; CLOUD.state = 'none'; return cloudRefreshUi(); }
@@ -8014,7 +8014,9 @@ async function editNick() {
 async function mateKick(id) {
   const m = CLOUD.members.find((x) => x.id === id);
   if (!m || CLOUD.role !== 'owner' || id === AUTH.user.id) return;
-  if (!(await askConfirm(`${m.nick}님을 이 여행에서 내보낼까요?`, { body: '그동안 남긴 기록은 그대로 남아요. 다시 들어오려면 초대 링크가 필요해요.', ok: '내보내기', danger: true }))) return;
+  if (!(await askConfirm(`${m.nick}님을 이 여행에서 내보낼까요?`, { body: '그동안 남긴 기록은 그대로 남아요. 이 여행이 그분 폰에서 바로 사라져요.', ok: '내보내기', danger: true }))) return;
+  // 마지막 확인: 여행 삭제처럼 버튼 자리를 바꿔(내보내기 | 취소) 같은 자리를 두 번 눌러도 취소가 되게
+  if (!(await askConfirm(`정말 ${m.nick}님을 내보낼까요?`, { body: '내보내면 지금 초대 링크로는 다시 들어올 수 없어요. 다시 함께하려면 링크를 끄고 새 초대 링크를 보내야 해요.', ok: '내보내기', danger: true, okFirst: true }))) return;
   const { error } = await sb().from('trip_members').delete().eq('trip_id', CLOUD.trip.id).eq('user_id', id);
   if (error) return toast('내보내지 못했어요. 잠시 뒤 다시 해 주세요');
   CLOUD.members = CLOUD.members.filter((x) => x.id !== id); CLOUD.mateOpen = '';
