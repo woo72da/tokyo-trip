@@ -5494,6 +5494,7 @@ function settingsBody() {
 function openSettings(at = '') {
   $('#sheet-body').innerHTML = settingsBody();
   $('#sheet').hidden = false;
+  membersRefresh(); // 새로 들어온 여행메이트가 바로 보이게
   // Bring the 여행 heading to the top of the sheet (beside the close button), not the section above it.
   if (at === 'sync' || at === 'ai') setTimeout(() => {
     const sec = $(at === 'ai' ? '#sheet-body .set-ai' : '#sheet-body .cloud-card')?.closest('.set-sec');
@@ -6277,7 +6278,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 304;
+const APP_VERSION = 305;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7561,8 +7562,17 @@ function cloudPending() {
   return n;
 }
 // 서버에서 온 기록 하나를 이 폰 기록과 합쳐요. 바뀌었으면 true.
+// 모르는 사람이 쓴 기록이 오면(앱을 연 뒤 새로 들어온 여행메이트) 멤버 목록을 다시 받아요
+let memberAt = 0;
+async function membersRefresh(force = false) {
+  if (!CLOUD.trip || !navigator.onLine || (!force && Date.now() - memberAt < 15000)) return;
+  memberAt = Date.now();
+  try { await cloudMembers(CLOUD.trip); cloudRefreshUi(); render(); } catch { /* 다음 기회에 */ }
+}
+const isNewMate = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(id || '') && id !== AUTH.user?.id && !CLOUD.members.some((m) => m.id === id);
 function cloudMerge(k, r, updatedBy = '') {
   if (!r || typeof r !== 'object' || !('t' in r)) return false;
+  if (isNewMate(updatedBy)) membersRefresh();
   const nk = legacyTarget(k, r.v, updatedBy);
   if (nk) {
     // 옛 폰이 쓴 리뷰·준비 체크: 주인 키로 받아 두고 다시 올리지는 않아요
@@ -8138,6 +8148,7 @@ async function openLog() {
   const { data, error } = await sb().from('trip_log').select('id, key, old, new, by, at').eq('trip_id', CLOUD.trip.id).order('id', { ascending: false }).limit(100);
   if (error) return toast('변경 기록을 불러오지 못했어요. 잠시 뒤 다시 해 주세요');
   state.logRows = data || [];
+  if (state.logRows.some((r) => isNewMate(r.by))) await membersRefresh(true);
   const when = (a) => { const x = new Date(a); return `${x.getMonth() + 1}/${x.getDate()} ${String(x.getHours()).padStart(2, '0')}:${String(x.getMinutes()).padStart(2, '0')}`; };
   $('#sheet-body').innerHTML = `<div class="sheet-head"><h3>변경 기록</h3></div>
     <div class="small muted">누가 언제 무엇을 바꿨는지 최근 100건이에요.${CLOUD.role === 'owner' ? ' 일정 기록은 되돌릴 수 있어요.' : ''}</div>
