@@ -5525,7 +5525,7 @@ function createPlace(plan) {
 }
 // Small centred popups in the app's own look, in place of the phone's grey confirm()/prompt() boxes.
 // askConfirm → true/false · askText → the text, or null when cancelled.
-function askBox({ title, body = '', ok = '확인', cancel = '취소', danger = false, input = null }) {
+function askBox({ title, body = '', ok = '확인', cancel = '취소', danger = false, input = null, okFirst = false }) {
   return new Promise((resolve) => {
     let el = $('#ask');
     if (!el) { el = document.createElement('div'); el.id = 'ask'; el.className = 'ask'; document.body.appendChild(el); }
@@ -5533,7 +5533,7 @@ function askBox({ title, body = '', ok = '확인', cancel = '취소', danger = f
       <div class="ask-card" role="alertdialog" aria-modal="true">
         <b class="ask-t">${esc(title)}</b>${body ? `<p class="ask-s">${esc(body)}</p>` : ''}
         ${input ? `<input class="input ask-in" ${input.numeric ? 'inputmode="numeric"' : ''} value="${esc(input.value ?? '')}" placeholder="${esc(input.placeholder || '')}" autocomplete="off">` : ''}
-        <div class="ask-bs"><button type="button" class="btn" data-ask="0">${esc(cancel)}</button><button type="button" class="btn ${danger ? 'danger primary' : 'primary'}" data-ask="1">${danger ? icon('trash') : ''}${esc(ok)}</button></div>
+        <div class="ask-bs">${okFirst ? '' : `<button type="button" class="btn" data-ask="0">${esc(cancel)}</button>`}<button type="button" class="btn ${danger ? 'danger primary' : 'primary'}" data-ask="1">${danger ? icon('trash') : ''}${esc(ok)}</button>${okFirst ? `<button type="button" class="btn" data-ask="0">${esc(cancel)}</button>` : ''}</div>
       </div>`;
     el.hidden = false;
     const inp = el.querySelector('.ask-in');
@@ -6264,7 +6264,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 301;
+const APP_VERSION = 302;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7913,7 +7913,10 @@ async function tripDelete() {
   if (!t || CLOUD.role !== 'owner' || t.slug === TRIP_SLUG || CLOUD.switching) return;
   if (!navigator.onLine) return toast('인터넷에 연결된 뒤 다시 눌러 주세요');
   const name = t.title || '여행';
-  if (!(await askConfirm(`'${name}'${eulReul(name)} 지울까요?`, { body: '일정·경비·예약번호·사진이 모두 지워지고 되돌릴 수 없어요. 여행메이트 화면에서도 사라져요.', ok: '지우기', danger: true }))) return;
+  if (!(await askConfirm(`'${name}'${eulReul(name)} 삭제할까요?`, { body: '이 여행의 일정·경비·예약번호·사진이 지워져요.', ok: '삭제', danger: true }))) return;
+  // 마지막 확인: 버튼 자리를 바꿔(삭제 | 취소) 같은 자리를 두 번 눌러도 취소가 되게
+  const others = CLOUD.members.filter((m) => m.id !== AUTH.user.id).length;
+  if (!(await askConfirm(`정말 '${name}'${eulReul(name)} 삭제할까요?`, { body: `삭제하면 이 여행에 남긴 모든 기록(일정·경비·예약번호·사진)이 사라지고 다시 되돌릴 수 없어요.${others ? ` 함께하는 여행메이트 ${others}명의 화면에서도 사라져요.` : ''} 다른 여행은 그대로예요.`, ok: '삭제', danger: true, okFirst: true }))) return;
   CLOUD.switching = true; cloudRefreshUi();
   try {
     const bucket = sb().storage.from('docs');
