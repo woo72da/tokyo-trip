@@ -6294,7 +6294,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 310;
+const APP_VERSION = 311;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7514,7 +7514,7 @@ function tripListHtml() {
       ${t.id === cur && t.id === CLOUD.trip?.id && CLOUD.role === 'owner' && t.slug !== TRIP_SLUG ? `<button class="btn danger trip-del" data-trip-del ${CLOUD.switching ? 'disabled' : ''} aria-label="이 여행 삭제">${icon('trash')}삭제</button>` : ''}</div>`).join('')}</div>`;
 }
 function tripFormHtml() {
-  if (!CLOUD.form) return `<div class="btns"><button class="btn wide" data-trip-new>${icon('plus')}새 여행 만들기</button></div>`;
+  if (!CLOUD.form) return `<div class="btns"><button class="btn wide" data-trip-new>${icon('plus')}새 여행 만들기</button><button class="btn wide" data-join-code>초대 코드로 다른 여행 들어가기</button></div>`;
   return `<div class="trip-form">
       <label class="small muted">여행 이름<input class="input" id="nt-title" maxlength="40" placeholder="예: 오사카 3박 4일" value="${esc(NT.title)}" oninput="NT.title=this.value"></label>
       ${ntPickHtml()}
@@ -8292,7 +8292,7 @@ function mateListHtml() {
         ${open ? mateActsHtml(m) : ''}
       </div>`; }).join('')}
       ${all ? '' : `<button class="btn wide" data-mate-all>외 ${list.length - 6}명 더 보기</button>`}</div>
-    ${owner && l ? `<div class="set-row"><span class="grow"><b>초대 링크</b><small>${mdOf(l.until)}까지 · ${l.uses}명 들어옴 · 새로 들어오면 '보기만'</small></span><button class="btn" data-inv-off>링크 끄기</button></div>` : ''}
+    ${owner && l ? `<div class="set-row"><span class="grow"><b>초대 링크</b><small>코드 ${esc(l.code)} · ${mdOf(l.until)}까지 · ${l.uses}명 들어옴 · 새로 들어오면 '보기만'</small></span><button class="btn" data-inv-off>링크 끄기</button></div>` : ''}
     <div class="btns"><button class="btn wide" data-log-open>${icon('clock')}변경 기록</button></div>
     ${!owner ? '<div class="btns"><button class="btn danger wide" data-mate-leave>이 여행에서 나가기</button></div>' : ''}`;
 }
