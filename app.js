@@ -6296,7 +6296,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 319;
+const APP_VERSION = 320;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -8300,7 +8300,8 @@ async function openLog() {
   if (!CLOUD.trip) return;
   const { data, error } = await sb().from('trip_log').select('id, key, old, new, by, at').eq('trip_id', CLOUD.trip.id).order('id', { ascending: false }).limit(100);
   if (error) return toast('변경 기록을 불러오지 못했어요. 잠시 뒤 다시 해 주세요');
-  state.logRows = data || [];
+  // 누가 했는지 없는 줄은 서버가 정리하며 남긴 것(SQL로 예전 기록 옮기기)이라 빼요
+  state.logRows = (data || []).filter((r) => r.by);
   if (state.logRows.some((r) => isNewMate(r.by))) await membersRefresh(true);
   state.logWho = '';
   drawLog();
