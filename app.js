@@ -2409,7 +2409,7 @@ function reportPlaces(visited) {
   const rated = groups.filter((g) => g.list.length);
   // One rating at a time: tap a count above to list its places below (starts on the first with places).
   const pick = rated.find((g) => g.k === state.rpRate) || rated[0];
-  const next = all.filter((p) => isSaved(p.id) && !visited.has(p.id) && !visitOf(p.id));
+  const next = all.filter((p) => isSaved(p.id) && !visited.has(p.id) && !visitsOf(p.id).length);
   if (!rated.length && !next.length && !visited.size) return '';
   const row = (p, k) => { const v = visitOf(p.id); return `<button class="rp-place ${k || ''}" data-place="${esc(p.id)}"><span class="grow"><b>${esc(p.name)}</b>${v?.memo ? `<small class="memo">“${esc(v.memo)}”</small>` : p.area ? `<small>${esc(p.area)}</small>` : ''}</span><i class="chev"></i></button>`; };
   return `
@@ -3922,7 +3922,18 @@ const EX_CATS = [['eat', '먹고', 'meal'], ['drink', '마시고', 'coffee'], ['
 const EX_AREAS = ['전체', '우에노·아키하바라', '아사쿠사·스카이트리', '긴자·쓰키지', '시부야·하라주쿠', '오다이바·도요스', '나카메구로·에비스', '이케부쿠로', '기타', '도쿄역·신주쿠', '내 장소'];
 const CAT_ICON = { eat: '🍽', drink: '☕', see: '🏛', shop: '🛍' };
 const EX_KIND = { eat: 'food', drink: 'cafe', see: 'sight', shop: 'shop' };
-const isSaved = (id) => !!store.get('save:' + id, false);
+// v306 하트도 사람마다 (save:<장소id>:<계정id>). 예전 공용 하트(save:<장소id>)는 내 것으로 읽어요(로그인 전 폰)
+const sKey = (id, who = meId()) => `save:${id}:${who}`;
+const myLike = (id) => !!store.get(sKey(id), false) || !!store.get('save:' + id, false);
+function likersOf(id) {
+  const who = Object.keys(localStorage).filter((k) => k.startsWith(`save:${id}:`) && store.get(k, false)).map((k) => k.slice(`save:${id}:`.length));
+  if (store.get('save:' + id, false) && !who.includes(meId())) who.push(meId());
+  const order = mates().map((m) => m.id);
+  const at = (u) => { const i = order.indexOf(u); return i < 0 ? 99 : i; };
+  return who.sort((a, b) => at(a) - at(b));
+}
+const isSaved = (id) => likersOf(id).length > 0;
+const likeLine = (id) => { const l = likersOf(id); return l.length ? `♥ ${l.map((u) => nameOf(u) || '여행메이트').join(' · ')}` : ''; };
 // v303 리뷰·평가는 사람마다 따로 (visit:<장소id>:<계정id>). visitOf = 내 것, visitsOf = 모두의 것
 const vKey = (id, who = meId()) => `visit:${id}:${who}`;
 const visitOf = (id) => store.get(vKey(id), null);
@@ -4039,8 +4050,9 @@ function placeCard(p, now) {
         <b>${esc(p.name)}${v ? `<i class="${recommended(v) ? 'rec' : ''}">${recommended(v) ? againIcon(v.again) + AGAIN[v.again] : '방문'}</i>` : ''}</b>
         <span>${esc(line)}</span>
         <small>${esc(sub)}</small>
+        ${likersOf(p.id).length ? `<small class="likers">${esc(likeLine(p.id))}</small>` : ''}
       </div>
-      <button class="place-save ${isSaved(p.id) ? 'on' : ''}" data-place-save="${esc(p.id)}" aria-label="저장">${isSaved(p.id) ? '♥' : '♡'}</button>
+      <button class="place-save ${myLike(p.id) ? 'on' : ''}" data-place-save="${esc(p.id)}" aria-label="하트">${myLike(p.id) ? '♥' : '♡'}</button>
     </div>`;
 }
 
@@ -4062,28 +4074,30 @@ function exploreList(now) {
   return list;
 }
 
-// The trip journal: visits by day with notes, a photo and that day's spending.
+// The trip journal: 일행 모두의 방문을 처음 다녀간 날에 한 번씩, 장소 아래에 사람별 평가 줄 (모든 폰에 같게)
 function exploreLog(now) {
   const places = allPlaces();
-  const seen = places.filter((p) => visitOf(p.id)).sort((a, b) => visitOf(b.id).at - visitOf(a.id).at);
-  const saved = places.filter((p) => isSaved(p.id) && !visitOf(p.id));
-  const dayOf = (at) => new Date(at + 9 * 3600000).toISOString().slice(0, 10);
-  const dates = [...new Set(seen.map((p) => dayOf(visitOf(p.id).at)))];
+  const order = mates().map((m) => m.id);
+  const at = (u) => { const i = order.indexOf(u); return i < 0 ? 99 : i; };
+  const colorOf = (u) => mates().find((m) => m.id === u)?.color || '#8a8f98';
+  const seen = places.map((p) => ({ p, vs: visitsOf(p.id).sort((x, y) => at(x.who) - at(y.who)) })).filter((x) => x.vs.length)
+    .map((x) => ({ ...x, first: Math.min(...x.vs.map((y) => y.v.at || Infinity)) })).sort((x, y) => y.first - x.first);
+  const saved = places.filter((p) => isSaved(p.id) && !visitsOf(p.id).length);
+  const dayOf = (t) => (Number.isFinite(t) ? new Date(t + 9 * 3600000).toISOString().slice(0, 10) : '');
+  const dates = [...new Set(seen.map((x) => dayOf(x.first)))];
   const spent = (date) => expenses().filter((e) => e.date === date).reduce((a, e) => a + e.amount, 0);
   return `
     <div class="section-title"><span>여행 일지</span><em>${seen.length}</em></div>
     ${dates.length ? dates.map((date) => `
-      <div class="log-day"><b>${esc(dayLabel(date))}</b>${spent(date) ? `<span>지출 ${yen(spent(date))}</span>` : ''}</div>
-      ${seen.filter((p) => dayOf(visitOf(p.id).at) === date).map((p) => {
-    const v = visitOf(p.id);
+      <div class="log-day"><b>${date ? esc(dayLabel(date)) : '날짜 모름'}</b>${date && spent(date) ? `<span>지출 ${yen(spent(date))}</span>` : ''}</div>
+      ${seen.filter((x) => dayOf(x.first) === date).map(({ p, vs }) => {
     const slot = 'place-' + p.id;
     return `
       <div class="place visited" data-place="${esc(p.id)}" role="button" tabindex="0">
         ${state.docSlots.has(slot) ? `<button class="log-thumb" data-doc-view="${esc(slot)}" data-thumb="${esc(slot)}" aria-label="사진 보기"></button>` : ''}
         <div class="place-main">
           <b>${esc(p.name)}</b>
-          <span>${esc([nameOf(v.by), AGAIN[v.again]].filter(Boolean).join(' · '))}</span>
-          ${v.memo ? `<small>${esc(v.memo)}</small>` : ''}
+          ${vs.map(({ who, v }) => `<div class="log-who"><i class="mate-dot" style="background:${colorOf(who)}"></i><span>${esc([nameOf(who) || '여행메이트', AGAIN[v.again] || '방문'].join(' · '))}</span>${v.memo ? `<small>“${esc(v.memo)}”</small>` : ''}</div>`).join('')}
         </div>
       </div>`;
   }).join('')}`).join('') : '<div class="card small muted">다녀온 곳에서 방문 표시를 누르면 여기에 모여요.</div>'}
@@ -4220,7 +4234,7 @@ function openPlace(id) {
     <div class="btns">
       <div class="wide">${mapBtn(mapUrl, p.src && !p.lat ? '구글지도에서 찾기' : '구글지도에서 보기')}</div>
       ${p.src && !p.lat ? '' : `<a class="btn primary wide" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat ? `${p.lat},${p.lng}` : q}&travelmode=transit" target="_blank" rel="noopener">${icon('nav')}길찾기</a>`}
-      <button class="btn" data-place-save="${esc(id)}">${isSaved(id) ? '♥ 저장됨' : '♡ 저장'}</button>
+      <button class="btn" data-place-save="${esc(id)}">${myLike(id) ? '♥ 가고 싶어요' : '♡ 가고 싶어요'}</button>
       <button class="btn" data-place-visit="${esc(id)}">${v ? `${icon('check')}방문함` : '방문 표시'}</button>
       ${item ? `<button class="btn wide" data-item="${esc(item.id)}">${esc(dayLabel(item.date))} ${esc(item.start)} 일정 보기</button>`
     : `<button class="btn wide" data-place-plan="${esc(id)}">${icon('plus')}일정에 넣기</button>`}
@@ -5929,7 +5943,9 @@ async function resetDay(date) {
 }
 
 function toggleSave(id) {
-  store.set('save:' + id, !isSaved(id));
+  const on = !myLike(id);
+  if (store.get('save:' + id, null) !== null) store.set('save:' + id, null);
+  store.set(sKey(id), on);
   render();
   if (!$('#sheet').hidden) openPlace(id);
 }
@@ -6278,7 +6294,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 305;
+const APP_VERSION = 306;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7522,7 +7538,7 @@ function cloudSoon() { clearTimeout(cloudSoon.t); cloudSoon.t = setTimeout(() =>
 const cloudTable = (k) => (SECRET_KEYS.includes(k) ? 'trip_secrets' : 'trip_kv');
 // v303 사람별 기록: 서버에는 경비를 사람별 줄(exp:<계정id>)로, 리뷰·아침 준비·지운 표시도 사람별 키로 주고받아요.
 // 개인 키는 그 사람만 써요(서버 규칙 0004). 그래서 남의 개인 키는 이 폰에서 보내지 않아요.
-const PERSONAL_RE = /^(?:exp|tomb|visit:[^:]+|gear:[^:]+|prep:[^:]+):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+const PERSONAL_RE = /^(?:exp|tomb|visit:[^:]+|save:[^:]+|gear:[^:]+|prep:[^:]+):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 const personalOwner = (k) => (PERSONAL_RE.exec(k) || [])[1] || '';
 const canPush = (k) => { const o = personalOwner(k); return !o || o === AUTH.user?.id; };
 const tripOwnerId = () => CLOUD.trip?.owner_id || CLOUD.members.find((m) => m.role === 'owner')?.id || '';
@@ -7534,6 +7550,7 @@ const mineExp = (e) => !CLOUD.trip || !AUTH.user || expOwner(e) === AUTH.user.id
 function legacyTarget(k, v, updatedBy) {
   if (/^visit:[^:]+$/.test(k)) return `${k}:${isMateId(updatedBy) ? updatedBy : isMateId(v?.by) ? v.by : tripOwnerId()}`;
   if (/^prep:[^:]+$/.test(k)) return `${k}:${tripOwnerId()}`;
+  if (/^save:[^:]+$/.test(k)) return `${k}:${isMateId(updatedBy) ? updatedBy : tripOwnerId()}`;
   return '';
 }
 // 이 폰에 남은 예전 키 옮기기 (여행에 연결될 때 한 번). 옮긴 건 다시 올리지 않아요(서버는 0004가 옮겨요).
@@ -7542,6 +7559,12 @@ function legacyMoveLocal() {
   const meta = store.get('meta', {}), sent = { ...cloudSent() };
   for (const k of Object.keys(localStorage)) {
     const v = store.get(k, null);
+    if (/^save:[^:]+$/.test(k)) {
+      // 예전 하트: 이미 서버에 있는 건 서버(0005·받기)가 쓴 사람 것으로 옮겨 줘요. 안 보낸 건 내 하트로 올려요
+      if (v === true && (sent[k] || 0) < (meta[k] || 1) && AUTH.user && !localStorage.getItem(sKey(k.slice(5)))) { localStorage.setItem(sKey(k.slice(5)), 'true'); meta[sKey(k.slice(5))] = Date.now(); }
+      localStorage.removeItem(k); delete meta[k];
+      continue;
+    }
     const nk = legacyTarget(k, v, '');
     if (!nk) continue;
     if (v && !localStorage.getItem(nk)) { localStorage.setItem(nk, JSON.stringify(v)); meta[nk] = meta[k] || 1; sent[nk] = meta[nk]; }
@@ -7669,7 +7692,7 @@ function claimMine() {
   if (ex.some((e) => e.by === 'me')) store.set('exp', ex.map((e) => (e.by === 'me' ? { ...e, by: id } : e)));
   for (let i = localStorage.length - 1; i >= 0; i -= 1) {
     const k = localStorage.key(i);
-    if (/^(visit|prep):.+:me$/.test(k || '')) { const v = store.get(k, null); const nk = k.slice(0, -2) + id; if (v && !store.get(nk, null)) store.set(nk, v.by === 'me' ? { ...v, by: id } : v); store.set(k, null); }
+    if (/^(visit|prep|save):.+:me$/.test(k || '')) { const v = store.get(k, null); const nk = k.slice(0, -2) + id; if (v && !store.get(nk, null)) store.set(nk, v.by === 'me' ? { ...v, by: id } : v); store.set(k, null); }
     else if (k?.startsWith('gear:') && k.endsWith(':me')) { const v = store.get(k, null); if (v) store.set(k.slice(0, -2) + id, { ...v, ...store.get(k.slice(0, -2) + id, {}) }); store.set(k, null); }
   }
 }
@@ -8066,7 +8089,7 @@ const PLAN_ACTS = {
   itemEdit: 'item', catch: 'item', itemRestore: 'item', editReset: 'item', itemSkip: 'item', itemDel: 'item', itemUnswap: 'item',
   done: 'item', start: 'item', arrive: 'item', squeezeOpen: 'date', releg: 'item', qk: 'pipe', qkSwap: 'pipe', altPin: 'pipe',
   itemSwap: 'swap', qkApply: 'qk', squeeze: 'squeeze', itemNew: 'date', dayReset: 'date', seal: 'date', hotelAdd: 'pipeDate', dayEdit: 'today',
-  placePlan: 'all', planSave: 'all', placeNew: 'all', placeCreate: 'all', placeDel: 'all', budget: 'all', check: 'editor', del: 'editor', placeSave: 'editor',
+  placePlan: 'all', planSave: 'all', placeNew: 'all', placeCreate: 'all', placeDel: 'all', budget: 'all', check: 'editor', del: 'editor', 
   aiPlan: 'all', aiPlanGo: 'all', aiPlanApply: 'aiDate',
 };
 function planGate(d) {
@@ -8076,7 +8099,7 @@ function planGate(d) {
   const how = PLAN_ACTS[act], v = d[act];
   const anyItem = (id) => planItems().find((x) => x.id === id);
   if (how === 'item' && !anyItem(v)) return true; // 일정이 아닌 곳의 같은 이름 표시(예: 불러오는 중 상자)
-  if (CLOUD.role === 'viewer') { toast(act === 'placeSave' ? '보기만 권한이라 장소 저장은 여행 마스터·함께 편집만 할 수 있어요' : '보기만 권한이라 일정은 바꿀 수 없어요. 리뷰·평가와 경비는 남길 수 있어요'); return false; }
+  if (CLOUD.role === 'viewer') { toast('보기만 권한이라 일정은 바꿀 수 없어요. 리뷰·평가·하트와 경비는 남길 수 있어요'); return false; }
   if (allDays() || how === 'editor') return true;
   const date = how === 'item' ? anyItem(v)?.date : how === 'squeeze' ? state.squeeze?.date : how === 'aiDate' ? state.aiPlan?.date : how === 'pipe' ? findItem(String(v).split('|')[0])?.date
     : how === 'swap' ? findItem(state.swapFor)?.date : how === 'qk' ? findItem(state.qk?.id)?.date
@@ -8119,7 +8142,7 @@ function mateActsHtml(m) {
     </div>`;
 }
 // 변경 기록: 누가 · 언제 · 무엇을 (최근 100건). 마스터는 값 하나짜리 일정 기록을 되돌릴 수 있어요
-const LOG_UNDO = /^(edit|done|start|seal|save|ck):|^budget$/;
+const LOG_UNDO = /^(edit|done|start|seal|ck):|^budget$/;
 function logWhat(r) {
   const k = r.key, it = (id) => findItem(id)?.title || '일정', cnt = (x) => (Array.isArray(x) ? x.length : 0);
   const t = (v) => (v && typeof v === 'object' ? v : {});
@@ -8138,7 +8161,7 @@ function logWhat(r) {
   if (k === 'myplaces') return cnt(r.new) > cnt(r.old) ? '장소를 추가했어요' : '내 장소를 고쳤어요';
   if (k.startsWith('exp')) return cnt(r.new) > cnt(r.old) ? `지출 ${cnt(r.new) - cnt(r.old)}건 기록` : cnt(r.new) < cnt(r.old) ? '지출을 지웠어요' : '지출을 고쳤어요';
   if (k.startsWith('visit:')) return `${placeById(k.split(':')[1])?.name || '장소'} 평가·메모`;
-  if (k.startsWith('save:')) return `${placeById(k.slice(5))?.name || '장소'} ${r.new ? '저장' : '저장 취소'}`;
+  if (k.startsWith('save:')) return `${placeById(k.slice(5).split(':')[0])?.name || '장소'} ${r.new ? '하트' : '하트 취소'}`;
   if (k === 'budget') return '예산을 바꿨어요';
   if (k.startsWith('diary')) return '여행 일기';
   return '기록을 바꿨어요';
