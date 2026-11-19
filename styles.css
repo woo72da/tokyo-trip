@@ -2600,9 +2600,10 @@ button.talk-card-head { width: 100%; border: 0; background: none; padding: 0; fo
 .cloud-card .trip-list .set-row { min-height: 48px; margin: 0; padding: 6px 12px; border: 1px solid var(--line); border-radius: 12px; }
 .cloud-card .trip-list .set-row.on { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
 .trip-now { font-size: 12px; font-weight: 700; color: var(--accent); white-space: nowrap; }
-/* v300 여행 삭제는 보는 중인 여행 칸 안에: 칸 아래쪽에 가는 선 + 오른쪽 빨간 테두리 버튼 */
-.cloud-card .trip-list .set-row.on { flex-wrap: wrap; }
-.trip-acts { flex-basis: 100%; display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px solid var(--line); }
+/* v301 여행 삭제는 보는 중인 여행 칸 안, '보는 중' 바로 뒤에 한 줄로 (빨간 테두리 버튼) */
+.cloud-card .trip-list .set-row .grow { min-width: 0; }
+.cloud-card .trip-list .set-row .grow b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trip-del { flex: none; }
 .trip-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 10px; }
 .trip-form label { display: grid; gap: 4px; min-width: 0; }
 .trip-form .input { width: 100%; min-width: 0; box-sizing: border-box; }
