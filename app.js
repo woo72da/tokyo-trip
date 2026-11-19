@@ -6294,7 +6294,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 306;
+const APP_VERSION = 307;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7258,9 +7258,8 @@ function accountCard() {
   if (u) {
     const name = myNick();
     return `<div class="card set-card acct-card">
-      <div class="set-row"><span class="grow"><b>${esc(name)}${AUTH.role === 'admin' ? ' <small class="acct-admin">관리자</small>' : ''}</b><small>${esc(u.email || '이메일 없음')} · ${authProviderOf(u)}로 로그인</small></span>
+      <div class="set-row"><span class="grow"><button type="button" class="acct-nick" data-nick aria-label="닉네임 바꾸기"><b>${esc(name)}${AUTH.role === 'admin' ? ' <small class="acct-admin">관리자</small>' : ''}</b>${icon('pen')}</button><small>${esc(u.email || '이메일 없음')} · ${authProviderOf(u)}로 로그인</small></span>
         <button class="btn" data-auth-out>로그아웃</button></div>
-      <button class="set-row tap" data-nick><span class="grow"><b>닉네임</b><small>여행메이트에게 보이고, 아침 인사에서 이렇게 불러요</small></span><em>${esc(myNick())}</em>${icon('pen')}</button>
     </div>`;
   }
   if (!window.supabase) return `<div class="card set-card acct-card"><div class="set-row"><span class="grow"><b>로그인</b><small>인터넷에 연결된 상태에서 앱을 한 번 다시 열어 주세요</small></span></div></div>`;
@@ -8199,7 +8198,7 @@ function mateListHtml() {
       const open = CLOUD.mateOpen === m.id;
       return `<div class="mate-row ${open ? 'open' : ''}"><i class="mate-dot" style="background:${m.color}"></i>
         <span class="grow"><b>${esc(m.nick)}${me ? ' <small class="mate-me">나</small>' : ''}</b><small>${esc(roleLine(m))}</small></span>
-        ${me ? `<button class="btn mate-btn" data-nick aria-label="내 닉네임 바꾸기">${icon('pen')}</button>`
+        ${me ? ''
           : owner ? `<button class="btn mate-btn" data-mate="${esc(m.id)}">${open ? '닫기' : '관리'}</button>` : ''}
         ${open ? mateActsHtml(m) : ''}
       </div>`; }).join('')}

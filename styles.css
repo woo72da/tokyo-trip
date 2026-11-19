@@ -2693,3 +2693,7 @@ button.talk-card-head { width: 100%; border: 0; background: none; padding: 0; fo
 .role-viewer :is([data-item-edit], [data-item-new], [data-day-edit], [data-day-reset], [data-item-skip], [data-item-del], [data-catch], [data-edit-reset],
   [data-hotel-add], [data-place-plan], [data-plan-save], [data-ai-plan], [data-ai-plan-apply], [data-place-new], [data-budget], [data-item-restore],
   [data-releg], [data-qk-apply], [data-squeeze-open], [data-item-unswap]) { display: none !important; }
+
+/* 계정: 닉네임(누르면 바꾸기)과 계정 정보를 한 줄에 */
+.acct-nick { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.acct-nick svg { width: 15px; height: 15px; color: var(--muted); }
