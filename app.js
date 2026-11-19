@@ -6294,7 +6294,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 312;
+const APP_VERSION = 313;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7355,7 +7355,7 @@ const CLOUD = { trip: null, trips: [], role: '', members: [], link: null, mateOp
 // 일정 원본: 도쿄 여행은 앱에 들어 있는 data/trip.json (요청함으로 고치는 그대로), 새로 만든 여행은 서버 trips.plan.
 // 이 폰 기록은 여행마다 따로: 여행을 바꾸면 지금 여행 기록·사진을 폰 안에 접어 두고(stash) 고른 여행 것을 펼쳐요.
 // 아래 키는 여행과 상관없는 이 폰 설정·로그인이라 그대로 둬요.
-const GLOBAL_KEYS = new Set(['aiModel', 'aiKey', 'gKey', 'deskKey', 'who', 'myNick', 'srvKeys', 'usageQ', 'cloudJoin', 'cloudTrip', 'cloudUser', 'reqLast', 'fx', 'talkText', 'geoOn', 'introVer', 'wxCard', 'lastPay', 'tab', 'routeOff', 'routeErr']);
+const GLOBAL_KEYS = new Set(['aiModel', 'aiKey', 'gKey', 'deskKey', 'who', 'myNick', 'srvKeys', 'usageQ', 'cloudJoin', 'cloudTrip', 'cloudUser', 'nickAsked', 'reqLast', 'fx', 'talkText', 'geoOn', 'introVer', 'wxCard', 'lastPay', 'tab', 'routeOff', 'routeErr']);
 const isGlobalKey = (k) => GLOBAL_KEYS.has(k) || k.startsWith('sb-') || k.startsWith('stash:');
 const STASH = 'stash|';
 // 빠진 칸을 채워서 빈 여행도 화면이 깨지지 않게
@@ -8050,6 +8050,10 @@ function inviteKakao() {
 // 들어온 직후 한 번: 여행메이트에게 보일 닉네임 확인
 async function inviteWelcome(trip) {
   toast(`'${trip.title || '여행'}'에 들어왔어요`);
+  // 닉네임은 계정마다 처음 한 번만 물어요 (다시 들어오거나 다른 여행에 들어올 땐 바로)
+  const asked = store.get('nickAsked', []);
+  if (asked.includes(AUTH.user.id) || CLOUD.trips.length > 1) return;
+  store.set('nickAsked', [...asked, AUTH.user.id]);
   const v = await askBox({ title: '여행메이트에게 보일 닉네임', body: '모든 여행에 같이 쓰여요. 설정 › 계정에서 언제든 바꿀 수 있어요.', ok: '시작하기', cancel: '그대로', input: { value: myNick(), placeholder: '1~12자' } });
   if (v !== null && v.trim() && v.trim() !== myNick()) await saveNick(v);
 }
