@@ -6296,7 +6296,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 314;
+const APP_VERSION = 315;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7773,7 +7773,8 @@ async function cloudStartRun(force) {
       const { data, error } = await sb().rpc('join_trip', { invite: join });
       store.set('cloudJoin', '');
       joined = error ? '' : data || '';
-      if (error) toast(/kicked/.test(error.message || '') ? '이 여행에서 내보내진 계정이라 이 링크로는 들어갈 수 없어요' : '이 초대 링크는 끝났어요. 초대한 분께 새 링크를 부탁해 주세요');
+      if (error && /kicked/.test(error.message || '')) { inviteClose(); kickedNotice(INV.info?.title); }
+      else if (error) toast('이 초대 링크는 끝났어요. 초대한 분께 새 링크를 부탁해 주세요');
     }
     const trip = await cloudFindTrip(joined);
     if (!trip) {
@@ -8014,6 +8015,8 @@ async function inviteOpen(code) {
   INV.info = error ? {} : data;
   if (!error && !data) INV.err = 'gone';
   else if (data && data.live === false) INV.err = 'gone';
+  // 내보낸 계정이면 미리보기 대신 바로 '들어갈 수 없어요' 팝업 (내보냈을 때와 같은 모양)
+  if (data?.kicked && !data.mine) { inviteClose(); return kickedNotice(data.title); }
   inviteDraw();
 }
 function inviteClose() { const el = $('#invite'); if (el) el.hidden = true; }
@@ -8158,6 +8161,11 @@ async function goneNotice(name) {
   if (!g) return;
   await askBox({ title: `'${g.name}' 여행에서 빠졌어요`, body: '여행 마스터가 이 여행에서 내보냈거나 여행을 지웠어요. 이 폰에 있던 그 여행의 기록은 정리했어요. 다시 함께하려면 여행 마스터에게 새 초대 링크를 받아 주세요.', ok: '확인했어요', alone: true });
   store.set('goneNotice', null);
+}
+// 내보낸 계정이 내보내기 전 초대 링크로 들어오려 할 때: 빠졌을 때와 같은 확인 팝업
+async function kickedNotice(title) {
+  const name = title || '이';
+  await askBox({ title: title ? `'${name}' 여행에 들어갈 수 없어요` : '이 여행에 들어갈 수 없어요', body: '여행 마스터가 이 여행에서 내보낸 계정이라, 내보내기 전에 받은 초대 링크로는 들어갈 수 없어요. 다시 함께하려면 여행 마스터에게 새 초대 링크를 받아 주세요.', ok: '확인했어요', alone: true });
 }
 let memberChecking = null;
 async function memberCheck(fresh = false) {
