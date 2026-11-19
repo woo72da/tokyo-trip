@@ -5553,7 +5553,7 @@ function createPlace(plan) {
 }
 // Small centred popups in the app's own look, in place of the phone's grey confirm()/prompt() boxes.
 // askConfirm → true/false · askText → the text, or null when cancelled.
-function askBox({ title, body = '', ok = '확인', cancel = '취소', danger = false, input = null, okFirst = false }) {
+function askBox({ title, body = '', ok = '확인', cancel = '취소', danger = false, input = null, okFirst = false, alone = false }) {
   return new Promise((resolve) => {
     let el = $('#ask');
     if (!el) { el = document.createElement('div'); el.id = 'ask'; el.className = 'ask'; document.body.appendChild(el); }
@@ -5561,15 +5561,17 @@ function askBox({ title, body = '', ok = '확인', cancel = '취소', danger = f
       <div class="ask-card" role="alertdialog" aria-modal="true">
         <b class="ask-t">${esc(title)}</b>${body ? `<p class="ask-s">${esc(body)}</p>` : ''}
         ${input ? `<input class="input ask-in" ${input.numeric ? 'inputmode="numeric"' : ''} value="${esc(input.value ?? '')}" placeholder="${esc(input.placeholder || '')}" autocomplete="off">` : ''}
-        <div class="ask-bs">${okFirst ? '' : `<button type="button" class="btn" data-ask="0">${esc(cancel)}</button>`}<button type="button" class="btn ${danger ? 'danger primary' : 'primary'}" data-ask="1">${danger ? icon('trash') : ''}${esc(ok)}</button>${okFirst ? `<button type="button" class="btn" data-ask="0">${esc(cancel)}</button>` : ''}</div>
+        <div class="ask-bs">${okFirst || alone ? '' : `<button type="button" class="btn" data-ask="0">${esc(cancel)}</button>`}<button type="button" class="btn ${danger ? 'danger primary' : 'primary'}" data-ask="1">${danger ? icon('trash') : ''}${esc(ok)}</button>${okFirst ? `<button type="button" class="btn" data-ask="0">${esc(cancel)}</button>` : ''}</div>
       </div>`;
     el.hidden = false;
     const inp = el.querySelector('.ask-in');
     if (inp) setTimeout(() => { inp.focus(); inp.select(); }, 60);
     const done = (v) => { el.hidden = true; resolve(v); };
     const no = () => done(input ? null : false);
-    el.querySelector('.ask-dim').onclick = no;
-    el.querySelector('[data-ask="0"]').onclick = no;
+    // alone: 확인 하나뿐, 바깥을 눌러도 닫히지 않아요
+    el.querySelector('.ask-dim').onclick = alone ? null : no;
+    const c = el.querySelector('[data-ask="0"]');
+    if (c) c.onclick = no;
     el.querySelector('[data-ask="1"]').onclick = () => done(input ? inp.value : true);
     if (inp) inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); done(inp.value); } };
   });
@@ -6294,7 +6296,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 313;
+const APP_VERSION = 314;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7232,6 +7234,7 @@ async function init() {
   loadLatest();
   geoStart();
   cloudJoinFromUrl();
+  if (store.get('goneNotice', null)) goneNotice();
   authStart();
   srvCheck();
 }
@@ -7355,7 +7358,7 @@ const CLOUD = { trip: null, trips: [], role: '', members: [], link: null, mateOp
 // 일정 원본: 도쿄 여행은 앱에 들어 있는 data/trip.json (요청함으로 고치는 그대로), 새로 만든 여행은 서버 trips.plan.
 // 이 폰 기록은 여행마다 따로: 여행을 바꾸면 지금 여행 기록·사진을 폰 안에 접어 두고(stash) 고른 여행 것을 펼쳐요.
 // 아래 키는 여행과 상관없는 이 폰 설정·로그인이라 그대로 둬요.
-const GLOBAL_KEYS = new Set(['aiModel', 'aiKey', 'gKey', 'deskKey', 'who', 'myNick', 'srvKeys', 'usageQ', 'cloudJoin', 'cloudTrip', 'cloudUser', 'nickAsked', 'reqLast', 'fx', 'talkText', 'geoOn', 'introVer', 'wxCard', 'lastPay', 'tab', 'routeOff', 'routeErr']);
+const GLOBAL_KEYS = new Set(['aiModel', 'aiKey', 'gKey', 'deskKey', 'who', 'myNick', 'srvKeys', 'usageQ', 'cloudJoin', 'cloudTrip', 'cloudUser', 'nickAsked', 'goneNotice', 'reqLast', 'fx', 'talkText', 'geoOn', 'introVer', 'wxCard', 'lastPay', 'tab', 'routeOff', 'routeErr']);
 const isGlobalKey = (k) => GLOBAL_KEYS.has(k) || k.startsWith('sb-') || k.startsWith('stash:');
 const STASH = 'stash|';
 // 빠진 칸을 채워서 빈 여행도 화면이 깨지지 않게
@@ -7781,8 +7784,10 @@ async function cloudStartRun(force) {
         // 그 여행에 연결했던 계정이 지금 계정과 같을 때만 지워요. 계정이 다르거나 모르면(로그인 확인 실패 포함) 접어만 둬요
         const { data: ses } = await sb().auth.getSession();
         const same = !!ses?.session && store.get('cloudUser', '') === AUTH.user.id;
+        const name = state.planOf ? state.trip?.trip?.title || '여행' : '도쿄 여행';
         await tripResetEmpty(!same);
-        if (same) toast('보던 여행을 더 볼 수 없어요. 지워졌거나 여행메이트에서 빠졌어요');
+        if (same && !CLOUD.quietGone) goneNotice(name); // 스스로 나간 경우는 묻지 않아요
+        CLOUD.quietGone = false;
       }
       return cloudRefreshUi();
     }
@@ -8146,6 +8151,14 @@ async function tripDrop(t) {
 }
 // 같은 여행 폰들에 '멤버가 바뀌었어요' 알림(실시간). 받은 폰은 서버에서 내가 아직 멤버인지 직접 확인해요
 function mateNotice(kind) { CLOUD.chan?.send({ type: 'broadcast', event: 'mates', payload: { kind } }).catch?.(() => {}); }
+// 여행에서 빠진 걸 확인 누를 때까지 띄워 둬요 (앱을 다시 열어도 확인 전이면 다시 떠요)
+async function goneNotice(name) {
+  if (name) store.set('goneNotice', { name, at: Date.now() });
+  const g = store.get('goneNotice', null);
+  if (!g) return;
+  await askBox({ title: `'${g.name}' 여행에서 빠졌어요`, body: '여행 마스터가 이 여행에서 내보냈거나 여행을 지웠어요. 이 폰에 있던 그 여행의 기록은 정리했어요. 다시 함께하려면 여행 마스터에게 새 초대 링크를 받아 주세요.', ok: '확인했어요', alone: true });
+  store.set('goneNotice', null);
+}
 let memberChecking = null;
 async function memberCheck(fresh = false) {
   const t = CLOUD.trip;
@@ -8158,7 +8171,7 @@ async function memberCheck(fresh = false) {
     while (CLOUD.busy) await new Promise((r) => setTimeout(r, 200)); // 하던 동기화가 끝난 뒤에 떼어 내요
     if (CLOUD.trip?.id !== t.id) return;
     await tripDrop(t);
-    toast(`'${name}'에서 빠졌어요. 여행 마스터가 내보냈거나 여행이 지워졌어요`);
+    goneNotice(name);
   })().catch(() => {}).finally(() => { memberChecking = null; });
   return memberChecking;
 }
