@@ -6296,7 +6296,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 315;
+const APP_VERSION = 316;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -8248,12 +8248,16 @@ const roleLine = (m) => `${ROLE_KO[m.role] || ''}${m.role === 'editor' && m.days
 function mateActsHtml(m) {
   const days = state.trip.days.map((x) => x.date);
   return `<div class="mate-acts">
+      <div class="mate-lbl">권한</div>
       <div class="seg mate-seg">${['editor', 'viewer'].map((r) => `<button class="btn ${m.role === r ? 'on' : ''}" data-mate-role="${esc(m.id)}|${r}">${ROLE_KO[r]}</button>`).join('')}</div>
-      ${m.role === 'editor' ? `<div class="small muted">짜는 날 (고르지 않으면 모든 날)</div><div class="mate-days">
+      ${m.role === 'editor' ? `<div class="mate-lbl">짜는 날 <span>고르지 않으면 모든 날</span></div><div class="mate-days">
         <button class="chip ${m.days?.length ? '' : 'on'}" data-mate-day="${esc(m.id)}|all">모든 날</button>
         ${days.map((x) => `<button class="chip ${m.days?.includes(x) ? 'on' : ''}" data-mate-day="${esc(m.id)}|${x}">${+x.slice(5, 7)}/${+x.slice(8, 10)}</button>`).join('')}</div>`
     : '<div class="small muted">일정은 볼 수만 있고, 리뷰·평가와 경비는 남길 수 있어요</div>'}
-      <button class="btn danger" data-mate-kick="${esc(m.id)}">내보내기</button>
+      <div class="mate-out">
+        <span class="grow"><b>이 여행에서 내보내기</b><small>그분 폰에서 이 여행이 사라지고, 지금 초대 링크로는 다시 못 들어와요.${m.role === 'editor' ? ' 일정만 못 바꾸게 하려면 위에서 \'보기만\'으로 바꿔 주세요.' : ''}</small></span>
+        <button class="btn mate-kick" data-mate-kick="${esc(m.id)}">${icon('trash')}내보내기</button>
+      </div>
     </div>`;
 }
 // 변경 기록: 누가 · 언제 · 무엇을 (최근 100건). 마스터는 값 하나짜리 일정 기록을 되돌릴 수 있어요
