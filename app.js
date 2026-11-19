@@ -6296,7 +6296,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 316;
+const APP_VERSION = 317;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7814,6 +7814,8 @@ async function cloudStartRun(force) {
     claimMine();
     legacyMoveLocal();
     await tripPlanSync(trip);
+    // 초대로 들어왔으면 일정이 보이는 대로 카드를 닫아요 (기록·사진은 이어서 받아요)
+    if (joined) { INV.busy = false; inviteClose(); toast(`'${trip.title || '여행'}'에 들어왔어요. 기록을 받아오는 중이에요`); }
     await cloudSync(true);
     if (joined) inviteWelcome(trip);
   } catch (e) { CLOUD.state = 'error'; CLOUD.err = e.message || String(e); cloudRefreshUi(); }
@@ -8017,6 +8019,15 @@ async function inviteOpen(code) {
   else if (data && data.live === false) INV.err = 'gone';
   // 내보낸 계정이면 미리보기 대신 바로 '들어갈 수 없어요' 팝업 (내보냈을 때와 같은 모양)
   if (data?.kicked && !data.mine) { inviteClose(); return kickedNotice(data.title); }
+  // 이미 함께하는 여행이면 카드 없이 그 여행으로 (보고 있으면 그대로)
+  if (data?.mine && AUTH.user) {
+    inviteClose();
+    const same = (t) => t.title === data.title && String(t.start_date || '') === String(data.start || '');
+    if (CLOUD.trip && same(CLOUD.trip)) return toast(`이미 함께하는 '${data.title || '여행'}'이에요`);
+    const t = CLOUD.trips.find(same);
+    if (t) { await tripSwitch(t.id); return toast(`'${data.title || '여행'}'을 열었어요`); }
+    store.set('cloudJoin', code); return cloudStart(true);
+  }
   inviteDraw();
 }
 function inviteClose() { const el = $('#invite'); if (el) el.hidden = true; }
@@ -8057,7 +8068,6 @@ function inviteKakao() {
 }
 // 들어온 직후 한 번: 여행메이트에게 보일 닉네임 확인
 async function inviteWelcome(trip) {
-  toast(`'${trip.title || '여행'}'에 들어왔어요`);
   // 닉네임은 계정마다 처음 한 번만 물어요 (다시 들어오거나 다른 여행에 들어올 땐 바로)
   const asked = store.get('nickAsked', []);
   if (asked.includes(AUTH.user.id) || CLOUD.trips.length > 1) return;
