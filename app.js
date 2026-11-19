@@ -6296,7 +6296,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 318;
+const APP_VERSION = 319;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6401,7 +6401,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-trip-open],[data-trip-new],[data-trip-cancel],[data-trip-create],[data-nt-day],[data-nt-reset],[data-nt-month],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-inv-off],[data-inv-close],[data-inv-join],[data-inv-kakao],[data-join-code],[data-mate],[data-mate-kick],[data-mate-leave],[data-trip-del],[data-mate-role],[data-mate-day],[data-log-open],[data-log-undo],[data-mate-all],[data-sync-build],[data-sync-share],[data-sync-pick],[data-empty-new],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-trip-open],[data-trip-new],[data-trip-cancel],[data-trip-create],[data-nt-day],[data-nt-reset],[data-nt-month],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-inv-off],[data-inv-close],[data-inv-join],[data-inv-kakao],[data-join-code],[data-mate],[data-mate-kick],[data-mate-leave],[data-trip-del],[data-mate-role],[data-mate-day],[data-log-open],[data-log-undo],[data-mate-all],[data-sync-build],[data-sync-share],[data-sync-pick],[data-empty-new],[data-log-who],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6736,6 +6736,7 @@ document.addEventListener('click', async (e) => {
   else if (d.mateRole) { const [id, r] = d.mateRole.split('|'); mateRole(id, r); }
   else if (d.mateDay) { const [id, x] = d.mateDay.split('|'); mateDay(id, x); }
   else if ('logOpen' in d) openLog();
+  else if ('logWho' in d) { state.logWho = d.logWho; drawLog(); }
   else if (d.logUndo) logUndo(d.logUndo);
   else if ('mateAll' in d) { CLOUD.mateAll = true; cloudRefreshUi(); }
   else if ('tripOpen' in d) tripSwitch(d.tripOpen);
@@ -8301,12 +8302,34 @@ async function openLog() {
   if (error) return toast('변경 기록을 불러오지 못했어요. 잠시 뒤 다시 해 주세요');
   state.logRows = data || [];
   if (state.logRows.some((r) => isNewMate(r.by))) await membersRefresh(true);
-  const when = (a) => { const x = new Date(a); return `${x.getMonth() + 1}/${x.getDate()} ${String(x.getHours()).padStart(2, '0')}:${String(x.getMinutes()).padStart(2, '0')}`; };
+  state.logWho = '';
+  drawLog();
+  $('#sheet').hidden = false;
+}
+// 변경 기록 화면: 위에 사람별 거르기 칩, 날짜별로 묶고, 줄마다 그 사람 색 점·이름
+function drawLog() {
+  const rows = state.logRows || [];
+  const order = mates().map((m) => m.id);
+  const colorOf = (u) => mates().find((m) => m.id === u)?.color || '#8a8f98';
+  const who = [...new Set(rows.map((r) => r.by || ''))].sort((a, b) => ((order.indexOf(a) + 1) || 99) - ((order.indexOf(b) + 1) || 99));
+  const pick = who.includes(state.logWho) ? state.logWho : '';
+  const list = pick ? rows.filter((r) => (r.by || '') === pick) : rows;
+  const hm = (a) => { const x = new Date(a); return `${String(x.getHours()).padStart(2, '0')}:${String(x.getMinutes()).padStart(2, '0')}`; };
+  const ymd = (a) => { const x = new Date(a); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+  const cnt = (u) => rows.filter((r) => (r.by || '') === u).length;
+  const chip = (u, label, n, dot) => `<button class="chip ${pick === u ? 'on' : ''}" data-log-who="${esc(u)}">${dot ? `<i class="mate-dot" style="background:${dot}"></i>` : ''}${esc(label)} <em>${n}</em></button>`;
+  let last = '';
+  const body = list.map((r) => {
+    const d = ymd(r.at), head = d !== last ? `<div class="log-date">${esc(dayLabel(d))}</div>` : '';
+    last = d;
+    const c = colorOf(r.by);
+    return `${head}<div class="log-row" style="--who:${c}"><span class="grow"><small class="log-who-tag"><i class="mate-dot" style="background:${c}"></i>${esc(nameOf(r.by) || '여행메이트')} · ${hm(r.at)}</small><b>${esc(logWhat(r))}</b></span>
+      ${CLOUD.role === 'owner' && LOG_UNDO.test(r.key) && !(r.key === 'budget' && r.old == null) ? `<button class="btn" data-log-undo="${r.id}">되돌리기</button>` : ''}</div>`;
+  }).join('');
   $('#sheet-body').innerHTML = `<div class="sheet-head"><h3>변경 기록</h3></div>
     <div class="small muted">누가 언제 무엇을 바꿨는지 최근 100건이에요.${CLOUD.role === 'owner' ? ' 일정 기록은 되돌릴 수 있어요.' : ''}</div>
-    <div class="log-list">${state.logRows.map((r) => `<div class="set-row log-row"><span class="grow"><b>${esc(logWhat(r))}</b><small>${esc(nameOf(r.by) || '여행메이트')} · ${when(r.at)}</small></span>
-      ${CLOUD.role === 'owner' && LOG_UNDO.test(r.key) && !(r.key === 'budget' && r.old == null) ? `<button class="btn" data-log-undo="${r.id}">되돌리기</button>` : ''}</div>`).join('') || '<div class="muted">아직 기록이 없어요</div>'}</div>`;
-  $('#sheet').hidden = false;
+    ${who.length > 1 ? `<div class="log-filter">${chip('', '전체', rows.length, '')}${who.map((u) => chip(u, nameOf(u) || '여행메이트', cnt(u), colorOf(u))).join('')}</div>` : ''}
+    <div class="log-list">${body || '<div class="muted">아직 기록이 없어요</div>'}</div>`;
 }
 function logUndo(id) {
   const r = (state.logRows || []).find((x) => String(x.id) === String(id));

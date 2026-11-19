@@ -2686,9 +2686,17 @@ button.talk-card-head { width: 100%; border: 0; background: none; padding: 0; fo
 .mate-days .chip { border: 0; min-height: 34px; padding: 0 12px; font-size: 13px; font: inherit; font-weight: 700; cursor: pointer; }
 .mate-days .chip.on { background: var(--accent); color: #fff; }
 .log-list { display: grid; margin-top: 8px; }
-.log-row + .log-row { border-top: 1px solid var(--line); }
-.log-row .grow b { display: block; font-size: 14px; }
-.log-row .grow small { display: block; font-size: 12px; color: var(--muted); }
+.log-row { display: flex; align-items: center; gap: 10px; padding: 9px 0 9px 12px; border-left: 3px solid var(--who, var(--line)); margin: 4px 0; }
+.log-row .grow b { display: block; font-size: 14px; margin-top: 2px; }
+.log-row .log-who-tag { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.log-row .log-who-tag .mate-dot { width: 8px; height: 8px; box-shadow: none; }
+.log-date { font-size: 12px; font-weight: 700; color: var(--muted); margin: 14px 0 2px; }
+.log-list > .log-date:first-child { margin-top: 4px; }
+.log-filter { display: flex; gap: 6px; overflow-x: auto; margin-top: 10px; padding-bottom: 2px; }
+.log-filter .chip { display: inline-flex; align-items: center; gap: 6px; flex: none; border: 0; min-height: 34px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.log-filter .chip em { font-style: normal; font-weight: 400; opacity: .7; }
+.log-filter .chip .mate-dot { width: 8px; height: 8px; box-shadow: none; }
+.log-filter .chip.on { background: var(--accent); color: #fff; }
 .role-viewer :is([data-item-edit], [data-item-new], [data-day-edit], [data-day-reset], [data-item-skip], [data-item-del], [data-catch], [data-edit-reset],
   [data-hotel-add], [data-place-plan], [data-plan-save], [data-ai-plan], [data-ai-plan-apply], [data-place-new], [data-budget], [data-item-restore],
   [data-releg], [data-qk-apply], [data-squeeze-open], [data-item-unswap]) { display: none !important; }
