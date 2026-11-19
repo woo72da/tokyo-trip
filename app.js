@@ -1255,7 +1255,7 @@ function addExpense({ value, cur, pay, memo, cat, item, date, time = '' }) {
   const list = expenses();
   localStorage.setItem('lastPay', pay);
   const id = uid('e-');
-  list.push({ id, ...expAmount(value, cur), pay, memo, cat, item: item || null, date: date || tokyoNow().date, time: time || '', by: meId(), at: Date.now() });
+  list.push({ id, ...expAmount(value, cur), pay, memo, cat, item: item || null, date: date || tokyoNow().date, time: time || '', by: meId(), own: AUTH.user?.id || undefined, at: Date.now() });
   store.set('exp', list);
   return id;
 }
@@ -1287,6 +1287,7 @@ const timePick = (name, value, label) => `<label class="tpick ${value ? '' : 'no
 function openExpEdit(id) {
   const e = expenses().find((x) => x.id === id);
   if (!e) return;
+  if (!mineExp(e)) return toast(`${nameOf(expOwner(e))}님이 기록한 지출이라 그분만 고칠 수 있어요`);
   $('#sheet-body').innerHTML = `
     <div class="sheet-head"><h3>지출 수정</h3></div>
     <form class="exp-edit exp-form" data-id="${esc(id)}">
@@ -3595,7 +3596,7 @@ function greeting(day, items, g, now) {
 // Before the first stop: yesterday against today, and what to bring, tuned by what this person said about yesterday.
 function prepCard(day, items, now) {
   const first = items.find((it) => !it.skip);
-  const st = store.get('prep:' + day.date, {});
+  const st = store.get(pKey(day.date), {});
   if (st.done || now.min < 240 || (first && now.min >= first.startMin)) return '';
   const g = gearFor(day.date, items, meId());
   const today = wxDay(day.date);
@@ -3922,7 +3923,18 @@ const EX_AREAS = ['전체', '우에노·아키하바라', '아사쿠사·스카�
 const CAT_ICON = { eat: '🍽', drink: '☕', see: '🏛', shop: '🛍' };
 const EX_KIND = { eat: 'food', drink: 'cafe', see: 'sight', shop: 'shop' };
 const isSaved = (id) => !!store.get('save:' + id, false);
-const visitOf = (id) => store.get('visit:' + id, null);
+// v303 리뷰·평가는 사람마다 따로 (visit:<장소id>:<계정id>). visitOf = 내 것, visitsOf = 모두의 것
+const vKey = (id, who = meId()) => `visit:${id}:${who}`;
+const visitOf = (id) => store.get(vKey(id), null);
+// 아침 준비 체크도 사람마다
+const pKey = (date) => `prep:${date}:${meId()}`;
+// 장소 상세: 다른 여행메이트의 평가·메모
+function mateReviews(id) {
+  const list = visitsOf(id).filter((x) => x.who !== meId() && (x.v.again || x.v.memo));
+  if (!list.length) return '';
+  return `<div class="mate-reviews">${list.map(({ who, v }) => `<div class="mate-review"><b>${esc(nameOf(who))}</b>${v.again ? ` · ${esc(AGAIN[v.again] || '')}` : ''}${v.memo ? `<div class="small muted">“${esc(v.memo)}”</div>` : ''}</div>`).join('')}</div>`;
+}
+const visitsOf = (id) => Object.keys(localStorage).filter((k) => k.startsWith(`visit:${id}:`)).map((k) => ({ who: k.slice(`visit:${id}:`.length), v: store.get(k, null) })).filter((x) => x.v);
 // Trip places plus the ones added on the phones.
 // Google facts fetched again on this phone for the trip file's places ('gfix': rating, hours, address, map link, when).
 let GFIX = null;
@@ -4197,6 +4209,7 @@ function openPlace(id) {
     <div class="sheet-head"><h3>${esc(p.name)}</h3></div>
     ${p.desc ? `<div class="muted">${esc(p.desc)}</div>` : ''}
     ${p.addr ? `<div class="small muted">${esc(p.addr)}</div>` : ''}
+    ${mateReviews(id)}
     ${placeSource(p)}
     ${p.r || !p.src ? infoCard({ info: placeInfo(p) }) : ''}
     ${state.swapFor ? `<div class="btns">
@@ -5928,12 +5941,12 @@ function completeItem(id) {
   if (isDone(id)) {
     setDone(id, false);
     const v = p && visitOf(p.id);
-    if (v && !v.again && !v.memo) store.set('visit:' + p.id, null);
+    if (v && !v.again && !v.memo) store.set(vKey(p.id), null);
     closeSheet();
     return render();
   }
   setDone(id, true);
-  if (p && !visitOf(p.id)) store.set('visit:' + p.id, { at: Date.now(), by: meId(), memo: '', again: '' });
+  if (p && !visitOf(p.id)) store.set(vKey(p.id), { at: Date.now(), by: meId(), memo: '', again: '' });
   render();
   openFinish(id);
 }
@@ -5967,7 +5980,7 @@ function openFinish(id) {
 function setAgain(id, val, from) {
   const v = visitOf(id);
   const again = v?.again === val ? '' : val;
-  store.set('visit:' + id, { at: v?.at || Date.now(), by: v?.by || meId(), memo: v?.memo || '', again });
+  store.set(vKey(id), { at: v?.at || Date.now(), by: v?.by || meId(), memo: v?.memo || '', again });
   render();
   if (from === 'place') return openPlace(id);
   document.querySelectorAll('.finish [data-rate]').forEach((b) => b.classList.toggle('primary', b.dataset.again === again));
@@ -5975,7 +5988,7 @@ function setAgain(id, val, from) {
 
 function toggleVisit(id) {
   const v = visitOf(id);
-  store.set('visit:' + id, v ? null : { at: Date.now(), by: meId(), memo: '' });
+  store.set(vKey(id), v ? null : { at: Date.now(), by: meId(), memo: '' });
   render();
   openPlace(id);
 }
@@ -6034,7 +6047,7 @@ async function addDoc(slotId, file) {
   const keys = await docs.of(slotId);
   if (max === 1) for (const k of keys) await docs.del(k);
   else if (keys.length >= max) { toast(`${slot.label}은 ${max}장까지 넣을 수 있어요.`); return false; }
-  await docs.put(`${slotId}#${uid('')}`, await shrink(file));
+  await docs.put(`${slotId}#${slotId.startsWith('rcpt-') && AUTH.user ? AUTH.user.id + '.' : ''}${uid('')}`, await shrink(file));
   await refreshDocSlots();
   return true;
 }
@@ -6264,7 +6277,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 302;
+const APP_VERSION = 303;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6631,13 +6644,13 @@ document.addEventListener('click', async (e) => {
   }
   else if (d.prep) {
     const [date, k] = d.prep.split('|');
-    const st = store.get('prep:' + date, {});
-    store.set('prep:' + date, { ...st, ck: { ...st.ck, [k]: !st.ck?.[k] } });
+    const st = store.get(pKey(date), {});
+    store.set(pKey(date), { ...st, ck: { ...st.ck, [k]: !st.ck?.[k] } });
     el.classList.toggle('on');
   }
   else if (d.prepDone) {
     briefStop();
-    const key = 'prep:' + d.prepDone;
+    const key = pKey(d.prepDone);
     store.set(key, { ...store.get(key, {}), done: true }); render();
     toast(`${callMe()}, 좋은 하루 보내세요`, () => { store.set(key, { ...store.get(key, {}), done: false }); render(); }, '다시 보기');
   }
@@ -6771,7 +6784,7 @@ document.addEventListener('input', (e) => {
   if (t.dataset.placeMemo) {
     const id = t.dataset.placeMemo;
     const v = visitOf(id);
-    store.set('visit:' + id, { ...v, at: v?.at || Date.now(), by: v?.by || meId(), memo: t.value });
+    store.set(vKey(id), { ...v, at: v?.at || Date.now(), by: v?.by || meId(), memo: t.value });
     return;
   }
   if (t.dataset.secret) store.set(t.dataset.secret, t.type === 'url' || t.type === 'tel' ? t.value.trim() : t.value.trim().toUpperCase());
@@ -7501,6 +7514,36 @@ function ntMonth(step) {
 // 바꾼 기록은 1.5초 모아서 보내요. 서버 연결 전이면 그냥 폰에 남아 있다가 연결되면 보내요.
 function cloudSoon() { clearTimeout(cloudSoon.t); cloudSoon.t = setTimeout(() => { try { cloudSync(); } catch { /* not ready */ } }, 1500); }
 const cloudTable = (k) => (SECRET_KEYS.includes(k) ? 'trip_secrets' : 'trip_kv');
+// v303 사람별 기록: 서버에는 경비를 사람별 줄(exp:<계정id>)로, 리뷰·아침 준비·지운 표시도 사람별 키로 주고받아요.
+// 개인 키는 그 사람만 써요(서버 규칙 0004). 그래서 남의 개인 키는 이 폰에서 보내지 않아요.
+const PERSONAL_RE = /^(?:exp|tomb|visit:[^:]+|gear:[^:]+|prep:[^:]+):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+const personalOwner = (k) => (PERSONAL_RE.exec(k) || [])[1] || '';
+const canPush = (k) => { const o = personalOwner(k); return !o || o === AUTH.user?.id; };
+const tripOwnerId = () => CLOUD.trip?.owner_id || CLOUD.members.find((m) => m.role === 'owner')?.id || '';
+const isMateId = (id) => CLOUD.members.some((m) => m.id === id);
+// 이 경비가 들어가는 줄의 주인: 받은 줄 → 낸 사람이 여행메이트면 그 사람 → 여행 주인 (옛 '나'·'다희' 기록). 항목의 by(누가 냈나)는 그대로예요.
+const expOwner = (e) => e.own || (isMateId(e.by) ? e.by : tripOwnerId());
+const mineExp = (e) => !CLOUD.trip || !AUTH.user || expOwner(e) === AUTH.user.id;
+// 예전 키(장소당 리뷰 하나, 날짜당 준비 체크 하나)를 주인 키로 옮겨요. 주인: 마지막으로 쓴 사람 → 기록의 by → 여행 주인
+function legacyTarget(k, v, updatedBy) {
+  if (/^visit:[^:]+$/.test(k)) return `${k}:${isMateId(updatedBy) ? updatedBy : isMateId(v?.by) ? v.by : tripOwnerId()}`;
+  if (/^prep:[^:]+$/.test(k)) return `${k}:${tripOwnerId()}`;
+  return '';
+}
+// 이 폰에 남은 예전 키 옮기기 (여행에 연결될 때 한 번). 옮긴 건 다시 올리지 않아요(서버는 0004가 옮겨요).
+function legacyMoveLocal() {
+  if (!tripOwnerId()) return;
+  const meta = store.get('meta', {}), sent = { ...cloudSent() };
+  for (const k of Object.keys(localStorage)) {
+    const v = store.get(k, null);
+    const nk = legacyTarget(k, v, '');
+    if (!nk) continue;
+    if (v && !localStorage.getItem(nk)) { localStorage.setItem(nk, JSON.stringify(v)); meta[nk] = meta[k] || 1; sent[nk] = meta[nk]; }
+    localStorage.removeItem(k); delete meta[k];
+  }
+  localStorage.setItem('meta', JSON.stringify(meta));
+  store.set('cloudSent', sent);
+}
 const cloudSent = () => store.get('cloudSent', {});
 const docName = (k) => encodeURIComponent(k).replace(/%/g, '!');
 const docKey = (n) => decodeURIComponent(n.replace(/!/g, '%'));
@@ -7513,11 +7556,33 @@ function cloudPending() {
   return n;
 }
 // 서버에서 온 기록 하나를 이 폰 기록과 합쳐요. 바뀌었으면 true.
-function cloudMerge(k, r) {
+function cloudMerge(k, r, updatedBy = '') {
   if (!r || typeof r !== 'object' || !('t' in r)) return false;
+  const nk = legacyTarget(k, r.v, updatedBy);
+  if (nk) {
+    // 옛 폰이 쓴 리뷰·준비 체크: 주인 키로 받아 두고 다시 올리지는 않아요
+    const meta = store.get('meta', {});
+    if (r.v === null || r.t <= (meta[nk] || 0)) return false;
+    localStorage.setItem(nk, JSON.stringify(r.v));
+    localStorage.setItem('meta', JSON.stringify({ ...meta, [nk]: r.t }));
+    store.set('cloudSent', { ...cloudSent(), [nk]: r.t });
+    return true;
+  }
+  if (k === 'exp' || k.startsWith('exp:')) {
+    // 사람별 경비 줄을 이 폰의 경비 목록 하나로 합쳐요 (같은 id면 나중 것)
+    const owner = k === 'exp' ? '' : k.slice(4);
+    const tomb = store.get('tomb', {});
+    const mine = expenses(), theirs = (Array.isArray(r.v) ? r.v : []).map((x) => (owner ? { ...x, own: owner } : x));
+    const byId = new Map(mine.map((x) => [x.id, x]));
+    for (const x of theirs) { const m = byId.get(x.id); if (!m || (x.at || 0) > (m.at || 0) || (owner && !m.own && (x.at || 0) === (m.at || 0))) byId.set(x.id, x); }
+    const merged = [...byId.values()].filter((x) => !tomb[`exp:${x.id}`]);
+    if (JSON.stringify(merged) === JSON.stringify(mine)) return false;
+    localStorage.setItem('exp', JSON.stringify(merged));
+    return true;
+  }
   const meta = store.get('meta', {}), sent = cloudSent();
   const lt = meta[k] || 0;
-  if (k === 'tomb') {
+  if (k === 'tomb' || k.startsWith('tomb:')) {
     const tomb = { ...store.get('tomb', {}) };
     let changed = false;
     for (const [id, t] of Object.entries(r.v || {})) if ((tomb[id] || 0) < t) { tomb[id] = t; changed = true; }
@@ -7589,7 +7654,7 @@ function claimMine() {
   if (ex.some((e) => e.by === 'me')) store.set('exp', ex.map((e) => (e.by === 'me' ? { ...e, by: id } : e)));
   for (let i = localStorage.length - 1; i >= 0; i -= 1) {
     const k = localStorage.key(i);
-    if (k?.startsWith('visit:')) { const v = store.get(k, null); if (v?.by === 'me') store.set(k, { ...v, by: id }); }
+    if (/^(visit|prep):.+:me$/.test(k || '')) { const v = store.get(k, null); const nk = k.slice(0, -2) + id; if (v && !store.get(nk, null)) store.set(nk, v.by === 'me' ? { ...v, by: id } : v); store.set(k, null); }
     else if (k?.startsWith('gear:') && k.endsWith(':me')) { const v = store.get(k, null); if (v) store.set(k.slice(0, -2) + id, { ...v, ...store.get(k.slice(0, -2) + id, {}) }); store.set(k, null); }
   }
 }
@@ -7641,6 +7706,7 @@ async function cloudStartRun(force) {
     CLOUD.trip = trip;
     if (fresh) cloudSubscribe();
     claimMine();
+    legacyMoveLocal();
     await tripPlanSync(trip);
     await cloudSync(true);
     if (joined) inviteWelcome(trip);
@@ -7654,7 +7720,7 @@ function cloudSubscribe() {
     if (!row?.key) return;
     if (row.updated_by === AUTH.user?.id && row.value?.t === store.get('meta', {})[row.key]) return;
     if (row.updated_at > (store.get('cloudCursor', '') || '')) store.set('cloudCursor', row.updated_at);
-    if (cloudMerge(row.key, row.value)) cloudRendered();
+    if (cloudMerge(row.key, row.value, row.updated_by)) cloudRendered();
   };
   CLOUD.chan = sb().channel('trip-' + id)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'trip_kv', filter: `trip_id=eq.${id}` }, on)
@@ -7691,12 +7757,12 @@ async function cloudSync(full = false) {
     // 1. 받기 (처음엔 전부, 그다음엔 마지막으로 받은 시각 이후만)
     const cursor = full ? '' : store.get('cloudCursor', '');
     for (const table of ['trip_kv', 'trip_secrets']) {
-      let q = sb().from(table).select('key, value, updated_at').eq('trip_id', id).order('updated_at').limit(1000);
+      let q = sb().from(table).select('key, value, updated_at, updated_by').eq('trip_id', id).order('updated_at').limit(1000);
       if (cursor) q = q.gt('updated_at', cursor);
       const { data, error } = await q;
       if (error) throw error;
       for (const row of data || []) {
-        if (cloudMerge(row.key, row.value)) changed = true;
+        if (cloudMerge(row.key, row.value, row.updated_by)) changed = true;
         if (row.updated_at > (store.get('cloudCursor', '') || '')) store.set('cloudCursor', row.updated_at);
       }
     }
@@ -7705,18 +7771,21 @@ async function cloudSync(full = false) {
     const rows = { trip_kv: [], trip_secrets: [] };
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (!isShared(k)) continue;
+      if (!isShared(k) || k === 'exp' || !canPush(k)) continue;
       const t = meta[k] || 1;
       if (t > (sent[k] || 0)) rows[cloudTable(k)].push({ trip_id: id, key: k, value: { v: store.get(k, null), t } });
     }
+    // 경비: 내 줄(exp:<내 계정>)만 보내요
+    const me = AUTH.user.id, expT = meta.exp || 1;
+    if (expT > (sent.exp || 0)) rows.trip_kv.push({ trip_id: id, key: 'exp:' + me, value: { v: expenses().filter((e) => expOwner(e) === me).map(({ own, ...e }) => e), t: expT } });
     const tombStr = JSON.stringify(store.get('tomb', {}));
-    if (tombStr !== (sent.__tomb || '{}')) rows.trip_kv.push({ trip_id: id, key: 'tomb', value: { v: store.get('tomb', {}), t: Date.now() } });
+    if (tombStr !== (sent.__tomb || '{}')) rows.trip_kv.push({ trip_id: id, key: 'tomb:' + me, value: { v: store.get('tomb', {}), t: Date.now() } });
     for (const [table, list] of Object.entries(rows)) {
       for (let i = 0; i < list.length; i += 200) {
         const { error } = await sb().from(table).upsert(list.slice(i, i + 200), { onConflict: 'trip_id,key' });
         if (error) throw error;
       }
-      for (const r of list) { if (r.key === 'tomb') sent.__tomb = tombStr; else sent[r.key] = r.value.t; }
+      for (const r of list) { if (r.key.startsWith('tomb')) sent.__tomb = tombStr; else if (r.key.startsWith('exp:')) sent.exp = r.value.t; else sent[r.key] = r.value.t; }
     }
     store.set('cloudSent', sent);
     // 3. 사진
