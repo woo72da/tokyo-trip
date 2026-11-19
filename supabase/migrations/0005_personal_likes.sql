@@ -1,4 +1,4 @@
--- 0005 사람별 하트 + 내보낸 사람 다시 못 들어오기 (설계: docs/superpowers/specs/2026-11-19-shared-likes-journal-design.md)
+-- 0005 사람별 하트 + 내보낸 사람 다시 못 들어오기 + 8자리 초대 코드 (설계: docs/superpowers/specs/2026-11-19-shared-likes-journal-design.md)
 -- Supabase SQL Editor에서 통째로 한 번 실행해요. 다시 실행해도 안전해요.
 -- 먼저 모든 폰이 v306 이상이어야 해요(사람별 하트를 읽는 버전).
 
@@ -73,7 +73,21 @@ begin
   return inv.trip_id;
 end $$;
 
--- 4. 확인: 여행별 사람별 하트 수 (예전 하트가 0이면 옮기기 끝)
+-- 4. 새 초대 코드는 8자리 (헷갈리는 0·o·1·l·i 빼고, 화면엔 ABCD-EFGH). 이미 있는 링크는 그대로 써요
+create or replace function public.invite_code()
+returns text language plpgsql volatile as $$
+declare abc text := 'abcdefghjkmnpqrstuvwxyz23456789'; c text;
+begin
+  loop
+    c := '';
+    for i in 1..8 loop c := c || substr(abc, 1 + floor(random() * length(abc))::int, 1); end loop;
+    exit when not exists (select 1 from public.trip_invites where code = c);
+  end loop;
+  return c;
+end $$;
+alter table public.trip_invites alter column code set default public.invite_code();
+
+-- 5. 확인: 여행별 사람별 하트 수 (예전 하트가 0이면 옮기기 끝)
 select t.title as 여행, coalesce(p.nick, '예전 하트') as 사람, count(*) as 하트
 from public.trip_kv k join public.trips t on t.id = k.trip_id
 left join public.profiles p on p.id = public.personal_owner(k.key)

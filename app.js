@@ -6294,7 +6294,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 311;
+const APP_VERSION = 312;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7967,7 +7967,7 @@ async function cloudInvite() {
   CLOUD.link = link; cloudRefreshUi();
   const url = inviteUrl(link.code);
   const name = CLOUD.trip.title || '여행';
-  const text = `'${name}'에 함께해요. 링크를 열고 카카오로 시작하면 바로 들어와져요 (${mdOf(link.until)}까지)\n${url}`;
+  const text = `'${name}'에 함께해요. 링크를 열고 카카오로 시작하면 바로 들어와져요 (${mdOf(link.until)}까지)\n${url}\n초대 코드: ${codeShow(link.code)}`;
   try {
     if (navigator.share) await navigator.share({ title: `${name} 초대`, text });
     else { await navigator.clipboard.writeText(text); toast('초대 링크를 복사했어요. 단톡방에 붙여 넣어 주세요'); }
@@ -7990,9 +7990,11 @@ function cloudJoinFromUrl() {
   history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
   setTimeout(() => inviteOpen(code), 500);
 }
-const inviteCodeOf = (txt) => (String(txt).match(/join=([0-9a-z]{6,})/i)?.[1] || String(txt).trim().match(/^[0-9a-z]{6,32}$/i)?.[0] || '').toLowerCase();
+const inviteCodeOf = (txt) => (String(txt).match(/join=([0-9a-z]{6,})/i)?.[1] || String(txt).replace(/[\s-]/g, '').match(/^[0-9a-z]{6,32}$/i)?.[0] || '').toLowerCase();
+// 8자리 코드는 'ABCD-EFGH'로 보여 줘요 (예전 12자리는 그대로)
+const codeShow = (c) => (c?.length === 8 ? `${c.slice(0, 4)}-${c.slice(4)}`.toUpperCase() : c || '');
 async function inviteAsk() {
-  const v = await askText('초대 코드 입력', '', { body: '받은 초대 링크를 통째로 붙여 넣거나, 링크 끝의 12자리 코드를 넣어 주세요.', placeholder: '초대 링크 또는 코드' });
+  const v = await askText('초대 코드 입력', '', { body: '받은 초대 링크를 통째로 붙여 넣거나, 8자리 초대 코드(예: ABCD-EFGH)를 넣어 주세요.', placeholder: '초대 링크 또는 코드' });
   if (v === null) return;
   const code = inviteCodeOf(v);
   if (!code) return toast('초대 코드를 찾지 못했어요. 링크를 다시 확인해 주세요');
@@ -8292,7 +8294,7 @@ function mateListHtml() {
         ${open ? mateActsHtml(m) : ''}
       </div>`; }).join('')}
       ${all ? '' : `<button class="btn wide" data-mate-all>외 ${list.length - 6}명 더 보기</button>`}</div>
-    ${owner && l ? `<div class="set-row"><span class="grow"><b>초대 링크</b><small>코드 ${esc(l.code)} · ${mdOf(l.until)}까지 · ${l.uses}명 들어옴 · 새로 들어오면 '보기만'</small></span><button class="btn" data-inv-off>링크 끄기</button></div>` : ''}
+    ${owner && l ? `<div class="set-row"><span class="grow"><b>초대 링크</b><small>코드 ${esc(codeShow(l.code))} · ${mdOf(l.until)}까지 · ${l.uses}명 들어옴 · 새로 들어오면 '보기만'</small></span><button class="btn" data-inv-off>링크 끄기</button></div>` : ''}
     <div class="btns"><button class="btn wide" data-log-open>${icon('clock')}변경 기록</button></div>
     ${!owner ? '<div class="btns"><button class="btn danger wide" data-mate-leave>이 여행에서 나가기</button></div>' : ''}`;
 }
