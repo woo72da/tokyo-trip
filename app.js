@@ -6264,7 +6264,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 299;
+const APP_VERSION = 300;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -7427,7 +7427,8 @@ function tripListHtml() {
   const cur = CLOUD.trip?.id || store.get('cloudTrip', '');
   return `<div class="trip-list">${CLOUD.trips.map((t) => `<div class="set-row trip-row${t.id === cur ? ' on' : ''}">
       <span class="grow"><b>${esc(t.title)}</b><small>${fmt(t.start_date)}~${fmt(t.end_date)}${t.owner_id === AUTH.user.id ? '' : ' · 초대받은 여행'}</small></span>
-      ${t.id === cur ? '<span class="trip-now">보는 중</span>' : `<button class="btn" data-trip-open="${esc(t.id)}" ${CLOUD.switching ? 'disabled' : ''}>열기</button>`}</div>`).join('')}</div>`;
+      ${t.id === cur ? '<span class="trip-now">보는 중</span>' : `<button class="btn" data-trip-open="${esc(t.id)}" ${CLOUD.switching ? 'disabled' : ''}>열기</button>`}
+      ${t.id === cur && t.id === CLOUD.trip?.id && CLOUD.role === 'owner' && t.slug !== TRIP_SLUG ? `<div class="trip-acts"><button class="btn danger" data-trip-del ${CLOUD.switching ? 'disabled' : ''}>${icon('trash')}이 여행 삭제</button></div>` : ''}</div>`).join('')}</div>`;
 }
 function tripFormHtml() {
   if (!CLOUD.form) return `<div class="btns"><button class="btn wide" data-trip-new>${icon('plus')}새 여행 만들기</button></div>`;
@@ -7971,8 +7972,7 @@ function mateListHtml() {
       </div>`; }).join('')}
       ${all ? '' : `<button class="btn wide" data-mate-all>외 ${list.length - 6}명 더 보기</button>`}</div>
     ${owner && l ? `<div class="set-row"><span class="grow"><b>초대 링크</b><small>${mdOf(l.until)}까지 · ${l.uses}명 들어옴</small></span><button class="btn" data-inv-off>링크 끄기</button></div>` : ''}
-    ${!owner ? '<div class="btns"><button class="btn danger wide" data-mate-leave>이 여행에서 나가기</button></div>'
-      : CLOUD.trip.slug !== TRIP_SLUG ? `<div class="btns"><button class="btn danger wide" data-trip-del>${icon('trash')}이 여행 삭제</button></div>` : ''}`;
+    ${!owner ? '<div class="btns"><button class="btn danger wide" data-mate-leave>이 여행에서 나가기</button></div>' : ''}`;
 }
 function cloudRefreshUi() {
   const el = $('#sheet-body .cloud-card');
