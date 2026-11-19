@@ -6277,7 +6277,7 @@ function fitTitle() {
 addEventListener('resize', fitTitle);
 
 // The version this running code belongs to; keep it equal to VERSION in sw.js.
-const APP_VERSION = 303;
+const APP_VERSION = 304;
 async function loadLatest() {
   try {
     const text = await (await fetch(`sw.js?t=${Date.now()}`, { cache: 'no-store' })).text();
@@ -6361,7 +6361,7 @@ async function copy(key) {
 const ACTIONS = '[data-tab],[data-go],[data-day],[data-nav],[data-ja],[data-ja-ask],[data-intro],[data-item],[data-check],[data-del],[data-done],[data-rate],[data-finish-open],'
   + '[data-close],[data-close-ja],[data-close-viewer],[data-copy],[data-copy-text],[data-open-secret],[data-doc-view],[data-doc-add],[data-doc-new],[data-doc-pick],[data-viewer-del],'
   + '[data-translate],[data-trans-app],[data-swap],[data-phrase],[data-speak],[data-speak-text],[data-talk-sheet],[data-phrase-step],[data-wx-refresh],'
-  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-trip-open],[data-trip-new],[data-trip-cancel],[data-trip-create],[data-nt-day],[data-nt-reset],[data-nt-month],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-inv-off],[data-inv-close],[data-inv-join],[data-inv-kakao],[data-join-code],[data-mate],[data-mate-kick],[data-mate-leave],[data-trip-del],[data-mate-all],[data-sync-build],[data-sync-share],[data-sync-pick],'
+  + '[data-band-off],[data-settings],[data-report-preview],[data-report-close],[data-report-image],[data-wx-fold],[data-sum-fold],[data-qk],[data-qk-min],[data-releg],[data-hotel-add],[data-route-retry],[data-qk-apply],[data-qk-swap],[data-talk-fold],[data-alt-pin],[data-rp-rate],[data-report-text],[data-seal],[data-start],[data-arrive],[data-squeeze-open],[data-squeeze],[data-place-new],[data-place-create],[data-place-del],[data-place-plan],[data-plan-save],[data-item-edit],[data-item-new],[data-catch],[data-day-edit],[data-item-restore],[data-day-reset],[data-f-kind],[data-f-adj],[data-f-dur],[data-f-pm],[data-edit-reset],[data-item-skip],[data-item-swap],[data-item-unswap],[data-item-del],[data-day-route],[data-day-share],[data-place-save],[data-place-visit],[data-ex-cat],[data-ex-area],[data-ex-toggle],[data-update],[data-alarm-sheet],[data-place],[data-go-exp],[data-exp-edit],[data-cash],[data-jump],[data-exp-view],[data-exp-rcpt],[data-gear],[data-prep],[data-wrap-day],[data-prep-done],[data-tomorrow],[data-nick],[data-brief],[data-req-open],[data-req-view],[data-req-attach],[data-req-unattach],[data-req-send],[data-req-open-one],[data-req-reply],[data-req-undo],[data-desk-save],[data-desk-forget],[data-desk-test],[data-sms-photo],[data-rcpt-ai],[data-geo-set],[data-auth-kakao],[data-auth-email],[data-auth-verify],[data-auth-back],[data-auth-out],[data-cloud-create],[data-cloud-now],[data-cloud-invite],[data-trip-open],[data-trip-new],[data-trip-cancel],[data-trip-create],[data-nt-day],[data-nt-reset],[data-nt-month],[data-menu-ai],[data-ai-plan],[data-ai-plan-go],[data-ai-plan-apply],[data-ai-eg],[data-ai-diary],[data-ai-trip-story],[data-diary-share],[data-find],[data-pick-local],[data-pn-manual],[data-place-refresh],[data-place-refresh-all],[data-ai-save],[data-ai-forget],[data-ai-test],[data-g-save],[data-g-forget],[data-g-test],[data-g-pick],[data-sms-open],[data-sms-paste],[data-sms-read],[data-sms-add],[data-day-sum],[data-exp-del],[data-budget],[data-inv-off],[data-inv-close],[data-inv-join],[data-inv-kakao],[data-join-code],[data-mate],[data-mate-kick],[data-mate-leave],[data-trip-del],[data-mate-role],[data-mate-day],[data-log-open],[data-log-undo],[data-mate-all],[data-sync-build],[data-sync-share],[data-sync-pick],'
   + '[data-talk-clear],[data-ex-clear],[data-sync-toggle],[data-fx],[data-fx-swap],[data-fx-clear],[data-fx-set],[data-fx-refresh],[data-fx-log]';
 
 document.addEventListener('click', async (e) => {
@@ -6369,6 +6369,7 @@ document.addEventListener('click', async (e) => {
   if (!el) return;
   const d = el.dataset;
   usageTrack(d);
+  if (!planGate(d)) return;
   if (d.tab) go(d.tab);
   else if (d.go) go(d.go);
   else if (d.day) { state.dayIndex = Number(d.day); store.set('day', state.dayIndex); render(); }
@@ -6691,6 +6692,10 @@ document.addEventListener('click', async (e) => {
   else if (d.mateKick) mateKick(d.mateKick);
   else if ('mateLeave' in d) mateLeave();
   else if ('tripDel' in d) tripDelete();
+  else if (d.mateRole) { const [id, r] = d.mateRole.split('|'); mateRole(id, r); }
+  else if (d.mateDay) { const [id, x] = d.mateDay.split('|'); mateDay(id, x); }
+  else if ('logOpen' in d) openLog();
+  else if (d.logUndo) logUndo(d.logUndo);
   else if ('mateAll' in d) { CLOUD.mateAll = true; cloudRefreshUi(); }
   else if ('tripOpen' in d) tripSwitch(d.tripOpen);
   else if ('tripNew' in d) { Object.assign(NT, { title: '', start: '', end: '', month: '' }); CLOUD.form = true; cloudRefreshUi(); setTimeout(() => $('#nt-title')?.focus(), 50); }
@@ -7377,7 +7382,7 @@ async function tripPlanSync(trip) {
       tripPlanShow(await res.json(), '');
     }
     const h = strHash(JSON.stringify(state.trip));
-    if (CLOUD.role !== 'viewer' && store.get('planPushed', '') !== h) {
+    if (CLOUD.role === 'owner' && store.get('planPushed', '') !== h) {
       const { error } = await sb().from('trips').update({ plan: state.trip, plan_rev: (trip.plan_rev || 1) + 1 }).eq('id', trip.id);
       if (!error) store.set('planPushed', h);
     }
@@ -7637,10 +7642,10 @@ async function cloudFindTrip(prefer = '') {
 }
 // 여행메이트 목록: 들어온 순서대로 색 점, 이름은 계정 닉네임. 나간 사람 이름은 이 폰에 남겨 둬요(지난 기록용).
 async function cloudMembers(trip) {
-  const { data: mem } = await sb().from('trip_members').select('user_id, role, joined_at').eq('trip_id', trip.id).order('joined_at');
+  const { data: mem } = await sb().from('trip_members').select('user_id, role, joined_at, days').eq('trip_id', trip.id).order('joined_at');
   const { data: pro } = await sb().from('profiles').select('id, nick').in('id', (mem || []).map((m) => m.user_id));
   const nick = new Map((pro || []).map((p) => [p.id, p.nick]));
-  CLOUD.members = (mem || []).map((m, i) => ({ id: m.user_id, role: m.role, nick: nick.get(m.user_id) || '여행자', color: MATE_COLORS[i % MATE_COLORS.length] }));
+  CLOUD.members = (mem || []).map((m, i) => ({ id: m.user_id, role: m.role, days: m.days || null, nick: nick.get(m.user_id) || '여행자', color: MATE_COLORS[i % MATE_COLORS.length] }));
   CLOUD.role = CLOUD.members.find((m) => m.id === AUTH.user.id)?.role || '';
   if (CLOUD.members.length) store.set('mateNames', { ...store.get('mateNames', {}), ...Object.fromEntries(CLOUD.members.map((m) => [m.id, m.nick])) });
   CLOUD.link = null;
@@ -7771,8 +7776,9 @@ async function cloudSync(full = false) {
     const rows = { trip_kv: [], trip_secrets: [] };
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (!isShared(k) || k === 'exp' || !canPush(k)) continue;
+      if (!isShared(k) || k === 'exp') continue;
       const t = meta[k] || 1;
+      if (!rolePush(k)) continue; // 권한 밖 변경은 이 폰에만 (권한이 생기면 그때 보내요)
       if (t > (sent[k] || 0)) rows[cloudTable(k)].push({ trip_id: id, key: k, value: { v: store.get(k, null), t } });
     }
     // 경비: 내 줄(exp:<내 계정>)만 보내요
@@ -7780,12 +7786,24 @@ async function cloudSync(full = false) {
     if (expT > (sent.exp || 0)) rows.trip_kv.push({ trip_id: id, key: 'exp:' + me, value: { v: expenses().filter((e) => expOwner(e) === me).map(({ own, ...e }) => e), t: expT } });
     const tombStr = JSON.stringify(store.get('tomb', {}));
     if (tombStr !== (sent.__tomb || '{}')) rows.trip_kv.push({ trip_id: id, key: 'tomb:' + me, value: { v: store.get('tomb', {}), t: Date.now() } });
+    const refusedKeys = new Set();
     for (const [table, list] of Object.entries(rows)) {
       for (let i = 0; i < list.length; i += 200) {
-        const { error } = await sb().from(table).upsert(list.slice(i, i + 200), { onConflict: 'trip_id,key' });
-        if (error) throw error;
+        const part = list.slice(i, i + 200);
+        const { error } = await sb().from(table).upsert(part, { onConflict: 'trip_id,key' });
+        if (error) {
+          if (!isRefused(error)) throw error; // 인터넷 등 다른 문제면 다음에 다시 보내요
+          // 권한이 막 바뀐 경우: 역할을 다시 받고, 한 줄씩 보내 거절된 건 이 폰에만 남겨요(보낸 것으로 치지 않음)
+          await cloudMembers(CLOUD.trip);
+          for (const row of part) {
+            const { error: e1 } = await sb().from(table).upsert([row], { onConflict: 'trip_id,key' });
+            if (e1 && !isRefused(e1)) throw e1;
+            if (e1) refusedKeys.add(row.key);
+          }
+          if (!CLOUD.refusedToast) { CLOUD.refusedToast = true; toast('권한이 바뀌어 일부 변경은 여행메이트에게 보내지 않았어요'); }
+        }
       }
-      for (const r of list) { if (r.key.startsWith('tomb')) sent.__tomb = tombStr; else if (r.key.startsWith('exp:')) sent.exp = r.value.t; else sent[r.key] = r.value.t; }
+      for (const r of list) { if (refusedKeys.has(r.key)) continue; if (r.key.startsWith('tomb')) sent.__tomb = tombStr; else if (r.key.startsWith('exp:')) sent.exp = r.value.t; else sent[r.key] = r.value.t; }
     }
     store.set('cloudSent', sent);
     // 3. 사진
@@ -7811,10 +7829,12 @@ async function cloudPhotos() {
   const tomb = store.get('tomb', {});
   let changed = false;
   const gone = [...remote].filter((k) => tomb['doc:' + k]);
-  if (gone.length && CLOUD.role !== 'viewer') await bucket.remove(gone.map((k) => `${id}/${docName(k)}`));
+  const myRcpt = (k) => k.startsWith('rcpt-') && k.includes(AUTH.user.id);
+  const del = CLOUD.role === 'viewer' ? gone.filter(myRcpt) : gone;
+  if (del.length) await bucket.remove(del.map((k) => `${id}/${docName(k)}`));
   for (const k of local) {
     if (tomb['doc:' + k]) { await docs.run('readwrite', (st) => st.delete(k)); changed = true; continue; }
-    if (remote.has(k) || CLOUD.role === 'viewer') continue;
+    if (remote.has(k) || (CLOUD.role === 'viewer' && !myRcpt(k))) continue;
     const blob = await docs.get(k);
     const { error: up } = await bucket.upload(`${id}/${docName(k)}`, blob, { contentType: blob.type || 'image/jpeg', upsert: false });
     if (up && !/exist|duplicate/i.test(up.message)) throw up;
@@ -8024,7 +8044,114 @@ async function tripPurgeLocal(id) {
   const ks = (await docs.run('readonly', (s) => s.getAllKeys())).map(String).filter((k) => k.startsWith(pre));
   if (ks.length) await docs.run('readwrite', (s) => { let r; for (const k of ks) r = s.delete(k); return r; });
 }
+// ---------- v304 역할 (보기만 · 함께 편집(맡은 날) · 여행 마스터) ----------
 const ROLE_KO = { owner: '여행 마스터', editor: '함께 편집', viewer: '보기만' };
+const meMember = () => CLOUD.members.find((m) => m.id === AUTH.user?.id);
+const inRoles = () => !!(CLOUD.trip && AUTH.user && CLOUD.role);
+// 이 날 일정을 바꿀 수 있나: 마스터 · 함께 편집(맡은 날이 없으면 모든 날)
+const canPlanDate = (date) => !inRoles() || CLOUD.role === 'owner' || (CLOUD.role === 'editor' && (!meMember()?.days?.length || (!!date && meMember().days.includes(date))));
+const allDays = () => !inRoles() || CLOUD.role === 'owner' || (CLOUD.role === 'editor' && !meMember()?.days?.length);
+// 일정을 바꾸는 버튼과 그 버튼이 바꾸는 날
+const PLAN_ACTS = {
+  itemEdit: 'item', catch: 'item', itemRestore: 'item', editReset: 'item', itemSkip: 'item', itemDel: 'item', itemUnswap: 'item',
+  done: 'item', start: 'item', arrive: 'item', squeezeOpen: 'date', releg: 'item', qk: 'pipe', qkSwap: 'pipe', altPin: 'pipe',
+  itemSwap: 'swap', qkApply: 'qk', squeeze: 'squeeze', itemNew: 'date', dayReset: 'date', seal: 'date', hotelAdd: 'pipeDate', dayEdit: 'today',
+  placePlan: 'all', planSave: 'all', placeNew: 'all', placeCreate: 'all', placeDel: 'all', budget: 'all', check: 'editor', del: 'editor', placeSave: 'editor',
+  aiPlan: 'all', aiPlanGo: 'all', aiPlanApply: 'aiDate',
+};
+function planGate(d) {
+  if (!inRoles()) return true;
+  const act = Object.keys(PLAN_ACTS).find((a) => a in d);
+  if (!act) return true;
+  const how = PLAN_ACTS[act], v = d[act];
+  const anyItem = (id) => planItems().find((x) => x.id === id);
+  if (how === 'item' && !anyItem(v)) return true; // 일정이 아닌 곳의 같은 이름 표시(예: 불러오는 중 상자)
+  if (CLOUD.role === 'viewer') { toast(act === 'placeSave' ? '보기만 권한이라 장소 저장은 여행 마스터·함께 편집만 할 수 있어요' : '보기만 권한이라 일정은 바꿀 수 없어요. 리뷰·평가와 경비는 남길 수 있어요'); return false; }
+  if (allDays() || how === 'editor') return true;
+  const date = how === 'item' ? anyItem(v)?.date : how === 'squeeze' ? state.squeeze?.date : how === 'aiDate' ? state.aiPlan?.date : how === 'pipe' ? findItem(String(v).split('|')[0])?.date
+    : how === 'swap' ? findItem(state.swapFor)?.date : how === 'qk' ? findItem(state.qk?.id)?.date
+    : how === 'date' ? v : how === 'pipeDate' ? String(v).split('|')[0] : how === 'today' ? state.trip.days[state.dayIndex]?.date : '';
+  if (date && canPlanDate(date)) return true;
+  const who = date && CLOUD.members.find((m) => m.role !== 'viewer' && m.days?.includes(date));
+  toast(how === 'all' ? '여러 날에 걸친 일정 바꾸기는 여행 마스터만 할 수 있어요' : `${date ? dayLabel(date) + '은 ' : ''}${who ? who.nick + '님이' : '다른 분이'} 짜는 날이에요`);
+  return false;
+}
+// 서버로 보낼 수 있는 키 (개인 키는 내 것만, 그 밖엔 마스터·함께 편집만)
+const isRefused = (e) => e?.code === '42501' || /row-level security|permission denied/i.test(e?.message || '');
+const rolePush = (k) => canPush(k) && (!!personalOwner(k) || CLOUD.role === 'owner' || CLOUD.role === 'editor');
+async function mateRole(id, role) {
+  if (CLOUD.role !== 'owner' || id === AUTH.user.id) return;
+  const { error } = await sb().from('trip_members').update({ role, days: null }).eq('trip_id', CLOUD.trip.id).eq('user_id', id);
+  if (error) return toast('권한을 바꾸지 못했어요. 잠시 뒤 다시 해 주세요');
+  CLOUD.members = CLOUD.members.map((m) => (m.id === id ? { ...m, role, days: null } : m));
+  cloudRefreshUi(); toast(`${CLOUD.members.find((m) => m.id === id)?.nick}님을 '${ROLE_KO[role]}'으로 바꿨어요`);
+}
+async function mateDay(id, date) {
+  const m = CLOUD.members.find((x) => x.id === id);
+  if (CLOUD.role !== 'owner' || !m || m.role !== 'editor') return;
+  const cur = m.days || [];
+  const days = date === 'all' ? null : cur.includes(date) ? cur.filter((x) => x !== date) : [...cur, date].sort();
+  const { error } = await sb().from('trip_members').update({ days: days?.length ? days : null }).eq('trip_id', CLOUD.trip.id).eq('user_id', id);
+  if (error) return toast('맡은 날짜를 바꾸지 못했어요. 잠시 뒤 다시 해 주세요');
+  CLOUD.members = CLOUD.members.map((x) => (x.id === id ? { ...x, days: days?.length ? days : null } : x));
+  cloudRefreshUi();
+}
+const roleLine = (m) => `${ROLE_KO[m.role] || ''}${m.role === 'editor' && m.days?.length ? ` · ${m.days.map((x) => `${+x.slice(5, 7)}/${+x.slice(8, 10)}`).join(', ')}` : ''}`;
+function mateActsHtml(m) {
+  const days = state.trip.days.map((x) => x.date);
+  return `<div class="mate-acts">
+      <div class="seg mate-seg">${['editor', 'viewer'].map((r) => `<button class="btn ${m.role === r ? 'on' : ''}" data-mate-role="${esc(m.id)}|${r}">${ROLE_KO[r]}</button>`).join('')}</div>
+      ${m.role === 'editor' ? `<div class="small muted">짜는 날 (고르지 않으면 모든 날)</div><div class="mate-days">
+        <button class="chip ${m.days?.length ? '' : 'on'}" data-mate-day="${esc(m.id)}|all">모든 날</button>
+        ${days.map((x) => `<button class="chip ${m.days?.includes(x) ? 'on' : ''}" data-mate-day="${esc(m.id)}|${x}">${+x.slice(5, 7)}/${+x.slice(8, 10)}</button>`).join('')}</div>`
+    : '<div class="small muted">일정은 볼 수만 있고, 리뷰·평가와 경비는 남길 수 있어요</div>'}
+      <button class="btn danger" data-mate-kick="${esc(m.id)}">내보내기</button>
+    </div>`;
+}
+// 변경 기록: 누가 · 언제 · 무엇을 (최근 100건). 마스터는 값 하나짜리 일정 기록을 되돌릴 수 있어요
+const LOG_UNDO = /^(edit|done|start|seal|save|ck):|^budget$/;
+function logWhat(r) {
+  const k = r.key, it = (id) => findItem(id)?.title || '일정', cnt = (x) => (Array.isArray(x) ? x.length : 0);
+  const t = (v) => (v && typeof v === 'object' ? v : {});
+  if (SECRET_KEYS.includes(k)) return '예약 정보를 바꿨어요';
+  if (k.startsWith('edit:')) {
+    const a = t(r.old), b = t(r.new);
+    if (a.start !== b.start && b.start) return `${it(k.slice(5))} 시간 ${a.start || '원래'} → ${b.start}`;
+    if (!a.skip && b.skip) return `${it(k.slice(5))} 건너뛰기`;
+    if (b.swap && a.swap !== b.swap) return `${it(k.slice(5))} 장소 바꿈`;
+    return r.new === null ? `${it(k.slice(5))} 원래 계획으로` : `${it(k.slice(5))} 일정을 바꿨어요`;
+  }
+  if (k.startsWith('done:')) return `${it(k.slice(5))} ${r.new ? '완료 표시' : '완료 취소'}`;
+  if (k.startsWith('start:')) return `${it(k.slice(6))} 시작`;
+  if (k.startsWith('seal:')) return `${dayLabel(k.slice(5))} 하루 마감`;
+  if (k === 'myitems') return cnt(r.new) > cnt(r.old) ? '일정을 추가했어요' : cnt(r.new) < cnt(r.old) ? '추가한 일정을 지웠어요' : '추가한 일정을 고쳤어요';
+  if (k === 'myplaces') return cnt(r.new) > cnt(r.old) ? '장소를 추가했어요' : '내 장소를 고쳤어요';
+  if (k.startsWith('exp')) return cnt(r.new) > cnt(r.old) ? `지출 ${cnt(r.new) - cnt(r.old)}건 기록` : cnt(r.new) < cnt(r.old) ? '지출을 지웠어요' : '지출을 고쳤어요';
+  if (k.startsWith('visit:')) return `${placeById(k.split(':')[1])?.name || '장소'} 평가·메모`;
+  if (k.startsWith('save:')) return `${placeById(k.slice(5))?.name || '장소'} ${r.new ? '저장' : '저장 취소'}`;
+  if (k === 'budget') return '예산을 바꿨어요';
+  if (k.startsWith('diary')) return '여행 일기';
+  return '기록을 바꿨어요';
+}
+async function openLog() {
+  if (!CLOUD.trip) return;
+  const { data, error } = await sb().from('trip_log').select('id, key, old, new, by, at').eq('trip_id', CLOUD.trip.id).order('id', { ascending: false }).limit(100);
+  if (error) return toast('변경 기록을 불러오지 못했어요. 잠시 뒤 다시 해 주세요');
+  state.logRows = data || [];
+  const when = (a) => { const x = new Date(a); return `${x.getMonth() + 1}/${x.getDate()} ${String(x.getHours()).padStart(2, '0')}:${String(x.getMinutes()).padStart(2, '0')}`; };
+  $('#sheet-body').innerHTML = `<div class="sheet-head"><h3>변경 기록</h3></div>
+    <div class="small muted">누가 언제 무엇을 바꿨는지 최근 100건이에요.${CLOUD.role === 'owner' ? ' 일정 기록은 되돌릴 수 있어요.' : ''}</div>
+    <div class="log-list">${state.logRows.map((r) => `<div class="set-row log-row"><span class="grow"><b>${esc(logWhat(r))}</b><small>${esc(nameOf(r.by) || '여행메이트')} · ${when(r.at)}</small></span>
+      ${CLOUD.role === 'owner' && LOG_UNDO.test(r.key) && !(r.key === 'budget' && r.old == null) ? `<button class="btn" data-log-undo="${r.id}">되돌리기</button>` : ''}</div>`).join('') || '<div class="muted">아직 기록이 없어요</div>'}</div>`;
+  $('#sheet').hidden = false;
+}
+function logUndo(id) {
+  const r = (state.logRows || []).find((x) => String(x.id) === String(id));
+  if (!r || CLOUD.role !== 'owner') return;
+  store.set(r.key, r.old ?? null);
+  cloudSoon(); render(); closeSheet();
+  toast(`되돌렸어요: ${logWhat(r)}`);
+}
 function mateListHtml() {
   const list = CLOUD.members;
   const all = CLOUD.mateAll || list.length <= 6;
@@ -8037,16 +8164,18 @@ function mateListHtml() {
       const me = m.id === AUTH.user.id;
       const open = CLOUD.mateOpen === m.id;
       return `<div class="mate-row ${open ? 'open' : ''}"><i class="mate-dot" style="background:${m.color}"></i>
-        <span class="grow"><b>${esc(m.nick)}${me ? ' <small class="mate-me">나</small>' : ''}</b><small>${ROLE_KO[m.role] || ''}</small></span>
+        <span class="grow"><b>${esc(m.nick)}${me ? ' <small class="mate-me">나</small>' : ''}</b><small>${esc(roleLine(m))}</small></span>
         ${me ? `<button class="btn mate-btn" data-nick aria-label="내 닉네임 바꾸기">${icon('pen')}</button>`
           : owner ? `<button class="btn mate-btn" data-mate="${esc(m.id)}">${open ? '닫기' : '관리'}</button>` : ''}
-        ${open ? `<div class="mate-acts"><button class="btn danger" data-mate-kick="${esc(m.id)}">내보내기</button></div>` : ''}
+        ${open ? mateActsHtml(m) : ''}
       </div>`; }).join('')}
       ${all ? '' : `<button class="btn wide" data-mate-all>외 ${list.length - 6}명 더 보기</button>`}</div>
-    ${owner && l ? `<div class="set-row"><span class="grow"><b>초대 링크</b><small>${mdOf(l.until)}까지 · ${l.uses}명 들어옴</small></span><button class="btn" data-inv-off>링크 끄기</button></div>` : ''}
+    ${owner && l ? `<div class="set-row"><span class="grow"><b>초대 링크</b><small>${mdOf(l.until)}까지 · ${l.uses}명 들어옴 · 새로 들어오면 '보기만'</small></span><button class="btn" data-inv-off>링크 끄기</button></div>` : ''}
+    <div class="btns"><button class="btn wide" data-log-open>${icon('clock')}변경 기록</button></div>
     ${!owner ? '<div class="btns"><button class="btn danger wide" data-mate-leave>이 여행에서 나가기</button></div>' : ''}`;
 }
 function cloudRefreshUi() {
+  document.body.classList.toggle('role-viewer', inRoles() && CLOUD.role === 'viewer');
   const el = $('#sheet-body .cloud-card');
   if (el) el.outerHTML = cloudCard();
 }
